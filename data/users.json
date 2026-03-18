@@ -1,0 +1,19 @@
+{
+  "770340293097816084": {
+    "wallet": 91,
+    "bank": 1900510,
+    "lastDaily": null,
+    "inventory": [],
+    "bannedUntil": null,
+    "hitmanCount": 0
+  },
+  "1425091994664964106": {
+    "wallet": 409,
+    "bank": 0,
+    "lastDaily": null,
+    "inventory": [],
+    "bannedUntil": null,
+    "hitmanCount": 0,
+    "roleIncomeCooldowns": {}
+  }
+}
