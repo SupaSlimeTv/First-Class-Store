@@ -1,0 +1,20 @@
+{
+  "name": "discord-bot-v2",
+  "version": "2.0.0",
+  "description": "Economy + Games + Moderation Discord Bot with Slash Commands",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "deploy": "node deploy-commands.js",
+    "dashboard": "node dashboard/server.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
