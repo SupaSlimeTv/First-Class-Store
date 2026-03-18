@@ -345,6 +345,6 @@ app.get('*', (req, res) => {
   res.redirect('/login.html');
 });
 
-app.listen(PORT, () => {
-  console.log(`🖥️  Dashboard running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🖥️  Dashboard running at http://0.0.0.0:${PORT}`);
 });
