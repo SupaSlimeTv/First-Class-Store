@@ -474,11 +474,14 @@ setInterval(async () => {
 }, 5000);
 
 // ---- PASSIVE INCOME TICK ENGINE ----
-// Every 60 seconds, check all users with active passive income effects
-// and pay out any ticks that are due
 const { tickPassiveIncome } = require('./utils/effects');
 setInterval(tickPassiveIncome, 60_000);
-tickPassiveIncome(); // run once immediately on startup
+tickPassiveIncome();
+
+// ---- DASHBOARD SERVER (merged into bot process) ----
+// Running both bot + dashboard in one process means they share
+// the same filesystem — no sync issues on Railway.
+require('./dashboard/server.js');
 
 // ---- LOGIN ----
 client.login(process.env.TOKEN);

@@ -137,6 +137,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <span id="status-txt" class="status-txt">Connecting...</span>
       <span class="status-txt" id="refresh-ts" style="margin-left:8px;opacity:.5"></span>
       <button class="btn btn-ghost btn-sm" onclick="manualRefresh()" style="margin-left:12px;font-size:12px" title="Force sync now">⟳ Sync</button>
+      <div id="user-info" style="display:flex;align-items:center;gap:8px;margin-left:16px;padding-left:16px;border-left:1px solid var(--border)">
+        <img id="user-avatar" src="" style="width:28px;height:28px;border-radius:50%;display:none">
+        <div>
+          <div id="user-name" style="font-size:12px;font-weight:700;color:var(--text)"></div>
+          <div id="user-role" style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--muted)"></div>
+        </div>
+        <a href="/auth/logout" class="btn btn-ghost btn-sm" style="font-size:11px;margin-left:4px">Logout</a>
+      </div>
     </div>
   </div>
   <div class="content">
@@ -160,7 +168,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
 
       <!-- PREFIX EDITOR -->
-      <div class="purge-panel" style="margin-bottom:14px">
+      <div class="purge-panel owner-only" style="margin-bottom:14px">
         <div class="purge-info">
           <h3>Command Prefix</h3>
           <p>Users can type <strong id="prefix-display">!</strong>balance or <strong id="prefix-display2">!</strong>bal instead of using slash commands. Change it here anytime.</p>
@@ -172,7 +180,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
 
       <!-- RESTRICTED ROLE -->
-      <div class="purge-panel" style="margin-bottom:14px">
+      <div class="purge-panel owner-only" style="margin-bottom:14px">
         <div class="purge-info">
           <h3>🔒 Restricted Commands Role</h3>
           <p>Only members with this role can use <strong>hitman</strong> and <strong>attack items</strong>. Leave blank to allow everyone. Admins always bypass this.</p>
@@ -188,7 +196,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
 
       <!-- ROB COOLDOWN -->
-      <div class="purge-panel" style="margin-bottom:0">
+      <div class="purge-panel owner-only" style="margin-bottom:0">
         <div class="purge-info">
           <h3>⏱️ Rob Cooldown</h3>
           <p>How many minutes users must wait between rob attempts. Set to <strong>0</strong> to remove the cooldown entirely. During the purge the cooldown is always removed regardless of this setting.</p>
@@ -637,8 +645,40 @@ tr:hover td{background:rgba(255,255,255,.015)}
 <div id="toast"></div>
 
 <script>
-let S={users:[],store:[],purgeActive:false,stats:{},effects:{}};
+let S={users:[],store:[],purgeActive:false,stats:{},effects:{},role:'owner'};
 let editId=null,outcomes=[];
+
+// ════════════════════════════════════════════════
+// AUTH INIT — load current user and apply role restrictions
+// ════════════════════════════════════════════════
+async function initAuth() {
+  try {
+    const me = await api('GET', '/api/me');
+    if (!me || me.error) { window.location.href = '/login.html'; return; }
+    S.role = me.role;
+
+    // Show user info in topbar
+    if (me.avatar) {
+      document.getElementById('user-avatar').src = me.avatar;
+      document.getElementById('user-avatar').style.display = 'block';
+    }
+    document.getElementById('user-name').textContent = me.username;
+    document.getElementById('user-role').textContent = me.role === 'owner' ? '👑 Owner' : '🛡️ Moderator';
+
+    // Hide owner-only nav items and sections from mods
+    if (me.role !== 'owner') {
+      const ownerOnly = ['store','protected','purge'];
+      ownerOnly.forEach(s => {
+        const navItem = document.querySelector(`[data-s="${s}"]`);
+        if (navItem) navItem.style.display = 'none';
+      });
+      // Hide edit controls in overview
+      document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'none');
+    }
+  } catch {
+    window.location.href = '/login.html';
+  }
+}
 
 function nav(n){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -1349,6 +1389,9 @@ async function manualRefresh() {
 
 safeRefresh();
 setInterval(safeRefresh, 15000);
+
+// Init auth on page load
+initAuth();
 </script>
 </body>
 </html>
