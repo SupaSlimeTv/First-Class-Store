@@ -564,22 +564,7 @@ async function tickLottery() {
   } catch (e) { console.error('Lottery tick error:', e); }
 }
 
-setInterval(tickLottery, 60_000); // check every minute
-
-// ---- LOTTERY DRAW ENGINE ----
-const { getLottery, runDraw } = require('./utils/lottery');
-setInterval(() => {
-  try {
-    const lottery = getLottery();
-    if (!lottery.active) return;
-    const intervalMs = (lottery.drawIntervalHours || 24) * 3600000;
-    const lastDraw   = lottery.lastDraw || 0;
-    if (Date.now() - lastDraw >= intervalMs) {
-      const result = runDraw(client);
-      if (result) console.log(`🎟️ Lottery draw: ${result.winnerId} won $${result.prize}`);
-    }
-  } catch (e) { console.error('Lottery draw error:', e); }
-}, 60_000);
+setInterval(tickLottery, 60_000);
 
 // ---- DASHBOARD SERVER ----
 require('./dashboard/server.js');
