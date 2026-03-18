@@ -487,11 +487,6 @@ const { tickPassiveIncome } = require('./utils/effects');
 setInterval(tickPassiveIncome, 60_000);
 tickPassiveIncome();
 
-// ---- PASSIVE INCOME TICK ENGINE ----
-const { tickPassiveIncome } = require('./utils/effects');
-setInterval(tickPassiveIncome, 60_000);
-tickPassiveIncome();
-
 // ---- STOCK PRICE TICK ENGINE ----
 const stockFs   = require('fs');
 const stockPath = require('path');
