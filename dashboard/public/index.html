@@ -1070,6 +1070,8 @@ async function clearPurgeChannel(){
     document.getElementById('purge-channel-status').textContent='No channel set — announcements disabled';
   } else toast(r.error||'Failed','err');
 }
+
+async function saveRobCooldown(){
   const val=document.getElementById('rob-cooldown-input').value;
   const mins=parseFloat(val);
   if(isNaN(mins)||mins<0){toast('Enter a valid number (0 or more)','err');return;}
