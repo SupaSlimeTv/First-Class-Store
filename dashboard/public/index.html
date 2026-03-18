@@ -145,7 +145,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <!-- OVERVIEW -->
     <div id="section-overview" class="section active">
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Server Members</div><div class="stat-val c-blue" id="s-members">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Members (All Servers)</div><div class="stat-val c-blue" id="s-members">—</div></div>
         <div class="stat-card"><div class="stat-label">Accounts Open</div><div class="stat-val c-green" id="s-users">—</div></div>
         <div class="stat-card"><div class="stat-label">Economy Total</div><div class="stat-val c-gold" id="s-money">—</div></div>
         <div class="stat-card"><div class="stat-label">Store Items</div><div class="stat-val" id="s-items">—</div></div>
@@ -208,12 +208,17 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div class="tbl-wrap">
         <div class="tbl-head">
           <h3>All Users</h3>
-          <input class="search" placeholder="Filter by ID..." oninput="filterUsers(this.value)">
+          <input class="search" placeholder="Filter by name or ID..." oninput="filterUsers(this.value)" id="user-search">
         </div>
         <table>
           <thead><tr><th>#</th><th>User</th><th>Account</th><th>Wallet</th><th>Bank</th><th>Total</th><th>Status</th><th>Items</th><th>Actions</th></tr></thead>
           <tbody id="users-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
         </table>
+        <!-- PAGINATION -->
+        <div id="users-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--muted)" id="users-page-info"></div>
+          <div style="display:flex;gap:6px" id="users-page-btns"></div>
+        </div>
       </div>
     </div>
 
@@ -792,7 +797,10 @@ async function refresh(){
     api('GET','/api/config'),api('GET','/api/effects')
   ]);
   S={...S,stats,users,store:store.items||[],purgeActive:config.purgeActive,effects};
-  renderStats();renderUsers(S.users);renderStore();renderPurge();renderEffects();
+  filteredUsers = [...S.users];
+  const q = document.getElementById('user-search')?.value || '';
+  if (q) filteredUsers = S.users.filter(u => u.username.toLowerCase().includes(q.toLowerCase()) || u.id.includes(q));
+  renderStats();renderUsers(filteredUsers);renderStore();renderPurge();renderEffects();
   await loadRoleIncome();
   await loadProtectedRoles();
   await loadGuildRoles();
@@ -846,55 +854,93 @@ function renderStats(){
   pe.className='stat-val '+(s.purgeActive?'c-red':'c-green');
 }
 
-function filterUsers(q){renderUsers(S.users.filter(u=>u.username.toLowerCase().includes(q.toLowerCase())||u.id.includes(q)))}
-function renderUsers(list){
-  const tb=document.getElementById('users-tbody');
-  if(!list.length){tb.innerHTML='<tr><td colspan="9" class="empty-cell">No users.</td></tr>';return}
-  tb.innerHTML=list.map((u,i)=>{
-    const banned=u.bannedUntil&&u.bannedUntil>Date.now();
-    const bm=banned?Math.ceil((u.bannedUntil-Date.now())/60000):0;
-    const avatar=u.avatar
-      ?`<img src="${u.avatar}" style="width:26px;height:26px;border-radius:50%;margin-right:8px;vertical-align:middle;object-fit:cover" onerror="this.style.display='none'">`
-      :'<span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:var(--border2);margin-right:8px;vertical-align:middle;text-align:center;line-height:26px;font-size:12px">?</span>';
-    const accountTag=u.hasAccount
-      ?`<span class="tag t-green">✅ Open</span>`
-      :`<span class="tag t-muted">❌ None</span>`;
-    const walletCell=u.hasAccount
-      ?`<input class="iinput" value="${u.wallet}" onblur="upd('${u.id}',this.value,null)" onkeydown="if(event.key==='Enter')this.blur()">`
-      :`<span style="color:var(--muted);font-size:11px">—</span>`;
-    const bankCell=u.hasAccount
-      ?`<input class="iinput" value="${u.bank}" onblur="upd('${u.id}',null,this.value)" onkeydown="if(event.key==='Enter')this.blur()">`
-      :`<span style="color:var(--muted);font-size:11px">—</span>`;
-    const totalCell=u.hasAccount
-      ?`<span class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</span>`
-      :`<span style="color:var(--muted);font-size:11px">—</span>`;
-    const itemBtns=u.hasAccount
-      ?`<button class="btn btn-ghost btn-sm" onclick="viewInventory('${u.id}','${u.username}')">🎒 Inv</button>
-        <button class="btn btn-ghost btn-sm" onclick="openGiveItem('${u.id}','${u.username}')">Give</button>
-        <button class="btn btn-danger btn-sm" onclick="openTakeItem('${u.id}','${u.username}')">Take</button>`
-      :`<span style="color:var(--muted);font-size:11px">—</span>`;
-    return`<tr>
-      <td class="mono" style="color:var(--muted)">${i+1}</td>
-      <td>
-        <div style="display:flex;align-items:center">
-          ${avatar}
-          <div>
-            <div style="font-weight:600;font-size:13px">${u.username}</div>
-            <div class="mono" style="font-size:10px;color:var(--muted)">${u.id}</div>
-          </div>
-        </div>
-      </td>
-      <td>${accountTag}</td>
-      <td>${walletCell}</td>
-      <td>${bankCell}</td>
-      <td>${totalCell}</td>
-      <td>${banned?`<span class="tag t-red">🔇 ${bm}m</span>`:`<span class="tag t-green">Active</span>`}</td>
-      <td style="display:flex;gap:4px;flex-wrap:wrap">${itemBtns}</td>
-      <td>${banned?`<button class="btn btn-ghost btn-sm" onclick="unban('${u.id}')">Unban</button>`:''}</td>
-    </tr>`;
-  }).join('');
+const PAGE_SIZE = 20;
+let usersPage = 0;
+let filteredUsers = [];
+
+function filterUsers(q) {
+  usersPage = 0;
+  filteredUsers = q
+    ? S.users.filter(u => u.username.toLowerCase().includes(q.toLowerCase()) || u.id.includes(q))
+    : [...S.users];
+  renderUsers(filteredUsers);
 }
-async function upd(id,w,b){
+
+function renderUsers(list) {
+  filteredUsers = list;
+  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  if (usersPage >= totalPages) usersPage = totalPages - 1;
+
+  const start = usersPage * PAGE_SIZE;
+  const slice = list.slice(start, start + PAGE_SIZE);
+
+  const tb = document.getElementById('users-tbody');
+  if (!slice.length) {
+    tb.innerHTML = '<tr><td colspan="9" class="empty-cell">No users found.</td></tr>';
+  } else {
+    tb.innerHTML = slice.map((u, i) => {
+      const rank   = start + i + 1;
+      const banned = u.bannedUntil && u.bannedUntil > Date.now();
+      const bm     = banned ? Math.ceil((u.bannedUntil - Date.now()) / 60000) : 0;
+      const avatar = u.avatar
+        ? `<img src="${u.avatar}" style="width:26px;height:26px;border-radius:50%;margin-right:8px;vertical-align:middle;object-fit:cover" onerror="this.style.display='none'">`
+        : '<span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:var(--border2);margin-right:8px;vertical-align:middle;text-align:center;line-height:26px;font-size:12px">?</span>';
+      const accountTag = u.hasAccount ? `<span class="tag t-green">✅ Open</span>` : `<span class="tag t-muted">❌ None</span>`;
+      const walletCell = u.hasAccount ? `<input class="iinput" value="${u.wallet}" onblur="upd('${u.id}',this.value,null)" onkeydown="if(event.key==='Enter')this.blur()">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      const bankCell   = u.hasAccount ? `<input class="iinput" value="${u.bank}" onblur="upd('${u.id}',null,this.value)" onkeydown="if(event.key==='Enter')this.blur()">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      const totalCell  = u.hasAccount ? `<span class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</span>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      const itemBtns   = u.hasAccount
+        ? `<button class="btn btn-ghost btn-sm" onclick="viewInventory('${u.id}','${u.username}')">🎒 Inv</button>
+           <button class="btn btn-ghost btn-sm" onclick="openGiveItem('${u.id}','${u.username}')">Give</button>
+           <button class="btn btn-danger btn-sm" onclick="openTakeItem('${u.id}','${u.username}')">Take</button>`
+        : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      return `<tr>
+        <td class="mono" style="color:var(--muted)">${rank}</td>
+        <td><div style="display:flex;align-items:center">${avatar}<div><div style="font-weight:600;font-size:13px">${u.username}</div><div class="mono" style="font-size:10px;color:var(--muted)">${u.id}</div></div></div></td>
+        <td>${accountTag}</td>
+        <td>${walletCell}</td>
+        <td>${bankCell}</td>
+        <td>${totalCell}</td>
+        <td>${banned ? `<span class="tag t-red">🔇 ${bm}m</span>` : `<span class="tag t-green">Active</span>`}</td>
+        <td style="display:flex;gap:4px;flex-wrap:wrap">${itemBtns}</td>
+        <td>${banned ? `<button class="btn btn-ghost btn-sm" onclick="unban('${u.id}')">Unban</button>` : ''}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Page info
+  document.getElementById('users-page-info').textContent =
+    `Showing ${start + 1}–${Math.min(start + PAGE_SIZE, list.length)} of ${list.length} users`;
+
+  // Page buttons
+  const btnsEl = document.getElementById('users-page-btns');
+  let btns = '';
+
+  // Prev
+  btns += `<button class="btn btn-sm" style="background:${usersPage===0?'var(--bg4)':'var(--accent)'};color:${usersPage===0?'var(--muted)':'#fff'};border:none" ${usersPage===0?'disabled':''} onclick="goUsersPage(${usersPage-1})">◀</button>`;
+
+  // Page number buttons — show up to 7 around current
+  const maxBtns = 7;
+  let startPage = Math.max(0, usersPage - 3);
+  let endPage   = Math.min(totalPages - 1, startPage + maxBtns - 1);
+  if (endPage - startPage < maxBtns - 1) startPage = Math.max(0, endPage - maxBtns + 1);
+
+  for (let p = startPage; p <= endPage; p++) {
+    const active = p === usersPage;
+    btns += `<button class="btn btn-sm" style="background:${active?'var(--accent)':'var(--bg4)'};color:${active?'#fff':'var(--muted)'};border:${active?'none':'1px solid var(--border)'};min-width:32px" onclick="goUsersPage(${p})">${p+1}</button>`;
+  }
+
+  // Next
+  btns += `<button class="btn btn-sm" style="background:${usersPage>=totalPages-1?'var(--bg4)':'var(--accent)'};color:${usersPage>=totalPages-1?'var(--muted)':'#fff'};border:none" ${usersPage>=totalPages-1?'disabled':''} onclick="goUsersPage(${usersPage+1})">▶</button>`;
+
+  btnsEl.innerHTML = btns;
+}
+function goUsersPage(p) {
+  usersPage = p;
+  renderUsers(filteredUsers);
+  // Scroll table into view
+  document.getElementById('users-tbody').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
   const body={};
   if(w!=null)body.wallet=parseInt(w)||0;
   if(b!=null)body.bank=parseInt(b)||0;

@@ -54,8 +54,24 @@ app.get('/api/stats', async (req, res) => {
   const totalMoney = userList.reduce((s, u) => s + u.wallet + u.bank, 0);
   let totalMembers = userList.length;
   try {
-    const r = await fetch(`https://discord.com/api/v10/guilds/${GUILD_ID}?with_counts=true`, { headers: { Authorization: `Bot ${process.env.TOKEN}` } });
-    if (r.ok) { const g = await r.json(); totalMembers = g.approximate_member_count || totalMembers; }
+    // Fetch all guilds the bot is in
+    const guildsRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+      headers: { Authorization: `Bot ${process.env.TOKEN}` },
+    });
+    if (guildsRes.ok) {
+      const guilds = await guildsRes.json();
+      // Sum approximate member counts across all guilds
+      let total = 0;
+      for (const guild of guilds) {
+        try {
+          const gr = await fetch(`https://discord.com/api/v10/guilds/${guild.id}?with_counts=true`, {
+            headers: { Authorization: `Bot ${process.env.TOKEN}` },
+          });
+          if (gr.ok) { const g = await gr.json(); total += g.approximate_member_count || 0; }
+        } catch {}
+      }
+      if (total > 0) totalMembers = total;
+    }
   } catch {}
   res.json({ totalUsers: userList.length, totalMembers, totalMoney, storeItems: (store.items||[]).length, purgeActive: config.purgeActive, totalWarnings: 0, modRoles: Object.keys(config.modRoles||{}).length });
 });
