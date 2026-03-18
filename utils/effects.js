@@ -504,6 +504,45 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
       };
     }
 
+    // ----------------------------------------------------------
+    // MINIGAME DRAIN — target's bank (and optionally wallet) drained
+    // only if the attacker solves a scrambled word in time.
+    // Returns { needsMinigame: true, ... } — use.js handles the rest.
+    // ----------------------------------------------------------
+    case 'minigame_drain': {
+      if (!targetId) return { success: false, title: 'Target Required', description: 'This item requires a target.' };
+
+      // Protected role check
+      const mgConfig    = db.getConfig();
+      const mgProtected = mgConfig.protectedRoles || [];
+      if (targetMember && mgProtected.some(r => targetMember.roles.cache.has(r))) {
+        return { success: false, title: '🛡️ Target Protected', description: `<@${targetId}> has a protected role and cannot be attacked.` };
+      }
+
+      // Shield check
+      const targetEffects = getUserEffects(targetId);
+      if (targetEffects.shield) {
+        const shield = targetEffects.shield;
+        if (Date.now() < shield.expiresAt && shield.blocksLeft > 0) {
+          shield.blocksLeft--;
+          if (shield.blocksLeft <= 0) targetEffects.shield = null;
+          saveUserEffects(targetId, targetEffects);
+          return { success: false, title: '🛡️ Blocked!', description: `<@${targetId}>'s shield absorbed the attack!` };
+        } else {
+          targetEffects.shield = null;
+          saveUserEffects(targetId, targetEffects);
+        }
+      }
+
+      // Signal use.js to run the minigame — pass all needed data
+      return {
+        success: true,
+        needsMinigame: true,
+        effect,
+        targetId,
+      };
+    }
+
     default:
       return { success: false, title: 'Unknown Effect', description: `Effect type "${effect.type}" is not recognized.` };
   }

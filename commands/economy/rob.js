@@ -25,15 +25,17 @@ module.exports = {
     if (target.bot)             return interaction.reply({ embeds: [errorEmbed("You can't rob a bot!")],   ephemeral: true });
 
     // ---- PROTECTED ROLE CHECK ----
-    // Works even during purge — protected roles are always safe
-    const protectedRoles = config.protectedRoles || [];
-    if (protectedRoles.length) {
+    const protectedRoles = Array.isArray(config.protectedRoles) ? config.protectedRoles : [];
+    if (protectedRoles.length > 0) {
       const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
-      if (targetMember && protectedRoles.some(roleId => targetMember.roles.cache.has(roleId))) {
-        return interaction.reply({
-          embeds: [errorEmbed(`🛡️ **${target.username}** is protected and cannot be robbed.`)],
-          ephemeral: true,
-        });
+      if (targetMember) {
+        const isProtected = protectedRoles.some(roleId => targetMember.roles.cache.has(roleId));
+        if (isProtected) {
+          return interaction.reply({
+            embeds: [errorEmbed(`🛡️ **${target.username}** is protected and cannot be robbed.`)],
+            ephemeral: true,
+          });
+        }
       }
     }
 

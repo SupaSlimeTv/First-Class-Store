@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUser, saveUser, getStore, giveItem, isBotBanned } = require('../../utils/db');
+const { getUser, getOrCreateUser, saveUser, getStore, giveItem, isBotBanned } = require('../../utils/db');
 const { shopEmbed, purchaseEmbed, errorEmbed, COLORS } = require('../../utils/embeds');
 
 module.exports = {

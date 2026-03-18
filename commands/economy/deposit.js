@@ -12,7 +12,7 @@ module.exports = {
     if (isPurgeActive()) {
       return interaction.reply({ embeds: [errorEmbed('🔴 **THE PURGE IS ACTIVE!**\nDeposits are disabled.')], ephemeral: true });
     }
-    const user  = getUser(interaction.user.id);
+    const user  = getOrCreateUser(interaction.user.id);
     const input = interaction.options.getString('amount').toLowerCase();
     const amount = input === 'all' ? user.wallet : parseInt(input);
 

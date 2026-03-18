@@ -1,34 +1,26 @@
-// ============================================================
-// commands/economy/balance.js
-// Slash command: /balance [user]
-// Shows wallet + bank balance. Optionally check another user.
-// ============================================================
-
 const { SlashCommandBuilder } = require('discord.js');
 const { getUser } = require('../../utils/db');
 const { balanceEmbed, errorEmbed } = require('../../utils/embeds');
+const { noAccount } = require('../../utils/accountCheck');
 
 module.exports = {
-  // SlashCommandBuilder defines what the slash command looks like in Discord
   data: new SlashCommandBuilder()
     .setName('balance')
     .setDescription('Check your wallet and bank balance.')
-    .addUserOption((option) =>
-      option
-        .setName('user')
-        .setDescription('Check another user\'s balance (optional)')
-        .setRequired(false) // optional — if not provided, shows your own
-    ),
+    .addUserOption((o) => o.setName('user').setDescription("Check another user's balance").setRequired(false)),
 
   async execute(interaction) {
-    // Get the optional user argument — defaults to the person who ran the command
-    // interaction.options.getUser() returns a Discord User object or null
     const target = interaction.options.getUser('user') || interaction.user;
-
     const userData = getUser(target.id);
-
-    await interaction.reply({
-      embeds: [balanceEmbed(userData, target)],
-    });
+    if (!userData) {
+      const isSelf = target.id === interaction.user.id;
+      return interaction.reply({
+        embeds: [errorEmbed(isSelf
+          ? `You don't have an account yet! Type \`!open account\` to get started.`
+          : `**${target.username}** doesn't have an account yet.`)],
+        ephemeral: true,
+      });
+    }
+    await interaction.reply({ embeds: [balanceEmbed(userData, target)] });
   },
 };

@@ -42,21 +42,59 @@ const DEFAULT_USER = {
   inventory: [],
   bannedUntil: null,
   hitmanCount: 0,
-  roleIncomeCooldowns: {}, // { roleId: lastCollectedTimestamp }
+  roleIncomeCooldowns: {},
+  accountOpen: true, // false = user hasn't opened an account yet
 };
 
 /**
- * Get a user's data. Creates them with defaults if they don't exist yet.
+ * Get a user's data — returns null if they haven't opened an account yet.
  * @param {string} userId - Discord user ID
  */
 function getUser(userId) {
   const users = readJSON(USERS_FILE);
-  if (!users[userId]) {
-    // New user — give them starting money
-    users[userId] = { ...DEFAULT_USER }; // spread copies defaults into a new object
+  if (!users[userId]) return null;
+  // Backfill accountOpen for existing users
+  if (users[userId].accountOpen === undefined) {
+    users[userId].accountOpen = true;
     writeJSON(USERS_FILE, users);
   }
   return users[userId];
+}
+
+/**
+ * Get or create a user — used internally where we always need a user object.
+ * Only call this after confirming the user has an account.
+ */
+function getOrCreateUser(userId) {
+  const users = readJSON(USERS_FILE);
+  if (!users[userId]) {
+    users[userId] = { ...DEFAULT_USER };
+    writeJSON(USERS_FILE, users);
+  }
+  if (users[userId].accountOpen === undefined) {
+    users[userId].accountOpen = true;
+    writeJSON(USERS_FILE, users);
+  }
+  return users[userId];
+}
+
+/**
+ * Open a new account for a user — called when they type "open account"
+ */
+function openAccount(userId) {
+  const users = readJSON(USERS_FILE);
+  if (users[userId]) return false; // already exists
+  users[userId] = { ...DEFAULT_USER, accountOpen: true };
+  writeJSON(USERS_FILE, users);
+  return true;
+}
+
+/**
+ * Check if a user has an account
+ */
+function hasAccount(userId) {
+  const users = readJSON(USERS_FILE);
+  return !!users[userId];
 }
 
 /**
@@ -92,7 +130,8 @@ const DEFAULT_CONFIG = {
   roleIncome: {},
   restrictedRoleId: null,
   robCooldownMinutes: 5,
-  protectedRoles: [], // role IDs — members with these roles cannot be robbed or hitman'd
+  protectedRoles: [],
+  purgeChannelId: null, // channel ID where purge @everyone announcements are sent
 };
 
 function getConfig() {
@@ -223,6 +262,9 @@ function isBotBanned(userId) {
 
 module.exports = {
   getUser,
+  getOrCreateUser,
+  openAccount,
+  hasAccount,
   saveUser,
   getAllUsers,
   saveAllUsers,

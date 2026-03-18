@@ -9,7 +9,7 @@
 // ============================================================
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUser, saveUser, getConfig, isBotBanned } = require('../../utils/db');
+const { getUser, getOrCreateUser, saveUser, getConfig, isBotBanned } = require('../../utils/db');
 const { errorEmbed, COLORS } = require('../../utils/embeds');
 
 module.exports = {

@@ -294,6 +294,15 @@ app.post('/api/config/restricted-role', (req, res) => {
   res.json({ success: true, restrictedRoleId: config.restrictedRoleId });
 });
 
+// Update purge announcement channel
+app.post('/api/config/purge-channel', (req, res) => {
+  const { channelId } = req.body;
+  const config = db.getConfig();
+  config.purgeChannelId = channelId || null;
+  db.saveConfig(config);
+  res.json({ success: true, purgeChannelId: config.purgeChannelId });
+});
+
 // Update rob cooldown
 app.post('/api/config/rob-cooldown', (req, res) => {
   const { minutes } = req.body;

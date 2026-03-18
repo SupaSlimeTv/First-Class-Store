@@ -136,6 +136,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div id="status-dot" class="dot"></div>
       <span id="status-txt" class="status-txt">Connecting...</span>
       <span class="status-txt" id="refresh-ts" style="margin-left:8px;opacity:.5"></span>
+      <button class="btn btn-ghost btn-sm" onclick="manualRefresh()" style="margin-left:12px;font-size:12px" title="Force sync now">⟳ Sync</button>
     </div>
   </div>
   <div class="content">
@@ -300,12 +301,30 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
         <button class="btn btn-danger" id="pf-btn" onclick="togglePurge()">Start Purge</button>
       </div>
+
+      <!-- ANNOUNCEMENT CHANNEL -->
+      <div class="purge-panel" style="margin-bottom:20px">
+        <div class="purge-info">
+          <h3>📢 Announcement Channel</h3>
+          <p>When the purge starts or ends, the bot will @everyone in this channel. Get the channel ID by right-clicking any channel in Discord → Copy Channel ID (requires Developer Mode).</p>
+          <p id="purge-channel-status" style="margin-top:4px;color:var(--muted);font-size:11px;font-family:'JetBrains Mono',monospace"></p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;flex-direction:column">
+          <input id="purge-channel-input" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 12px;width:200px;outline:none" placeholder="Paste Channel ID here">
+          <div style="display:flex;gap:6px;width:100%">
+            <button class="btn btn-primary" style="flex:1" onclick="savePurgeChannel()">Set Channel</button>
+            <button class="btn btn-ghost" style="flex:1" onclick="clearPurgeChannel()">Clear</button>
+          </div>
+        </div>
+      </div>
+
       <div class="info-box">
         <strong>What happens during a purge:</strong><br>
         🏦→👜 All bank balances move to wallets instantly<br>
         🚫 Deposits and withdrawals are blocked<br>
         ⚡ Rob cooldowns are completely removed<br>
         🔫 Hitman + item attacks still work normally<br>
+        📢 @everyone is notified in your announcement channel<br>
         ✅ Everything restores to normal when you end it
       </div>
     </div>
@@ -402,9 +421,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <option value="true">♻️ Reusable (stays in inventory)</option>
           </select>
         </div>
-        <div class="fg" id="role-field" style="display:none">
-          <label class="flabel">Discord Role ID (granted on purchase)</label>
-          <input class="finput" id="m-role" placeholder="e.g. 123456789012345678">
+        <div class="fg">
+          <label class="flabel">Grant Role on Purchase <span style="color:var(--muted)">(optional)</span></label>
+          <input class="finput" id="m-role" placeholder="Discord Role ID or leave blank">
+          <div class="hint">If set, this role is given to the user when they buy this item.</div>
         </div>
       </div>
 
@@ -470,6 +490,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="gamble">🎲 Gamble — random outcome table you define</option>
               <option value="passive_income">💰 Passive Income — earn $ over time while active</option>
               <option value="shield">🛡️ Shield — protect user from drain and silence attacks</option>
+              <option value="minigame_drain">🖥️ Minigame Drain — target's funds drained only if attacker solves a scrambled word</option>
             </select>
           </div>
 
@@ -566,6 +587,43 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <div class="hint">Shields block drain attacks AND silences. Multiple uses stack the block count and reset the timer.</div>
           </div>
 
+          <!-- MINIGAME DRAIN fields -->
+          <div id="ef-minigame" class="ef-section">
+            <hr class="divider">
+            <div class="grid2">
+              <div class="fg">
+                <label class="flabel">What to Drain</label>
+                <select class="fselect" id="m-mg-target">
+                  <option value="bank">🏦 Bank only</option>
+                  <option value="wallet">💵 Wallet only</option>
+                  <option value="both">💰 Both wallet + bank</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="flabel">Drain Type</label>
+                <select class="fselect" id="m-mg-drain-type">
+                  <option value="percent">% of balance</option>
+                  <option value="flat">Flat $ amount</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid2">
+              <div class="fg">
+                <label class="flabel">Amount (% or $)</label>
+                <input class="finput" id="m-mg-amount" type="number" min="1" placeholder="25">
+              </div>
+              <div class="fg">
+                <label class="flabel">Time Limit (seconds)</label>
+                <input class="finput" id="m-mg-time" type="number" min="10" max="120" placeholder="30">
+              </div>
+            </div>
+            <div class="fg">
+              <label class="flabel">Fine on Failure (% of attacker's total balance)</label>
+              <input class="finput" id="m-mg-fine" type="number" min="1" max="100" placeholder="10">
+              <div class="hint">The attacker must unscramble a random word to complete the hack. If they fail or time out, they lose this % of their own balance as a penalty.</div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -627,6 +685,16 @@ async function refresh(){
   const rcInput = document.getElementById('rob-cooldown-input');
   if (rcInput) rcInput.value = config.robCooldownMinutes ?? 5;
 
+  // Populate purge channel
+  const pcInput  = document.getElementById('purge-channel-input');
+  const pcStatus = document.getElementById('purge-channel-status');
+  if (pcInput) {
+    pcInput.value = config.purgeChannelId || '';
+    if (pcStatus) pcStatus.textContent = config.purgeChannelId
+      ? 'Channel ID: ' + config.purgeChannelId
+      : 'No channel set — announcements disabled';
+  }
+
   document.getElementById('refresh-ts').textContent='Last sync: '+new Date().toLocaleTimeString();
 }
 
@@ -680,8 +748,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -715,7 +783,7 @@ function renderStore(){
 function clearForm(){
   ['m-name','m-desc','m-price','m-role','m-drain-amount','m-drain-duration',
    'm-silence-dur','m-passive-amount','m-passive-interval','m-passive-duration',
-   'm-shield-blocks','m-shield-dur'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+   'm-shield-blocks','m-shield-dur','m-mg-amount','m-mg-time','m-mg-fine'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('m-type').value='useable';
   document.getElementById('m-enabled').value='true';
   document.getElementById('m-reusable').value='false';
@@ -751,6 +819,13 @@ function openEdit(id){
   }
   if(ef.type==='hitman') document.getElementById('m-hitman-action').value=ef.action||'rob';
   if(ef.type==='silence')document.getElementById('m-silence-dur').value=ef.durationMs?Math.ceil(ef.durationMs/60000):60;
+  if(ef.type==='minigame_drain'){
+    document.getElementById('m-mg-target').value=ef.drainTarget||'bank';
+    document.getElementById('m-mg-drain-type').value=ef.drainType||'percent';
+    document.getElementById('m-mg-amount').value=ef.amount||'';
+    document.getElementById('m-mg-time').value=ef.timeLimitSeconds||30;
+    document.getElementById('m-mg-fine').value=ef.finePercent||10;
+  }
   if(ef.type==='gamble'){outcomes=(ef.outcomes||[]).map(o=>({...o}));renderOutcomes();}
   if(ef.type==='passive_income'){
     document.getElementById('m-passive-amount').value=ef.amountPerTick||'';
@@ -769,7 +844,6 @@ function closeModal(){document.getElementById('item-modal').classList.remove('op
 function onTypeChange(){
   const t=document.getElementById('m-type').value;
   document.getElementById('effect-builder').style.display=t==='useable'?'block':'none';
-  document.getElementById('role-field').style.display=t==='role'?'block':'none';
 }
 
 function onReqTypeChange(){
@@ -828,7 +902,7 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
 
@@ -867,6 +941,13 @@ async function saveItem(){
       effect={type:et};
       if(et==='hitman'){
         effect.action=document.getElementById('m-hitman-action').value;
+      }
+      if(et==='minigame_drain'){
+        effect.drainTarget=document.getElementById('m-mg-target').value;
+        effect.drainType=document.getElementById('m-mg-drain-type').value;
+        effect.amount=parseFloat(document.getElementById('m-mg-amount').value)||25;
+        effect.timeLimitSeconds=parseInt(document.getElementById('m-mg-time').value)||30;
+        effect.finePercent=parseInt(document.getElementById('m-mg-fine').value)||10;
       }
       if(et==='drain_wallet'||et==='drain_all'){
         effect.drainType=document.getElementById('m-drain-type').value;
@@ -971,7 +1052,24 @@ async function clearRestrictedRole(){
   } else toast(r.error||'Failed','err');
 }
 
-async function saveRobCooldown(){
+async function savePurgeChannel(){
+  const channelId=document.getElementById('purge-channel-input').value.trim();
+  if(!channelId){toast('Paste a Channel ID first','err');return;}
+  const r=await api('POST','/api/config/purge-channel',{channelId});
+  if(r.success){
+    toast('Announcement channel set','ok');
+    document.getElementById('purge-channel-status').textContent='Channel ID: '+r.purgeChannelId;
+  } else toast(r.error||'Failed','err');
+}
+
+async function clearPurgeChannel(){
+  const r=await api('POST','/api/config/purge-channel',{channelId:null});
+  if(r.success){
+    toast('Channel cleared','ok');
+    document.getElementById('purge-channel-input').value='';
+    document.getElementById('purge-channel-status').textContent='No channel set — announcements disabled';
+  } else toast(r.error||'Failed','err');
+}
   const val=document.getElementById('rob-cooldown-input').value;
   const mins=parseFloat(val);
   if(isNaN(mins)||mins<0){toast('Enter a valid number (0 or more)','err');return;}
@@ -1221,6 +1319,16 @@ async function safeRefresh() {
   } catch(e) {
     console.error(e);
     setStatus(e.message?.includes('fetch') ? 'offline' : 'error');
+  }
+}
+
+async function manualRefresh() {
+  const btn = document.querySelector('[onclick="manualRefresh()"]');
+  if (btn) { btn.textContent = '⟳ Syncing...'; btn.disabled = true; }
+  await safeRefresh();
+  if (btn) {
+    btn.textContent = '✓ Synced';
+    setTimeout(() => { btn.textContent = '⟳ Sync'; btn.disabled = false; }, 1500);
   }
 }
 

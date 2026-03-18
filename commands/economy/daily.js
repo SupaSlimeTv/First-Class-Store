@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getUser, saveUser } = require('../../utils/db');
+const { getUser, getOrCreateUser, saveUser } = require('../../utils/db');
 const { dailyEmbed, errorEmbed } = require('../../utils/embeds');
 
 const DAILY_AMOUNT = 500;
@@ -11,7 +11,7 @@ module.exports = {
     .setDescription('Claim your daily $500 reward.'),
 
   async execute(interaction) {
-    const user = getUser(interaction.user.id);
+    const user = getOrCreateUser(interaction.user.id);
     const now  = Date.now();
 
     if (user.lastDaily) {
