@@ -56,13 +56,29 @@ module.exports = {
       user.wallet -= item.price;
       giveItem(interaction.user.id, itemId);
 
-      // Grant role if configured
+      // Grant role if configured (legacy roleReward field)
       if (item.roleReward) {
         await interaction.member.roles.add(item.roleReward).catch(() => {});
       }
 
       saveUser(interaction.user.id, user);
-      return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.SUCCESS).setTitle(`✅ Purchased: ${item.name}`).setDescription(`You bought **${item.name}** for **$${item.price.toLocaleString()}**.\n\n${item.description||''}`).addFields({name:'💵 Remaining Wallet',value:`$${user.wallet.toLocaleString()}`,inline:true})] });
+
+      // ---- EXECUTE EFFECT ON BUY if trigger is 'buy' ----
+      let extraDesc = '';
+      if (item.effect && item.trigger === 'buy') {
+        const { executeEffect } = require('../../utils/effects');
+        const buyResult = await executeEffect(item, interaction.user.id, null, interaction.member);
+        if (buyResult.success && buyResult.description) extraDesc = `\n\n${buyResult.description}`;
+        // Handle role edit on buy
+        if (buyResult.needsRoleEdit) {
+          const roleObj = interaction.guild.roles.cache.get(buyResult.roleId);
+          if (buyResult.action === 'add') await interaction.member.roles.add(buyResult.roleId).catch(() => {});
+          else await interaction.member.roles.remove(buyResult.roleId).catch(() => {});
+          extraDesc = `\n\n🏅 Role **${roleObj?.name || buyResult.roleId}** ${buyResult.action === 'add' ? 'added' : 'removed'}.`;
+        }
+      }
+
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.SUCCESS).setTitle(`✅ Purchased: ${item.name}`).setDescription(`You bought **${item.name}** for **$${item.price.toLocaleString()}**.\n\n${item.description||''}${extraDesc}`).addFields({name:'💵 Remaining Wallet',value:`$${user.wallet.toLocaleString()}`,inline:true})] });
     }
   },
 };

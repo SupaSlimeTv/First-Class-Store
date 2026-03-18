@@ -543,6 +543,100 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
       };
     }
 
+    // ----------------------------------------------------------
+    // EDIT BALANCE — give or take money from the user (or target)
+    // effect.target: 'self' | 'target'
+    // effect.action: 'give' | 'take'
+    // effect.amount: number (flat)
+    // effect.destination: 'wallet' | 'bank'
+    // ----------------------------------------------------------
+    case 'edit_balance': {
+      const recipientId = effect.target === 'target' ? targetId : userId;
+      if (!recipientId) return { success: false, title: 'Target Required', description: 'This item requires a target.' };
+      const recipient = db.getOrCreateUser(recipientId);
+      const dest      = effect.destination || 'wallet';
+      const amount    = effect.amount || 0;
+      if (effect.action === 'give') {
+        dest === 'bank' ? recipient.bank += amount : recipient.wallet += amount;
+        db.saveUser(recipientId, recipient);
+        return {
+          success: true,
+          title: `💰 Balance Updated`,
+          description: `**$${amount.toLocaleString()}** was added to ${recipientId === userId ? 'your' : `<@${recipientId}>'s`} ${dest}.`,
+          fields: [{ name: dest === 'bank' ? '🏦 Bank' : '💵 Wallet', value: `$${(dest === 'bank' ? recipient.bank : recipient.wallet).toLocaleString()}`, inline: true }],
+        };
+      } else {
+        const current = dest === 'bank' ? recipient.bank : recipient.wallet;
+        const taken   = Math.min(amount, current);
+        dest === 'bank' ? recipient.bank -= taken : recipient.wallet -= taken;
+        recipient.bank   = Math.max(0, recipient.bank);
+        recipient.wallet = Math.max(0, recipient.wallet);
+        db.saveUser(recipientId, recipient);
+        return {
+          success: true,
+          title: `💸 Balance Updated`,
+          description: `**$${taken.toLocaleString()}** was removed from ${recipientId === userId ? 'your' : `<@${recipientId}>'s`} ${dest}.`,
+          fields: [{ name: dest === 'bank' ? '🏦 Bank' : '💵 Wallet', value: `$${(dest === 'bank' ? recipient.bank : recipient.wallet).toLocaleString()}`, inline: true }],
+        };
+      }
+    }
+
+    // ----------------------------------------------------------
+    // EDIT ITEMS — give or take a specific item from user/target
+    // effect.action: 'give' | 'take'
+    // effect.itemId: string — item ID to give/take
+    // effect.target: 'self' | 'target'
+    // ----------------------------------------------------------
+    case 'edit_items': {
+      const recipientId2 = effect.target === 'target' ? targetId : userId;
+      if (!recipientId2) return { success: false, title: 'Target Required', description: 'This item requires a target.' };
+      const store2 = db.getStore();
+      const item2  = (store2.items||[]).find(i => i.id === effect.itemId);
+      if (!item2) return { success: false, title: 'Item Not Found', description: `Item \`${effect.itemId}\` doesn't exist in the store.` };
+      if (effect.action === 'give') {
+        db.giveItem(recipientId2, effect.itemId);
+        return {
+          success: true,
+          title: `🎒 Item Given`,
+          description: `**${item2.name}** was added to ${recipientId2 === userId ? 'your' : `<@${recipientId2}>'s`} inventory.`,
+        };
+      } else {
+        const recipient2 = db.getUser(recipientId2);
+        if (!recipient2) return { success: false, title: 'User Not Found', description: 'Target has no account.' };
+        const inv2 = recipient2.inventory || [];
+        const idx2 = inv2.indexOf(effect.itemId);
+        if (idx2 === -1) return { success: false, title: 'Item Not in Inventory', description: `${recipientId2 === userId ? 'You don\'t' : `<@${recipientId2}> doesn't`} have **${item2.name}**.` };
+        inv2.splice(idx2, 1);
+        recipient2.inventory = inv2;
+        db.saveUser(recipientId2, recipient2);
+        return {
+          success: true,
+          title: `🗑️ Item Removed`,
+          description: `**${item2.name}** was removed from ${recipientId2 === userId ? 'your' : `<@${recipientId2}>'s`} inventory.`,
+        };
+      }
+    }
+
+    // ----------------------------------------------------------
+    // EDIT ROLES — add or remove a Discord role from user/target
+    // effect.action: 'add' | 'remove'
+    // effect.roleId: string — Discord role ID
+    // effect.target: 'self' | 'target'
+    // Requires guildMember to be passed in via use.js
+    // ----------------------------------------------------------
+    case 'edit_roles': {
+      const memberToEdit = effect.target === 'target' ? targetMember : null;
+      // For self, we need to pass the user's own member — handled in use.js
+      return {
+        success: true,
+        needsRoleEdit: true,
+        roleId:  effect.roleId,
+        action:  effect.action || 'add',
+        target:  effect.target || 'self',
+        targetId: effect.target === 'target' ? targetId : userId,
+      };
+    }
+
     default:
       return { success: false, title: 'Unknown Effect', description: `Effect type "${effect.type}" is not recognized.` };
   }

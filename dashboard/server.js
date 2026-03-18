@@ -286,6 +286,33 @@ app.post('/api/users/:id/take-item', (req, res) => {
 });
 
 // ============================================================
+// LOTTERY
+// ============================================================
+app.get('/api/lottery', (req, res) => {
+  const { getLottery } = require('../utils/lottery');
+  res.json(getLottery());
+});
+
+app.post('/api/lottery', (req, res) => {
+  const { getLottery, saveLottery } = require('../utils/lottery');
+  const lottery = getLottery();
+  const { active, ticketPrice, drawIntervalHours, minPot, announceChannelId } = req.body;
+  if (active !== undefined)            lottery.active             = active === 'true' || active === true;
+  if (ticketPrice !== undefined)       lottery.ticketPrice        = parseInt(ticketPrice) || 100;
+  if (drawIntervalHours !== undefined) lottery.drawIntervalHours  = parseFloat(drawIntervalHours) || 24;
+  if (minPot !== undefined)            lottery.minPot             = parseInt(minPot) || 1000;
+  if (announceChannelId !== undefined) lottery.announceChannelId  = announceChannelId || null;
+  saveLottery(lottery);
+  res.json({ success: true, lottery });
+});
+
+app.post('/api/lottery/force-draw', (req, res) => {
+  const { runDraw } = require('../utils/lottery');
+  const result = runDraw(null);
+  res.json({ success: true, result });
+});
+
+// ============================================================
 // ROLE INCOME
 // ============================================================
 app.get('/api/roleincome', (req, res) => res.json(db.getConfig().roleIncome || {}));
@@ -304,6 +331,55 @@ app.delete('/api/roleincome/:roleId', (req, res) => {
   const config = db.getConfig();
   if (!config.roleIncome?.[req.params.roleId]) return res.status(404).json({ error: 'Not found' });
   delete config.roleIncome[req.params.roleId]; db.saveConfig(config);
+  res.json({ success: true });
+});
+
+// ============================================================
+// LOTTERY CONTROL
+// ============================================================
+const LOTTERY_FILE = path.join(__dirname, '../data/lottery.json');
+
+function getLotteryData() {
+  try {
+    if (!fs.existsSync(LOTTERY_FILE)) return null;
+    return JSON.parse(fs.readFileSync(LOTTERY_FILE, 'utf8'));
+  } catch { return null; }
+}
+
+app.get('/api/lottery', (req, res) => {
+  const lottery = getLotteryData();
+  const config  = db.getConfig();
+  res.json({ lottery, config: config.lottery || {} });
+});
+
+app.post('/api/lottery/settings', (req, res) => {
+  const { active, ticketPrice, intervalHours } = req.body;
+  const config = db.getConfig();
+  if (!config.lottery) config.lottery = {};
+  if (active        !== undefined) config.lottery.active        = active;
+  if (ticketPrice   !== undefined) config.lottery.ticketPrice   = parseInt(ticketPrice) || 100;
+  if (intervalHours !== undefined) config.lottery.intervalHours = parseFloat(intervalHours) || 24;
+  db.saveConfig(config);
+
+  // Update lottery file if it exists
+  if (fs.existsSync(LOTTERY_FILE)) {
+    const lottery = JSON.parse(fs.readFileSync(LOTTERY_FILE, 'utf8'));
+    lottery.active      = config.lottery.active;
+    lottery.ticketPrice = config.lottery.ticketPrice;
+    fs.writeFileSync(LOTTERY_FILE, JSON.stringify(lottery, null, 2));
+  }
+
+  res.json({ success: true });
+});
+
+app.post('/api/lottery/reset', (req, res) => {
+  if (!fs.existsSync(LOTTERY_FILE)) return res.status(404).json({ error: 'No lottery found' });
+  const lottery   = JSON.parse(fs.readFileSync(LOTTERY_FILE, 'utf8'));
+  const config    = db.getConfig();
+  lottery.pot     = 0;
+  lottery.tickets = [];
+  lottery.drawAt  = Date.now() + (config.lottery?.intervalHours ?? 24) * 3600000;
+  fs.writeFileSync(LOTTERY_FILE, JSON.stringify(lottery, null, 2));
   res.json({ success: true });
 });
 

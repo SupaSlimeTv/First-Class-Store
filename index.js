@@ -84,6 +84,15 @@ client.on('guildMemberAdd', async (member) => {
 // Every slash command fires an "interactionCreate" event
 client.on('interactionCreate', async (interaction) => {
 
+  // ---- AUTOCOMPLETE ----
+  if (interaction.isAutocomplete()) {
+    const command = client.commands.get(interaction.commandName);
+    if (command?.autocomplete) {
+      try { await command.autocomplete(interaction); } catch (e) { console.error('Autocomplete error:', e); }
+    }
+    return;
+  }
+
   // Only handle slash commands (not buttons — those are handled inside command files)
   if (!interaction.isChatInputCommand()) return;
 
@@ -478,7 +487,106 @@ const { tickPassiveIncome } = require('./utils/effects');
 setInterval(tickPassiveIncome, 60_000);
 tickPassiveIncome();
 
-// ---- DASHBOARD SERVER (merged into bot process) ----
+// ---- PASSIVE INCOME TICK ENGINE ----
+const { tickPassiveIncome } = require('./utils/effects');
+setInterval(tickPassiveIncome, 60_000);
+tickPassiveIncome();
+
+// ---- STOCK PRICE TICK ENGINE ----
+const stockFs   = require('fs');
+const stockPath = require('path');
+const PRICES_FILE = stockPath.join(__dirname, 'data/stockPrices.json');
+const STOCK_COINS = ['DOGE2','PEPE','RUGPUL','MOON','BODEN','CHAD'];
+
+function tickStockPrices() {
+  let prices = {};
+  try { prices = JSON.parse(stockFs.readFileSync(PRICES_FILE, 'utf8')); } catch {}
+  STOCK_COINS.forEach(id => {
+    const current = prices[id] || (50 + Math.random() * 450);
+    const swing   = (Math.random() - 0.5) * 0.25;
+    prices[id]    = Math.max(1, current * (1 + swing));
+  });
+  stockFs.writeFileSync(PRICES_FILE, JSON.stringify(prices, null, 2));
+}
+
+if (!stockFs.existsSync(PRICES_FILE)) tickStockPrices();
+setInterval(tickStockPrices, 10_000);
+
+// ---- LOTTERY TICK ENGINE ----
+const LOTTERY_FILE = path.join(__dirname, 'data/lottery.json');
+
+async function tickLottery() {
+  try {
+    if (!fs.existsSync(LOTTERY_FILE)) return;
+    const lottery = JSON.parse(fs.readFileSync(LOTTERY_FILE, 'utf8'));
+    if (!lottery.active || lottery.drawAt > Date.now()) return;
+    if (!lottery.tickets.length || lottery.pot <= 0) {
+      // No tickets — reset timer
+      const config = require('./utils/db').getConfig();
+      lottery.drawAt = Date.now() + (config.lottery?.intervalHours ?? 24) * 3600000;
+      fs.writeFileSync(LOTTERY_FILE, JSON.stringify(lottery, null, 2));
+      return;
+    }
+
+    // Pick a winner weighted by ticket count
+    const totalTickets = lottery.tickets.reduce((s, t) => s + t.count, 0);
+    let roll = Math.random() * totalTickets;
+    let winner = lottery.tickets[lottery.tickets.length - 1];
+    for (const entry of lottery.tickets) {
+      roll -= entry.count;
+      if (roll <= 0) { winner = entry; break; }
+    }
+
+    const db      = require('./utils/db');
+    const config  = db.getConfig();
+    const winUser = db.getOrCreateUser(winner.userId);
+    winUser.wallet += lottery.pot;
+    db.saveUser(winner.userId, winUser);
+
+    // Announce in purge channel if set
+    const channelId = config.purgeChannelId;
+    if (channelId) {
+      const { EmbedBuilder } = require('discord.js');
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel) {
+        await channel.send({ embeds: [new EmbedBuilder()
+          .setColor(0xf5c518)
+          .setTitle('🎟️ Lottery Drawing!')
+          .setDescription(`<@${winner.userId}> won the lottery and takes home **$${lottery.pot.toLocaleString()}**!`)
+          .setTimestamp()
+        ]});
+      }
+    }
+
+    // Reset lottery
+    lottery.lastWinner = winner.userId;
+    lottery.lastPot    = lottery.pot;
+    lottery.pot        = 0;
+    lottery.tickets    = [];
+    lottery.drawAt     = Date.now() + (config.lottery?.intervalHours ?? 24) * 3600000;
+    fs.writeFileSync(LOTTERY_FILE, JSON.stringify(lottery, null, 2));
+
+  } catch (e) { console.error('Lottery tick error:', e); }
+}
+
+setInterval(tickLottery, 60_000); // check every minute
+
+// ---- LOTTERY DRAW ENGINE ----
+const { getLottery, runDraw } = require('./utils/lottery');
+setInterval(() => {
+  try {
+    const lottery = getLottery();
+    if (!lottery.active) return;
+    const intervalMs = (lottery.drawIntervalHours || 24) * 3600000;
+    const lastDraw   = lottery.lastDraw || 0;
+    if (Date.now() - lastDraw >= intervalMs) {
+      const result = runDraw(client);
+      if (result) console.log(`🎟️ Lottery draw: ${result.winnerId} won $${result.prize}`);
+    }
+  } catch (e) { console.error('Lottery draw error:', e); }
+}, 60_000);
+
+// ---- DASHBOARD SERVER ----
 require('./dashboard/server.js');
 
 // ---- LOGIN ----

@@ -131,7 +131,12 @@ const DEFAULT_CONFIG = {
   restrictedRoleId: null,
   robCooldownMinutes: 5,
   protectedRoles: [],
-  purgeChannelId: null, // channel ID where purge @everyone announcements are sent
+  purgeChannelId: null,
+  lottery: {
+    active:        true,
+    ticketPrice:   100,
+    intervalHours: 24,
+  },
 };
 
 function getConfig() {

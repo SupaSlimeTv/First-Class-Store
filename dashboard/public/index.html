@@ -124,6 +124,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="nav('protected')" data-s="protected"><span class="nav-icon">🛡️</span>Protected</div>
     <div class="nav-item" onclick="nav('roleincome')" data-s="roleincome"><span class="nav-icon">💼</span>Role Income</div>
     <div class="nav-item" onclick="nav('effects')" data-s="effects"><span class="nav-icon">⚡</span>Live Effects</div>
+    <div class="nav-item" onclick="nav('stocks')" data-s="stocks"><span class="nav-icon">📈</span>Stock Market</div>
     <div class="nav-item" onclick="nav('purge')" data-s="purge"><span class="nav-icon">⬡</span>Purge</div>
   </nav>
   <div id="purge-badge" class="purge-badge">● PURGE ACTIVE</div>
@@ -274,7 +275,41 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- LIVE EFFECTS -->
     <div id="section-effects" class="section">
-      <p class="sub-txt">Real-time view of all active effects on users — passive income streams and active shields.</p>
+      <p class="sub-txt">Real-time view of all active effects — lottery control, passive income, and active shields.</p>
+
+      <!-- LOTTERY CONTROL -->
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head"><h3>🎟️ Lottery Control</h3></div>
+        <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+          <div class="stat-card"><div class="stat-label">Current Pot</div><div class="stat-val c-gold" id="lottery-pot">—</div></div>
+          <div class="stat-card"><div class="stat-label">Tickets Sold</div><div class="stat-val c-blue" id="lottery-tickets">—</div></div>
+          <div class="stat-card"><div class="stat-label">Draw In</div><div class="stat-val" id="lottery-timer">—</div></div>
+          <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="lottery-status">—</div></div>
+        </div>
+        <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div class="fg" style="margin:0">
+            <label class="flabel">Ticket Price ($)</label>
+            <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Draw Every (hours)</label>
+            <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Status</label>
+            <select class="fselect" id="lottery-active">
+              <option value="true">✅ Open</option>
+              <option value="false">❌ Closed</option>
+            </select>
+          </div>
+        </div>
+        <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saveLotterySettings()">Save Settings</button>
+          <button class="btn btn-ghost" onclick="resetLottery()">🔄 Reset & Clear Tickets</button>
+          <span style="font-size:12px;color:var(--muted);align-self:center" id="lottery-last-winner"></span>
+        </div>
+      </div>
+
       <div class="tbl-wrap">
         <div class="tbl-head"><h3>💰 Active Passive Income</h3></div>
         <table>
@@ -288,6 +323,16 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <thead><tr><th>User ID</th><th>Blocks Left</th><th>Expires</th><th>Actions</th></tr></thead>
           <tbody id="shield-tbody"><tr><td colspan="4" class="empty-cell">Loading...</td></tr></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- STOCK MARKET -->
+    <div id="section-stocks" class="section">
+      <p class="sub-txt">Hype-based memecoins that update every 10 seconds. Users invest with <strong>/invest</strong> and cash out with <strong>/cashout</strong>. Prices are purely random — nobody wins every time.</p>
+      <div id="stocks-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:20px"></div>
+      <div class="info-box">
+        <strong>How it works:</strong> Each coin has a hype score that drives its price. Every 10 seconds prices shift randomly ±5–25%. Users can invest any amount from their wallet and cash out at any time for the current value. No limits — full risk, full reward.<br><br>
+        <strong>Commands:</strong> <code>/invest &lt;coin&gt; &lt;amount&gt;</code> · <code>/cashout &lt;coin&gt;</code> · <code>/portfolio</code>
       </div>
     </div>
 
@@ -533,6 +578,9 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="passive_income">💰 Passive Income — earn $ over time while active</option>
               <option value="shield">🛡️ Shield — protect user from drain and silence attacks</option>
               <option value="minigame_drain">🖥️ Minigame Drain — target's funds drained only if attacker solves a scrambled word</option>
+              <option value="edit_balance">💵 Edit Balance — give or take money from user/target on use</option>
+              <option value="edit_items">🎒 Edit Items — give or take a specific item from user/target on use</option>
+              <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
             </select>
           </div>
 
@@ -666,6 +714,49 @@ tr:hover td{background:rgba(255,255,255,.015)}
             </div>
           </div>
 
+          <!-- EDIT BALANCE fields -->
+          <div id="ef-edit-balance" class="ef-section">
+            <hr class="divider">
+            <div class="grid2">
+              <div class="fg"><label class="flabel">Action</label><select class="fselect" id="m-eb-action"><option value="give">💰 Give money</option><option value="take">💸 Take money</option></select></div>
+              <div class="fg"><label class="flabel">Amount ($)</label><input class="finput" id="m-eb-amount" type="number" min="1" placeholder="500"></div>
+            </div>
+            <div class="grid2">
+              <div class="fg"><label class="flabel">Destination</label><select class="fselect" id="m-eb-dest"><option value="wallet">💵 Wallet</option><option value="bank">🏦 Bank</option></select></div>
+              <div class="fg"><label class="flabel">Target</label><select class="fselect" id="m-eb-target"><option value="self">🙋 Self</option><option value="target">🎯 Target</option></select></div>
+            </div>
+          </div>
+
+          <!-- EDIT ITEMS fields -->
+          <div id="ef-edit-items" class="ef-section">
+            <hr class="divider">
+            <div class="grid2">
+              <div class="fg"><label class="flabel">Action</label><select class="fselect" id="m-ei-action"><option value="give">🎁 Give item</option><option value="take">🗑️ Take item</option></select></div>
+              <div class="fg"><label class="flabel">Item</label><select class="fselect" id="m-ei-item"><option value="">— Choose item —</option></select></div>
+            </div>
+            <div class="fg"><label class="flabel">Target</label><select class="fselect" id="m-ei-target"><option value="self">🙋 Self</option><option value="target">🎯 Target</option></select></div>
+          </div>
+
+          <!-- EDIT ROLES fields -->
+          <div id="ef-edit-roles" class="ef-section">
+            <hr class="divider">
+            <div class="grid2">
+              <div class="fg"><label class="flabel">Action</label><select class="fselect" id="m-er-action"><option value="add">➕ Add role</option><option value="remove">➖ Remove role</option></select></div>
+              <div class="fg"><label class="flabel">Role</label><select class="fselect" id="m-er-role"><option value="">— Choose role —</option></select></div>
+            </div>
+            <div class="fg"><label class="flabel">Target</label><select class="fselect" id="m-er-target"><option value="self">🙋 Self</option><option value="target">🎯 Target</option></select></div>
+          </div>
+
+        </div>
+
+        <!-- TRIGGER -->
+        <div class="fg" style="margin-top:12px">
+          <label class="flabel">When does this effect fire?</label>
+          <select class="fselect" id="m-trigger">
+            <option value="use">⚡ On Use — fires when player uses item from inventory</option>
+            <option value="buy">🛒 On Buy — fires immediately when player purchases</option>
+          </select>
+          <div class="hint">On Buy fires instantly at purchase. On Use requires the player to run /use itemid.</div>
         </div>
       </div>
     </div>
@@ -687,7 +778,7 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles'}[n]||n;
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market'}[n]||n;
 }
 
 async function api(m,u,b){
@@ -705,6 +796,8 @@ async function refresh(){
   await loadRoleIncome();
   await loadProtectedRoles();
   await loadGuildRoles();
+  await loadLottery();
+  await loadLottery();
 
   // Populate prefix input with current value
   const prefixInput = document.getElementById('prefix-input');
@@ -810,8 +903,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -845,7 +938,7 @@ function renderStore(){
 function clearForm(){
   ['m-name','m-desc','m-price','m-drain-amount','m-drain-duration',
    'm-silence-dur','m-passive-amount','m-passive-interval','m-passive-duration',
-   'm-shield-blocks','m-shield-dur','m-mg-amount','m-mg-time','m-mg-fine'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+   'm-shield-blocks','m-shield-dur','m-mg-amount','m-mg-time','m-mg-fine','m-eb-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('m-type').value='useable';
   document.getElementById('m-enabled').value='true';
   document.getElementById('m-reusable').value='false';
@@ -888,6 +981,23 @@ function openEdit(id){
     document.getElementById('m-mg-time').value=ef.timeLimitSeconds||30;
     document.getElementById('m-mg-fine').value=ef.finePercent||10;
   }
+  if(ef.type==='edit_balance'){
+    document.getElementById('m-eb-action').value=ef.action||'give';
+    document.getElementById('m-eb-amount').value=ef.amount||'';
+    document.getElementById('m-eb-dest').value=ef.destination||'wallet';
+    document.getElementById('m-eb-target').value=ef.target||'self';
+  }
+  if(ef.type==='edit_items'){
+    document.getElementById('m-ei-action').value=ef.action||'give';
+    document.getElementById('m-ei-item').value=ef.itemId||'';
+    document.getElementById('m-ei-target').value=ef.target||'self';
+  }
+  if(ef.type==='edit_roles'){
+    document.getElementById('m-er-action').value=ef.action||'add';
+    document.getElementById('m-er-role').value=ef.roleId||'';
+    document.getElementById('m-er-target').value=ef.target||'self';
+  }
+  document.getElementById('m-trigger').value=item.trigger||'use';
   if(ef.type==='gamble'){outcomes=(ef.outcomes||[]).map(o=>({...o}));renderOutcomes();}
   if(ef.type==='passive_income'){
     document.getElementById('m-passive-amount').value=ef.amountPerTick||'';
@@ -964,7 +1074,7 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
 
@@ -1034,9 +1144,26 @@ async function saveItem(){
         effect.blocksLeft=parseInt(document.getElementById('m-shield-blocks').value)||3;
         effect.durationMs=(parseInt(document.getElementById('m-shield-dur').value)||24)*3600000;
       }
+      if(et==='edit_balance'){
+        effect.action=document.getElementById('m-eb-action').value;
+        effect.amount=parseInt(document.getElementById('m-eb-amount').value)||0;
+        effect.destination=document.getElementById('m-eb-dest').value;
+        effect.target=document.getElementById('m-eb-target').value;
+      }
+      if(et==='edit_items'){
+        effect.action=document.getElementById('m-ei-action').value;
+        effect.itemId=document.getElementById('m-ei-item').value;
+        effect.target=document.getElementById('m-ei-target').value;
+      }
+      if(et==='edit_roles'){
+        effect.action=document.getElementById('m-er-action').value;
+        effect.roleId=document.getElementById('m-er-role').value;
+        effect.target=document.getElementById('m-er-target').value;
+      }
     }
   }
-  const body={name,description:document.getElementById('m-desc').value.trim(),price,type,reusable:document.getElementById('m-reusable').value==='true',roleReward:document.getElementById('m-role').value.trim()||null,enabled:document.getElementById('m-enabled').value==='true',effect,requirements:buildRequirements()};
+  const trigger=document.getElementById('m-trigger').value||'use';
+  const body={name,description:document.getElementById('m-desc').value.trim(),price,type,reusable:document.getElementById('m-reusable').value==='true',roleReward:document.getElementById('m-role').value.trim()||null,enabled:document.getElementById('m-enabled').value==='true',effect,trigger,requirements:buildRequirements()};
   const r=editId?await api('PUT',`/api/store/${editId}`,body):await api('POST','/api/store',body);
   if(r.success){toast(editId?'Updated':'Item added','ok');closeModal();refresh();}
   else toast(r.error||'Save failed','err');
@@ -1158,6 +1285,48 @@ function formatNum(n) {
 // ════════════════════════════════════════════════
 // PROTECTED ROLES
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// LOTTERY
+// ════════════════════════════════════════════════
+async function loadLottery() {
+  try {
+    const data = await api('GET', '/api/lottery');
+    if (!data.lottery) return;
+    const l = data.lottery;
+    const c = data.config;
+    const totalTickets = (l.tickets||[]).reduce((s,t)=>s+t.count,0);
+    document.getElementById('lottery-pot').textContent     = '$' + (l.pot||0).toLocaleString();
+    document.getElementById('lottery-tickets').textContent = totalTickets.toString();
+    document.getElementById('lottery-status').textContent  = l.active ? '🟢 Open' : '🔴 Closed';
+    document.getElementById('lottery-status').className    = 'stat-val ' + (l.active ? 'c-green' : 'c-red');
+    const timeLeft = Math.max(0, l.drawAt - Date.now());
+    const h = Math.floor(timeLeft/3600000), m = Math.floor((timeLeft%3600000)/60000);
+    document.getElementById('lottery-timer').textContent = timeLeft > 0 ? `${h}h ${m}m` : 'Drawing...';
+    if (l.lastWinner) document.getElementById('lottery-last-winner').textContent = `Last winner: <@${l.lastWinner}> won $${(l.lastPot||0).toLocaleString()}`;
+    // Populate settings
+    document.getElementById('lottery-price').value    = c.ticketPrice    || 100;
+    document.getElementById('lottery-interval').value = c.intervalHours  || 24;
+    document.getElementById('lottery-active').value   = (l.active !== false).toString();
+  } catch {}
+}
+
+async function saveLotterySettings() {
+  const r = await api('POST', '/api/lottery/settings', {
+    active:        document.getElementById('lottery-active').value === 'true',
+    ticketPrice:   document.getElementById('lottery-price').value,
+    intervalHours: document.getElementById('lottery-interval').value,
+  });
+  if (r.success) { toast('Lottery settings saved', 'ok'); await loadLottery(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function resetLottery() {
+  if (!confirm('Reset lottery? This clears all tickets and resets the timer. The pot is NOT paid out.')) return;
+  const r = await api('POST', '/api/lottery/reset');
+  if (r.success) { toast('Lottery reset', 'ok'); await loadLottery(); }
+  else toast(r.error||'Failed','err');
+}
+
 async function loadProtectedRoles() {
   const data = await api('GET', '/api/protected-roles');
   S.protectedRoles = data;
@@ -1328,7 +1497,41 @@ async function viewInventory(userId, username) {
 }
 
 // ════════════════════════════════════════════════
-// GUILD ROLES — load for dropdowns
+// LOTTERY
+// ════════════════════════════════════════════════
+async function loadLottery() {
+  try {
+    const l = await api('GET', '/api/lottery');
+    document.getElementById('lottery-active').value   = l.active ? 'true' : 'false';
+    document.getElementById('lottery-price').value    = l.ticketPrice || 100;
+    document.getElementById('lottery-interval').value = l.drawIntervalHours || 24;
+    document.getElementById('lottery-minpot').value   = l.minPot || 1000;
+    document.getElementById('lottery-channel').value  = l.announceChannelId || '';
+    document.getElementById('lottery-pot').textContent = `$${(l.pot||0).toLocaleString()}`;
+    document.getElementById('lottery-winner').textContent = l.lastWinner ? `<@${l.lastWinner}>` : 'No draws yet';
+  } catch {}
+}
+
+async function saveLottery() {
+  const r = await api('POST', '/api/lottery', {
+    active:             document.getElementById('lottery-active').value,
+    ticketPrice:        document.getElementById('lottery-price').value,
+    drawIntervalHours:  document.getElementById('lottery-interval').value,
+    minPot:             document.getElementById('lottery-minpot').value,
+    announceChannelId:  document.getElementById('lottery-channel').value,
+  });
+  if (r.success) toast('Lottery saved', 'ok');
+  else toast(r.error || 'Failed', 'err');
+}
+
+async function forceDraw() {
+  if (!confirm('Force a lottery draw right now?')) return;
+  const r = await api('POST', '/api/lottery/force-draw');
+  if (r.success) {
+    toast(r.result ? `🎟️ Winner: ${r.result.winnerId} won $${r.result.prize.toLocaleString()}` : 'Draw ran — no tickets sold', 'ok');
+    await loadLottery();
+  } else toast('Failed', 'err');
+}
 // ════════════════════════════════════════════════
 let guildRoles = [];
 async function loadGuildRoles() {
@@ -1339,11 +1542,17 @@ async function loadGuildRoles() {
 }
 
 function populateRoleDropdowns() {
-  const opts = `<option value="">— No role —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-  const roleSelect    = document.getElementById('m-role');
-  const reqRoleSelect = document.getElementById('m-req-role-val');
-  if (roleSelect)    roleSelect.innerHTML    = `<option value="">— No role reward —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-  if (reqRoleSelect) reqRoleSelect.innerHTML = `<option value="">— Choose a role —</option>`  + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  const roleOpts = `<option value="">— No role —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  const roleRewardSelect = document.getElementById('m-role');
+  const reqRoleSelect    = document.getElementById('m-req-role-val');
+  const erRoleSelect     = document.getElementById('m-er-role');
+  if (roleRewardSelect) roleRewardSelect.innerHTML = `<option value="">— No role reward —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  if (reqRoleSelect)    reqRoleSelect.innerHTML    = `<option value="">— Choose a role —</option>`  + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  if (erRoleSelect)     erRoleSelect.innerHTML     = `<option value="">— Choose role —</option>`    + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
+  // Populate edit_items item dropdown
+  const eiItemSelect = document.getElementById('m-ei-item');
+  if (eiItemSelect) eiItemSelect.innerHTML = `<option value="">— Choose item —</option>` + (S.store||[]).map(i => `<option value="${i.id}">${i.name}</option>`).join('');
 }
 
 // ════════════════════════════════════════════════
@@ -1411,6 +1620,89 @@ const EMOJIS = [
   '🎁','🎀','🎊','🎉','🎈','🏆','🥇','🎖️','🏅','🎗️',
   '❤️','🧡','💛','💚','💙','💜','🖤','🤍','❤️‍🔥','💯',
 ];
+
+// ════════════════════════════════════════════════
+// STOCK MARKET ENGINE
+// ════════════════════════════════════════════════
+const COINS = [
+  { id:'DOGE2',  name:'Doge 2.0',       emoji:'🐕', color:'#f5c518', desc:'Such wow. Much gains. Very moon.' },
+  { id:'PEPE',   name:'PepeCoin',        emoji:'🐸', color:'#2ecc71', desc:"Feels good man. Until it doesn't." },
+  { id:'RUGPUL', name:'RugPull Finance', emoji:'🪤', color:'#ff3b3b', desc:'This is fine. Everything is fine.' },
+  { id:'MOON',   name:'MoonShot',        emoji:'🚀', color:'#00d2ff', desc:"To the moon. Or the floor. Same thing." },
+  { id:'BODEN',  name:'BodenBucks',      emoji:'🦅', color:'#9b59b6', desc:'Not financial advice. Literally ever.' },
+  { id:'CHAD',   name:'ChadToken',       emoji:'💪', color:'#ff6b35', desc:'Alpha moves only. Buy high sell low.' },
+];
+
+const stockState = {};
+COINS.forEach(c => {
+  const start = 50 + Math.random() * 450;
+  stockState[c.id] = { price: start, history: Array.from({length:20}, () => start*(0.8+Math.random()*0.4)), change: 0, hype: Math.random() };
+});
+
+function tickStocks() {
+  COINS.forEach(c => {
+    const s = stockState[c.id];
+    s.hype = Math.max(0, Math.min(1, s.hype + (Math.random()-0.5)*0.2));
+    const bias  = (s.hype - 0.5) * 0.3;
+    const swing = (Math.random()-0.5)*0.25 + bias;
+    const old   = s.price;
+    s.price  = Math.max(1, s.price * (1+swing));
+    s.change = ((s.price - old) / old) * 100;
+    s.history.push(s.price);
+    if (s.history.length > 20) s.history.shift();
+  });
+  renderStocks();
+}
+
+function renderStocks() {
+  const grid = document.getElementById('stocks-grid');
+  if (!grid) return;
+  grid.innerHTML = COINS.map(coin => {
+    const s      = stockState[coin.id];
+    const up     = s.change >= 0;
+    const chgCls = up ? 'color:#2ecc71' : 'color:#ff3b3b';
+    const chgStr = (up?'+':'') + s.change.toFixed(2) + '%';
+    const price  = s.price < 10 ? s.price.toFixed(4) : s.price < 100 ? s.price.toFixed(2) : Math.round(s.price).toLocaleString();
+    const hype   = Math.round(s.hype * 100);
+    const hypeClr= s.hype>0.65?'#2ecc71':s.hype<0.35?'#ff3b3b':'#f5c518';
+    const h=s.history, minP=Math.min(...h), maxP=Math.max(...h), rng=maxP-minP||1;
+    const W=260,H=60;
+    const pts = h.map((v,i)=>`${(i/(h.length-1))*W},${H-((v-minP)/rng)*H}`).join(' ');
+    const spkClr = up ? '#2ecc71' : '#ff3b3b';
+    const lastX  = W, lastY = H-((h[h.length-1]-minP)/rng)*H;
+    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;position:relative;overflow:hidden;cursor:default;transition:border-color .2s,box-shadow .2s" onmouseover="this.style.borderColor='${coin.color}';this.style.boxShadow='0 0 20px ${coin.color}33'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${coin.color}"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-size:24px;margin-bottom:2px">${coin.emoji}</div>
+          <div style="font-weight:700;font-size:15px">${coin.name}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.06em">${coin.id}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${coin.color}">$${price}</div>
+          <div style="font-size:13px;font-weight:700;${chgCls}">${chgStr}</div>
+        </div>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:56px;display:block;margin-bottom:10px">
+        <defs><linearGradient id="g${coin.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${spkClr}" stop-opacity=".25"/><stop offset="100%" stop-color="${spkClr}" stop-opacity="0"/></linearGradient></defs>
+        <polygon points="${pts} ${W},${H} 0,${H}" fill="url(#g${coin.id})"/>
+        <polyline points="${pts}" fill="none" stroke="${spkClr}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${lastX}" cy="${lastY}" r="3.5" fill="${spkClr}"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Hype</div>
+        <div style="font-size:10px;font-weight:700;color:${hypeClr}">${hype}%</div>
+      </div>
+      <div style="background:var(--bg4);border-radius:3px;height:4px;overflow:hidden">
+        <div style="width:${hype}%;height:100%;background:${hypeClr};border-radius:3px;transition:width .8s ease"></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;font-style:italic">${coin.desc}</div>
+    </div>`;
+  }).join('');
+}
+
+setInterval(tickStocks, 10000);
+renderStocks();
 
 function toggleEmojiPicker() {
   const picker = document.getElementById('emoji-picker');
