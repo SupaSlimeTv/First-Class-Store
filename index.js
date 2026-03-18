@@ -171,7 +171,13 @@ client.on('messageCreate', async (message) => {
   // ---- account check helper ----
   const needsAccount = () => {
     if (!hasAccount(message.author.id)) {
-      message.reply(`You don't have an account yet! Type \`${prefix}open account\` to get started.`);
+      message.reply({
+        embeds: [new EmbedBuilder()
+          .setColor(0xff3b3b)
+          .setTitle('🏦 No Account Found')
+          .setDescription(`<@${message.author.id}> you don't have an account yet!\n\nType **\`${prefix}open account\`** to get started and receive **$500** to begin playing.`)
+        ]
+      });
       return true;
     }
     return false;
@@ -179,13 +185,14 @@ client.on('messageCreate', async (message) => {
 
   // ---- bal / balance ----
   if (commandName === 'bal' || commandName === 'balance') {
+    if (needsAccount()) return;
     if (silenced(message.author.id)) return;
     const target = message.mentions.users.first() || message.author;
     const userData = getUser(target.id);
     if (!userData) {
       const isSelf = target.id === message.author.id;
       return message.reply(isSelf
-        ? `You don't have an account yet! Type \`${prefix}open account\` to get started.`
+        ? `<@${message.author.id}> you don't have an account yet! Type \`${prefix}open account\` to get started.`
         : `**${target.username}** doesn't have an account yet.`);
     }
     return message.reply({ embeds: [balanceEmbed(userData, target)] });
