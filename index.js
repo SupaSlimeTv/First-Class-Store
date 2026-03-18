@@ -479,8 +479,6 @@ setInterval(tickPassiveIncome, 60_000);
 tickPassiveIncome();
 
 // ---- DASHBOARD SERVER (merged into bot process) ----
-// Running both bot + dashboard in one process means they share
-// the same filesystem — no sync issues on Railway.
 require('./dashboard/server.js');
 
 // ---- LOGIN ----

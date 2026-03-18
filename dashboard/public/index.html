@@ -137,14 +137,6 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <span id="status-txt" class="status-txt">Connecting...</span>
       <span class="status-txt" id="refresh-ts" style="margin-left:8px;opacity:.5"></span>
       <button class="btn btn-ghost btn-sm" onclick="manualRefresh()" style="margin-left:12px;font-size:12px" title="Force sync now">⟳ Sync</button>
-      <div id="user-info" style="display:flex;align-items:center;gap:8px;margin-left:16px;padding-left:16px;border-left:1px solid var(--border)">
-        <img id="user-avatar" src="" style="width:28px;height:28px;border-radius:50%;display:none">
-        <div>
-          <div id="user-name" style="font-size:12px;font-weight:700;color:var(--text)"></div>
-          <div id="user-role" style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--muted)"></div>
-        </div>
-        <a href="/auth/logout" class="btn btn-ghost btn-sm" style="font-size:11px;margin-left:4px">Logout</a>
-      </div>
     </div>
   </div>
   <div class="content">
@@ -645,40 +637,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
 <div id="toast"></div>
 
 <script>
-let S={users:[],store:[],purgeActive:false,stats:{},effects:{},role:'owner'};
+let S={users:[],store:[],purgeActive:false,stats:{},effects:{}};
 let editId=null,outcomes=[];
-
-// ════════════════════════════════════════════════
-// AUTH INIT — load current user and apply role restrictions
-// ════════════════════════════════════════════════
-async function initAuth() {
-  try {
-    const me = await api('GET', '/api/me');
-    if (!me || me.error) { window.location.href = '/login.html'; return; }
-    S.role = me.role;
-
-    // Show user info in topbar
-    if (me.avatar) {
-      document.getElementById('user-avatar').src = me.avatar;
-      document.getElementById('user-avatar').style.display = 'block';
-    }
-    document.getElementById('user-name').textContent = me.username;
-    document.getElementById('user-role').textContent = me.role === 'owner' ? '👑 Owner' : '🛡️ Moderator';
-
-    // Hide owner-only nav items and sections from mods
-    if (me.role !== 'owner') {
-      const ownerOnly = ['store','protected','purge'];
-      ownerOnly.forEach(s => {
-        const navItem = document.querySelector(`[data-s="${s}"]`);
-        if (navItem) navItem.style.display = 'none';
-      });
-      // Hide edit controls in overview
-      document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'none');
-    }
-  } catch {
-    window.location.href = '/login.html';
-  }
-}
 
 function nav(n){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -1389,9 +1349,6 @@ async function manualRefresh() {
 
 safeRefresh();
 setInterval(safeRefresh, 15000);
-
-// Init auth on page load
-initAuth();
 </script>
 </body>
 </html>
