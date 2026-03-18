@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getUser, saveUser, isPurgeActive, getConfig } = require('../../utils/db');
+const { getOrCreateUser, saveUser, isPurgeActive, getConfig } = require('../../utils/db');
 const { robSuccessEmbed, robFailEmbed, errorEmbed } = require('../../utils/embeds');
+const { noAccount } = require('../../utils/accountCheck');
 
 const cooldowns      = new Map();
 const SUCCESS_CHANCE = 0.45;
@@ -13,6 +14,7 @@ module.exports = {
     .addUserOption((o) => o.setName('target').setDescription('Who to rob').setRequired(true)),
 
   async execute(interaction) {
+    if (await noAccount(interaction)) return;
     const robberId = interaction.user.id;
     const target   = interaction.options.getUser('target');
     const purge    = isPurgeActive();
@@ -50,7 +52,7 @@ module.exports = {
       }
     }
 
-    const victim = getUser(target.id);
+    const victim = getOrCreateUser(target.id);
     if (victim.wallet <= 0) return interaction.reply({ embeds: [errorEmbed(`**${target.username}** has nothing in their wallet!`)] });
 
     cooldowns.set(robberId, Date.now());
@@ -61,13 +63,13 @@ module.exports = {
       const pct    = 0.1 + Math.random() * 0.3;
       const stolen = Math.floor(victim.wallet * pct);
       victim.wallet -= stolen;
-      const robber  = getUser(robberId);
+      const robber  = getOrCreateUser(robberId);
       robber.wallet += stolen;
       saveUser(target.id, victim);
       saveUser(robberId, robber);
       await interaction.reply({ embeds: [robSuccessEmbed(stolen, target.username, robber.wallet, purge)] });
     } else {
-      const robber = getUser(robberId);
+      const robber = getOrCreateUser(robberId);
       const fine   = Math.floor(robber.wallet * 0.1);
       robber.wallet = Math.max(0, robber.wallet - fine);
       saveUser(robberId, robber);

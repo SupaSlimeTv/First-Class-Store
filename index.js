@@ -56,8 +56,28 @@ for (const folder of folders) {
 client.once('ready', () => {
   console.log(`\n🤖 Logged in as ${client.user.tag}`);
   console.log(`📦 Loaded ${client.commands.size} slash commands\n`);
+  client.user.setActivity('/help for commands', { type: 3 });
+});
 
-  client.user.setActivity('/help for commands', { type: 3 }); // 3 = WATCHING
+// ---- NEW MEMBER JOIN — notify them to open an account ----
+client.on('guildMemberAdd', async (member) => {
+  if (member.user.bot) return;
+  const { getConfig } = require('./utils/db');
+  const config = getConfig();
+  const prefix = config.prefix || '!';
+  try {
+    await member.send({
+      embeds: [{
+        color: 0xff3b3b,
+        title: '👋 Welcome to the server!',
+        description:
+          `To start playing the economy game, type **\`${prefix}open account\`** in any channel.\n\n` +
+          `You'll receive **$500** to get started.\n\n` +
+          `Use **\`${prefix}help\`** to see all available commands.`,
+        footer: { text: 'First Class Economy Bot' },
+      }],
+    });
+  } catch { /* DMs closed — they'll find out when they try a command */ }
 });
 
 // ---- SLASH COMMAND HANDLER ----

@@ -144,10 +144,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <!-- OVERVIEW -->
     <div id="section-overview" class="section active">
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-val c-blue" id="s-users">—</div></div>
+        <div class="stat-card"><div class="stat-label">Server Members</div><div class="stat-val c-blue" id="s-members">—</div></div>
+        <div class="stat-card"><div class="stat-label">Accounts Open</div><div class="stat-val c-green" id="s-users">—</div></div>
         <div class="stat-card"><div class="stat-label">Economy Total</div><div class="stat-val c-gold" id="s-money">—</div></div>
         <div class="stat-card"><div class="stat-label">Store Items</div><div class="stat-val" id="s-items">—</div></div>
-        <div class="stat-card"><div class="stat-label">Mod Roles</div><div class="stat-val" id="s-mods">—</div></div>
         <div class="stat-card"><div class="stat-label">Warnings</div><div class="stat-val c-red" id="s-warns">—</div></div>
         <div class="stat-card"><div class="stat-label">Purge</div><div class="stat-val" id="s-purge">—</div></div>
       </div>
@@ -203,15 +203,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- USERS -->
     <div id="section-users" class="section">
-      <p class="sub-txt">Click any wallet or bank value to edit inline, then press Enter or click away to save.</p>
+      <p class="sub-txt">Shows every member in your server. Members with <span class="tag t-green">✅ Open</span> have an active wallet. Members with <span class="tag t-muted">❌ None</span> haven't opened an account yet. Wallet and bank are editable inline.</p>
       <div class="tbl-wrap">
         <div class="tbl-head">
           <h3>All Users</h3>
           <input class="search" placeholder="Filter by ID..." oninput="filterUsers(this.value)">
         </div>
         <table>
-          <thead><tr><th>#</th><th>User</th><th>Wallet</th><th>Bank</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="users-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
+          <thead><tr><th>#</th><th>User</th><th>Account</th><th>Wallet</th><th>Bank</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="8" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -700,10 +700,10 @@ async function refresh(){
 
 function renderStats(){
   const s=S.stats;
+  document.getElementById('s-members').textContent=s.totalMembers??'—';
   document.getElementById('s-users').textContent=s.totalUsers??'—';
   document.getElementById('s-money').textContent=s.totalMoney!=null?'$'+formatNum(s.totalMoney):'—';
   document.getElementById('s-items').textContent=s.storeItems??'—';
-  document.getElementById('s-mods').textContent=s.modRoles??'—';
   document.getElementById('s-warns').textContent=s.totalWarnings??'—';
   const pe=document.getElementById('s-purge');
   pe.textContent=s.purgeActive?'🔴 ON':'🟢 Off';
@@ -713,13 +713,25 @@ function renderStats(){
 function filterUsers(q){renderUsers(S.users.filter(u=>u.username.toLowerCase().includes(q.toLowerCase())||u.id.includes(q)))}
 function renderUsers(list){
   const tb=document.getElementById('users-tbody');
-  if(!list.length){tb.innerHTML='<tr><td colspan="7" class="empty-cell">No users.</td></tr>';return}
+  if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty-cell">No users.</td></tr>';return}
   tb.innerHTML=list.map((u,i)=>{
     const banned=u.bannedUntil&&u.bannedUntil>Date.now();
     const bm=banned?Math.ceil((u.bannedUntil-Date.now())/60000):0;
     const avatar=u.avatar
       ?`<img src="${u.avatar}" style="width:26px;height:26px;border-radius:50%;margin-right:8px;vertical-align:middle;object-fit:cover" onerror="this.style.display='none'">`
       :'<span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:var(--border2);margin-right:8px;vertical-align:middle;text-align:center;line-height:26px;font-size:12px">?</span>';
+    const accountTag=u.hasAccount
+      ?`<span class="tag t-green">✅ Open</span>`
+      :`<span class="tag t-muted">❌ None</span>`;
+    const walletCell=u.hasAccount
+      ?`<input class="iinput" value="${u.wallet}" onblur="upd('${u.id}',this.value,null)" onkeydown="if(event.key==='Enter')this.blur()">`
+      :`<span style="color:var(--muted);font-size:11px">—</span>`;
+    const bankCell=u.hasAccount
+      ?`<input class="iinput" value="${u.bank}" onblur="upd('${u.id}',null,this.value)" onkeydown="if(event.key==='Enter')this.blur()">`
+      :`<span style="color:var(--muted);font-size:11px">—</span>`;
+    const totalCell=u.hasAccount
+      ?`<span class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</span>`
+      :`<span style="color:var(--muted);font-size:11px">—</span>`;
     return`<tr>
       <td class="mono" style="color:var(--muted)">${i+1}</td>
       <td>
@@ -731,9 +743,10 @@ function renderUsers(list){
           </div>
         </div>
       </td>
-      <td><input class="iinput" value="${u.wallet}" onblur="upd('${u.id}',this.value,null)" onkeydown="if(event.key==='Enter')this.blur()"></td>
-      <td><input class="iinput" value="${u.bank}" onblur="upd('${u.id}',null,this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
-      <td class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</td>
+      <td>${accountTag}</td>
+      <td>${walletCell}</td>
+      <td>${bankCell}</td>
+      <td>${totalCell}</td>
       <td>${banned?`<span class="tag t-red">🔇 ${bm}m</span>`:`<span class="tag t-green">Active</span>`}</td>
       <td>${banned?`<button class="btn btn-ghost btn-sm" onclick="unban('${u.id}')">Unban</button>`:''}</td>
     </tr>`;

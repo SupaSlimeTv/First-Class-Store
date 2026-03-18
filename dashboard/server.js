@@ -62,7 +62,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ============================================================
 // STATS
 // ============================================================
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', async (req, res) => {
   const users  = db.getAllUsers();
   const store  = db.getStore();
   const config = db.getConfig();
@@ -73,12 +73,25 @@ app.get('/api/stats', (req, res) => {
     } catch { return {}; }
   })();
 
-  const userList = Object.values(users);
-  const totalMoney = userList.reduce((s, u) => s + u.wallet + u.bank, 0);
+  const userList    = Object.values(users);
+  const totalMoney  = userList.reduce((s, u) => s + u.wallet + u.bank, 0);
   const totalWarnings = Object.values(warnings).reduce((s, w) => s + w.length, 0);
+
+  // Fetch total guild member count
+  let totalMembers = userList.length;
+  try {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${process.env.GUILD_ID}?with_counts=true`, {
+      headers: { Authorization: `Bot ${process.env.TOKEN}` },
+    });
+    if (r.ok) {
+      const g = await r.json();
+      totalMembers = g.approximate_member_count || totalMembers;
+    }
+  } catch { /* use fallback */ }
 
   res.json({
     totalUsers:    userList.length,
+    totalMembers,
     totalMoney,
     storeItems:    store.items.length,
     purgeActive:   config.purgeActive,
@@ -88,30 +101,73 @@ app.get('/api/stats', (req, res) => {
 });
 
 // ============================================================
-// USERS
+// USERS — shows ALL guild members, with account status
 // ============================================================
 app.get('/api/users', async (req, res) => {
-  const users = db.getAllUsers();
+  const accountUsers = db.getAllUsers();
+  const GUILD_ID = process.env.GUILD_ID;
 
-  // Fetch all display names in parallel
-  const list = await Promise.all(
-    Object.entries(users).map(async ([id, data]) => {
+  // Fetch all guild members from Discord API
+  let guildMembers = [];
+  try {
+    const response = await fetch(`https://discord.com/api/v10/guilds/${GUILD_ID}/members?limit=1000`, {
+      headers: { Authorization: `Bot ${process.env.TOKEN}` },
+    });
+    if (response.ok) {
+      const members = await response.json();
+      guildMembers = members.filter(m => !m.user.bot);
+    }
+  } catch { /* fall back to accounts only */ }
+
+  // Build a map of all guild members
+  const memberMap = {};
+  for (const member of guildMembers) {
+    const u = member.user;
+    memberMap[u.id] = {
+      id:       u.id,
+      username: member.nick || u.global_name || u.username || u.id,
+      avatar:   u.avatar
+        ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64`
+        : `https://cdn.discordapp.com/embed/avatars/${parseInt(u.id) % 5}.png`,
+    };
+  }
+
+  // Also include anyone in accounts who may have left the server
+  for (const id of Object.keys(accountUsers)) {
+    if (!memberMap[id]) {
       const discordUser = await fetchDiscordUser(id);
-      return {
+      memberMap[id] = {
         id,
         username: discordUser?.username || id,
         avatar:   discordUser?.avatar   || null,
-        wallet:      data.wallet || 0,
-        bank:        data.bank   || 0,
-        total:       (data.wallet || 0) + (data.bank || 0),
-        inventory:   data.inventory || [],
-        bannedUntil: data.bannedUntil || null,
-        lastDaily:   data.lastDaily  || null,
       };
-    })
-  );
+    }
+  }
 
-  list.sort((a, b) => b.total - a.total);
+  // Merge guild members with account data
+  const list = Object.values(memberMap).map(member => {
+    const data = accountUsers[member.id];
+    return {
+      id:          member.id,
+      username:    member.username,
+      avatar:      member.avatar,
+      hasAccount:  !!data,
+      wallet:      data?.wallet      || 0,
+      bank:        data?.bank        || 0,
+      total:       (data?.wallet||0) + (data?.bank||0),
+      inventory:   data?.inventory   || [],
+      bannedUntil: data?.bannedUntil || null,
+      lastDaily:   data?.lastDaily   || null,
+    };
+  });
+
+  // Sort: accounts with money first, then accounts with no money, then no account
+  list.sort((a, b) => {
+    if (a.hasAccount && !b.hasAccount) return -1;
+    if (!a.hasAccount && b.hasAccount) return 1;
+    return b.total - a.total;
+  });
+
   res.json(list);
 });
 
