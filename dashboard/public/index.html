@@ -792,19 +792,60 @@ async function api(m,u,b){
 }
 
 async function refresh(){
-  const [stats,users,store,config,effects]=await Promise.all([
-    api('GET','/api/stats'),api('GET','/api/users'),api('GET','/api/store'),
+  const [stats,store,config,effects]=await Promise.all([
+    api('GET','/api/stats'),api('GET','/api/store'),
     api('GET','/api/config'),api('GET','/api/effects')
   ]);
-  S={...S,stats,users,store:store.items||[],purgeActive:config.purgeActive,effects};
-  filteredUsers = [...S.users];
-  const q = document.getElementById('user-search')?.value || '';
-  if (q) filteredUsers = S.users.filter(u => u.username.toLowerCase().includes(q.toLowerCase()) || u.id.includes(q));
-  renderStats();renderUsers(filteredUsers);renderStore();renderPurge();renderEffects();
+  S={...S,stats,store:store.items||[],purgeActive:config.purgeActive,effects};
+  renderStats();renderStore();renderPurge();renderEffects();
   await loadRoleIncome();
   await loadProtectedRoles();
   await loadGuildRoles();
   await loadLottery();
+
+  // Load users separately so the list doesn't flash blank
+  api('GET','/api/users').then(users => {
+    S.users = users;
+    filteredUsers = [...users];
+    const q = document.getElementById('user-search')?.value || '';
+    if (q) filteredUsers = users.filter(u => u.username.toLowerCase().includes(q.toLowerCase()) || u.id.includes(q));
+    renderUsers(filteredUsers);
+  }).catch(() => {});
+
+  // Populate prefix input with current value
+  const prefixInput = document.getElementById('prefix-input');
+  if (prefixInput) {
+    prefixInput.value = config.prefix || '!';
+    document.getElementById('prefix-display').textContent  = config.prefix || '!';
+    document.getElementById('prefix-display2').textContent = config.prefix || '!';
+  }
+
+  // Populate restricted role
+  const rrInput  = document.getElementById('restricted-role-input');
+  const rrStatus = document.getElementById('restricted-role-status');
+  if (rrInput) {
+    rrInput.value = config.restrictedRoleId || '';
+    rrStatus.textContent = config.restrictedRoleId
+      ? 'Role ID: ' + config.restrictedRoleId
+      : 'No restriction set — open to everyone';
+  }
+
+  // Populate rob cooldown
+  const rcInput = document.getElementById('rob-cooldown-input');
+  if (rcInput) rcInput.value = config.robCooldownMinutes ?? 5;
+
+  // Populate purge channel
+  const pcInput  = document.getElementById('purge-channel-input');
+  const pcStatus = document.getElementById('purge-channel-status');
+  if (pcInput) {
+    pcInput.value = config.purgeChannelId || '';
+    if (pcStatus) pcStatus.textContent = config.purgeChannelId
+      ? 'Channel ID: ' + config.purgeChannelId
+      : 'No channel set — announcements disabled';
+  }
+
+  document.getElementById('refresh-ts').textContent='Last sync: '+new Date().toLocaleTimeString();
+}
   await loadLottery();
 
   // Populate prefix input with current value
