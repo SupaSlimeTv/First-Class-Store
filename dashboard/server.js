@@ -81,26 +81,69 @@ app.get('/api/stats', async (req, res) => {
 // ============================================================
 app.get('/api/users', async (req, res) => {
   const accountUsers = db.getAllUsers();
-  let guildMembers = [];
+
+  // Fetch members from ALL guilds the bot is in
+  const memberMap = {};
   try {
-    const r = await fetch(`https://discord.com/api/v10/guilds/${GUILD_ID}/members?limit=1000`, { headers: { Authorization: `Bot ${process.env.TOKEN}`, 'Cache-Control': 'no-cache' } });
-    if (r.ok) guildMembers = (await r.json()).filter(m => !m.user.bot);
+    const guildsRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+      headers: { Authorization: `Bot ${process.env.TOKEN}` },
+    });
+    if (guildsRes.ok) {
+      const guilds = await guildsRes.json();
+      for (const guild of guilds) {
+        try {
+          const r = await fetch(`https://discord.com/api/v10/guilds/${guild.id}/members?limit=1000`, {
+            headers: { Authorization: `Bot ${process.env.TOKEN}`, 'Cache-Control': 'no-cache' },
+          });
+          if (!r.ok) continue;
+          const members = await r.json();
+          for (const member of members) {
+            if (member.user.bot) continue;
+            const u = member.user;
+            // Don't overwrite if already found — first server wins for display name
+            if (!memberMap[u.id]) {
+              memberMap[u.id] = {
+                id:       u.id,
+                username: member.nick || u.global_name || u.username || u.id,
+                avatar:   u.avatar
+                  ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64`
+                  : `https://cdn.discordapp.com/embed/avatars/${parseInt(u.id) % 5}.png`,
+              };
+            }
+          }
+        } catch {}
+      }
+    }
   } catch {}
 
-  const memberMap = {};
-  for (const member of guildMembers) {
-    const u = member.user;
-    memberMap[u.id] = { id: u.id, username: member.nick || u.global_name || u.username || u.id, avatar: u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64` : `https://cdn.discordapp.com/embed/avatars/${parseInt(u.id) % 5}.png` };
-  }
+  // Also include anyone with an account who may not be in any current guild
   for (const id of Object.keys(accountUsers)) {
-    if (!memberMap[id]) { const d = await fetchDiscordUser(id); memberMap[id] = { id, username: d?.username || id, avatar: d?.avatar || null }; }
+    if (!memberMap[id]) {
+      const d = await fetchDiscordUser(id);
+      memberMap[id] = { id, username: d?.username || id, avatar: d?.avatar || null };
+    }
   }
 
   const list = Object.values(memberMap).map(member => {
     const data = accountUsers[member.id] || null;
-    return { id: member.id, username: member.username, avatar: member.avatar, hasAccount: data !== null, wallet: data?.wallet||0, bank: data?.bank||0, total: (data?.wallet||0)+(data?.bank||0), bannedUntil: data?.bannedUntil||null };
+    return {
+      id:          member.id,
+      username:    member.username,
+      avatar:      member.avatar,
+      hasAccount:  data !== null,
+      wallet:      data?.wallet      || 0,
+      bank:        data?.bank        || 0,
+      total:       (data?.wallet||0) + (data?.bank||0),
+      bannedUntil: data?.bannedUntil || null,
+    };
   });
-  list.sort((a, b) => { if (a.hasAccount && !b.hasAccount) return -1; if (!a.hasAccount && b.hasAccount) return 1; return b.total - a.total; });
+
+  list.sort((a, b) => {
+    if (a.hasAccount && !b.hasAccount) return -1;
+    if (!a.hasAccount && b.hasAccount) return 1;
+    return b.total - a.total;
+  });
+
   res.json(list);
 });
 
