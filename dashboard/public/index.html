@@ -333,6 +333,23 @@ tr:hover td{background:rgba(255,255,255,.015)}
 </div>
 </div>
 
+<!-- INVENTORY VIEWER MODAL -->
+<div id="inv-modal" class="backdrop">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-top">
+      <h3 id="inv-modal-title">🎒 Inventory</h3>
+    </div>
+    <div class="modal-body">
+      <div id="inv-modal-body" style="min-height:80px">
+        <div style="color:var(--muted);text-align:center;padding:24px">Loading...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('inv-modal').classList.remove('open')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- GIVE/TAKE ITEM MODAL -->
 <div id="item-give-modal" class="backdrop">
   <div class="modal" style="max-width:420px">
@@ -759,7 +776,8 @@ function renderUsers(list){
       ?`<span class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</span>`
       :`<span style="color:var(--muted);font-size:11px">—</span>`;
     const itemBtns=u.hasAccount
-      ?`<button class="btn btn-ghost btn-sm" onclick="openGiveItem('${u.id}','${u.username}')">Give</button>
+      ?`<button class="btn btn-ghost btn-sm" onclick="viewInventory('${u.id}','${u.username}')">🎒 Inv</button>
+        <button class="btn btn-ghost btn-sm" onclick="openGiveItem('${u.id}','${u.username}')">Give</button>
         <button class="btn btn-danger btn-sm" onclick="openTakeItem('${u.id}','${u.username}')">Take</button>`
       :`<span style="color:var(--muted);font-size:11px">—</span>`;
     return`<tr>
@@ -1278,6 +1296,38 @@ async function deleteRoleIncome(roleId) {
 }
 
 // ════════════════════════════════════════════════
+// INVENTORY VIEWER
+// ════════════════════════════════════════════════
+async function viewInventory(userId, username) {
+  document.getElementById('inv-modal-title').textContent = `🎒 ${username}'s Inventory`;
+  document.getElementById('inv-modal-body').innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px">Loading...</div>';
+  document.getElementById('inv-modal').classList.add('open');
+
+  const data = await api('GET', `/api/users/${userId}/inventory`);
+
+  if (!data.items || !data.items.length) {
+    document.getElementById('inv-modal-body').innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px">Inventory is empty.</div>';
+    return;
+  }
+
+  const EFX = { drain_wallet:'💸', drain_all:'💻', silence:'🔇', hitman:'🔫', gamble:'🎲', passive_income:'💰', shield:'🛡️', minigame_drain:'🖥️' };
+
+  document.getElementById('inv-modal-body').innerHTML = data.items.map(item => `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${item.reusable ? '♻️' : '🗑️'} ${item.name}</div>
+        ${item.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${item.description}</div>` : ''}
+        ${item.effect ? `<div style="margin-top:4px"><span class="tag t-cyan">${EFX[item.effect]||'⚡'} ${item.effect.replace(/_/g,' ')}</span></div>` : ''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--gold)">×${item.count}</div>
+        <div style="font-size:10px;color:var(--muted)">${item.id}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════════════
 // GUILD ROLES — load for dropdowns
 // ════════════════════════════════════════════════
 let guildRoles = [];
@@ -1423,6 +1473,7 @@ function toast(msg,type='ok'){
 
 document.getElementById('item-modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 document.getElementById('role-modal').addEventListener('click',function(e){if(e.target===this)closeRoleModal();});
+document.getElementById('inv-modal').addEventListener('click',function(e){if(e.target===this)document.getElementById('inv-modal').classList.remove('open');});
 
 // ════════════════════════════════════════════════
 // INIT

@@ -225,6 +225,20 @@ app.delete('/api/protected-roles/:roleId', (req, res) => {
   res.json({ success: true, protectedRoles: config.protectedRoles });
 });
 
+// Get a user's inventory with item details
+app.get('/api/users/:id/inventory', (req, res) => {
+  const user = db.getUser(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const store  = db.getStore();
+  const inv    = user.inventory || [];
+  const counts = inv.reduce((a, id) => { a[id] = (a[id]||0)+1; return a; }, {});
+  const items  = Object.entries(counts).map(([id, cnt]) => {
+    const item = (store.items||[]).find(i => i.id === id);
+    return { id, count: cnt, name: item?.name || id, description: item?.description || '', reusable: item?.reusable || false, effect: item?.effect?.type || null };
+  });
+  res.json({ userId: req.params.id, items });
+});
+
 // ============================================================
 // GUILD ROLES — for dropdowns in dashboard
 // ============================================================
