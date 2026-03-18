@@ -226,6 +226,52 @@ app.delete('/api/protected-roles/:roleId', (req, res) => {
 });
 
 // ============================================================
+// GUILD ROLES — for dropdowns in dashboard
+// ============================================================
+app.get('/api/guild/roles', async (req, res) => {
+  try {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${GUILD_ID}/roles`, {
+      headers: { Authorization: `Bot ${process.env.TOKEN}` },
+    });
+    if (!r.ok) return res.status(500).json({ error: 'Failed to fetch roles' });
+    const roles = await r.json();
+    // Filter out @everyone and sort by position
+    const filtered = roles
+      .filter(role => role.name !== '@everyone')
+      .sort((a, b) => b.position - a.position)
+      .map(role => ({ id: role.id, name: role.name, color: role.color }));
+    res.json(filtered);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ============================================================
+// GIVE / TAKE ITEMS
+// ============================================================
+app.post('/api/users/:id/give-item', (req, res) => {
+  const { itemId } = req.body;
+  if (!itemId) return res.status(400).json({ error: 'itemId required' });
+  const store = db.getStore();
+  const item  = (store.items||[]).find(i => i.id === itemId);
+  if (!item) return res.status(404).json({ error: 'Item not found in store' });
+  db.giveItem(req.params.id, itemId);
+  res.json({ success: true });
+});
+
+app.post('/api/users/:id/take-item', (req, res) => {
+  const { itemId } = req.body;
+  if (!itemId) return res.status(400).json({ error: 'itemId required' });
+  const user = db.getUser(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const inv = user.inventory || [];
+  const idx = inv.indexOf(itemId);
+  if (idx === -1) return res.status(400).json({ error: 'User does not have this item' });
+  inv.splice(idx, 1);
+  user.inventory = inv;
+  db.saveUser(req.params.id, user);
+  res.json({ success: true });
+});
+
+// ============================================================
 // ROLE INCOME
 // ============================================================
 app.get('/api/roleincome', (req, res) => res.json(db.getConfig().roleIncome || {}));

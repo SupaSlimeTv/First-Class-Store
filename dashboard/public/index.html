@@ -210,8 +210,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <input class="search" placeholder="Filter by ID..." oninput="filterUsers(this.value)">
         </div>
         <table>
-          <thead><tr><th>#</th><th>User</th><th>Account</th><th>Wallet</th><th>Bank</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="users-tbody"><tr><td colspan="8" class="empty-cell">Loading...</td></tr></tbody>
+          <thead><tr><th>#</th><th>User</th><th>Account</th><th>Wallet</th><th>Bank</th><th>Total</th><th>Status</th><th>Items</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -333,6 +333,27 @@ tr:hover td{background:rgba(255,255,255,.015)}
 </div>
 </div>
 
+<!-- GIVE/TAKE ITEM MODAL -->
+<div id="item-give-modal" class="backdrop">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-top"><h3 id="give-modal-title">Give Item</h3></div>
+    <div class="modal-body">
+      <input type="hidden" id="give-target-id">
+      <div class="fg">
+        <label class="flabel">Select Item</label>
+        <select class="fselect" id="give-item-select">
+          <option value="">— Choose an item —</option>
+        </select>
+      </div>
+      <div class="hint" id="give-modal-hint">Select an item to give to this user. It will appear in their inventory immediately.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeGiveTakeModal()">Cancel</button>
+      <button class="btn btn-gold" id="give-confirm-btn" onclick="confirmGiveTake()">Give Item</button>
+    </div>
+  </div>
+</div>
+
 <!-- ROLE INCOME MODAL -->
 <div id="role-modal" class="backdrop">
   <div class="modal" style="max-width:440px">
@@ -423,7 +444,9 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
         <div class="fg">
           <label class="flabel">Grant Role on Purchase <span style="color:var(--muted)">(optional)</span></label>
-          <input class="finput" id="m-role" placeholder="Discord Role ID or leave blank">
+          <select class="fselect" id="m-role">
+            <option value="">— No role reward —</option>
+          </select>
           <div class="hint">If set, this role is given to the user when they buy this item.</div>
         </div>
       </div>
@@ -462,8 +485,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
           </div>
           <div id="req-role" class="ef-section">
             <div class="fg">
-              <label class="flabel">Required Role ID</label>
-              <input class="finput" id="m-req-role-val" placeholder="e.g. 123456789012345678">
+              <label class="flabel">Required Role</label>
+              <select class="fselect" id="m-req-role-val">
+                <option value="">— Choose a role —</option>
+              </select>
               <div class="hint">Right-click a role in Discord → Copy Role ID (requires Developer Mode).</div>
             </div>
             <div class="fg">
@@ -662,6 +687,7 @@ async function refresh(){
   renderStats();renderUsers(S.users);renderStore();renderPurge();renderEffects();
   await loadRoleIncome();
   await loadProtectedRoles();
+  await loadGuildRoles();
 
   // Populate prefix input with current value
   const prefixInput = document.getElementById('prefix-input');
@@ -713,7 +739,7 @@ function renderStats(){
 function filterUsers(q){renderUsers(S.users.filter(u=>u.username.toLowerCase().includes(q.toLowerCase())||u.id.includes(q)))}
 function renderUsers(list){
   const tb=document.getElementById('users-tbody');
-  if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty-cell">No users.</td></tr>';return}
+  if(!list.length){tb.innerHTML='<tr><td colspan="9" class="empty-cell">No users.</td></tr>';return}
   tb.innerHTML=list.map((u,i)=>{
     const banned=u.bannedUntil&&u.bannedUntil>Date.now();
     const bm=banned?Math.ceil((u.bannedUntil-Date.now())/60000):0;
@@ -732,6 +758,10 @@ function renderUsers(list){
     const totalCell=u.hasAccount
       ?`<span class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</span>`
       :`<span style="color:var(--muted);font-size:11px">—</span>`;
+    const itemBtns=u.hasAccount
+      ?`<button class="btn btn-ghost btn-sm" onclick="openGiveItem('${u.id}','${u.username}')">Give</button>
+        <button class="btn btn-danger btn-sm" onclick="openTakeItem('${u.id}','${u.username}')">Take</button>`
+      :`<span style="color:var(--muted);font-size:11px">—</span>`;
     return`<tr>
       <td class="mono" style="color:var(--muted)">${i+1}</td>
       <td>
@@ -748,6 +778,7 @@ function renderUsers(list){
       <td>${bankCell}</td>
       <td>${totalCell}</td>
       <td>${banned?`<span class="tag t-red">🔇 ${bm}m</span>`:`<span class="tag t-green">Active</span>`}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">${itemBtns}</td>
       <td>${banned?`<button class="btn btn-ghost btn-sm" onclick="unban('${u.id}')">Unban</button>`:''}</td>
     </tr>`;
   }).join('');
@@ -794,7 +825,7 @@ function renderStore(){
 }
 
 function clearForm(){
-  ['m-name','m-desc','m-price','m-role','m-drain-amount','m-drain-duration',
+  ['m-name','m-desc','m-price','m-drain-amount','m-drain-duration',
    'm-silence-dur','m-passive-amount','m-passive-interval','m-passive-duration',
    'm-shield-blocks','m-shield-dur','m-mg-amount','m-mg-time','m-mg-fine'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('m-type').value='useable';
@@ -1247,7 +1278,76 @@ async function deleteRoleIncome(roleId) {
 }
 
 // ════════════════════════════════════════════════
-// EMOJI PICKER
+// GUILD ROLES — load for dropdowns
+// ════════════════════════════════════════════════
+let guildRoles = [];
+async function loadGuildRoles() {
+  try {
+    guildRoles = await api('GET', '/api/guild/roles');
+    populateRoleDropdowns();
+  } catch { guildRoles = []; }
+}
+
+function populateRoleDropdowns() {
+  const opts = `<option value="">— No role —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  const roleSelect    = document.getElementById('m-role');
+  const reqRoleSelect = document.getElementById('m-req-role-val');
+  if (roleSelect)    roleSelect.innerHTML    = `<option value="">— No role reward —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  if (reqRoleSelect) reqRoleSelect.innerHTML = `<option value="">— Choose a role —</option>`  + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+}
+
+// ════════════════════════════════════════════════
+// GIVE / TAKE ITEMS
+// ════════════════════════════════════════════════
+let giveTakeMode = 'give';
+let giveTakeUserId = '';
+
+function openGiveItem(userId, username) {
+  giveTakeMode   = 'give';
+  giveTakeUserId = userId;
+  document.getElementById('give-modal-title').textContent = `Give Item to ${username}`;
+  document.getElementById('give-confirm-btn').textContent = 'Give Item';
+  document.getElementById('give-confirm-btn').className   = 'btn btn-gold';
+  document.getElementById('give-modal-hint').textContent  = 'Select an item to give. It will appear in their inventory immediately.';
+  populateGiveSelect();
+  document.getElementById('item-give-modal').classList.add('open');
+}
+
+function openTakeItem(userId, username) {
+  giveTakeMode   = 'take';
+  giveTakeUserId = userId;
+  document.getElementById('give-modal-title').textContent = `Take Item from ${username}`;
+  document.getElementById('give-confirm-btn').textContent = 'Take Item';
+  document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
+  document.getElementById('give-modal-hint').textContent  = 'Select an item to remove from their inventory.';
+  populateGiveSelect();
+  document.getElementById('item-give-modal').classList.add('open');
+}
+
+function populateGiveSelect() {
+  const sel = document.getElementById('give-item-select');
+  const items = S.store || [];
+  if (!items.length) { sel.innerHTML = '<option value="">No items in store</option>'; return; }
+  sel.innerHTML = '<option value="">— Choose an item —</option>' + items.map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
+}
+
+function closeGiveTakeModal() {
+  document.getElementById('item-give-modal').classList.remove('open');
+}
+
+async function confirmGiveTake() {
+  const itemId = document.getElementById('give-item-select').value;
+  if (!itemId) { toast('Select an item first', 'err'); return; }
+  const endpoint = giveTakeMode === 'give' ? 'give-item' : 'take-item';
+  const r = await api('POST', `/api/users/${giveTakeUserId}/${endpoint}`, { itemId });
+  if (r.success) {
+    toast(giveTakeMode === 'give' ? 'Item given!' : 'Item taken!', 'ok');
+    closeGiveTakeModal();
+    refresh();
+  } else toast(r.error || 'Failed', 'err');
+}
+
+document.getElementById('item-give-modal').addEventListener('click', function(e){ if(e.target===this) closeGiveTakeModal(); });
 // ════════════════════════════════════════════════
 const EMOJIS = [
   '💰','💵','💸','🏦','💎','👜','🪙','💳','🤑','💹',
