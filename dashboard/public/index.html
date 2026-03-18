@@ -941,6 +941,8 @@ function goUsersPage(p) {
   // Scroll table into view
   document.getElementById('users-tbody').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+async function upd(id,w,b){
   const body={};
   if(w!=null)body.wallet=parseInt(w)||0;
   if(b!=null)body.bank=parseInt(b)||0;
