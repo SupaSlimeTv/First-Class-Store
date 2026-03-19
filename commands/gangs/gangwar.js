@@ -31,6 +31,7 @@ module.exports = {
     if (!myGang) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You're not in a gang.")], ephemeral: true });
 
     if (sub === 'challenge') {
+      if (myGang.members.length < 3) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setTitle('❌ Not Enough Members').setDescription(`You need at least **3 members** to declare war.\n\nYour gang has **${myGang.members.length}** member(s). Recruit more with \`/ganginvite @user\`.`)], ephemeral: true });
       const targetName = interaction.options.getString('gang');
       const bet        = interaction.options.getInteger('bet') || 0;
 
@@ -68,6 +69,7 @@ module.exports = {
         const btnUserGang = getGangByMember(btnUser);
         if (!btnUserGang || btnUserGang.id !== targetGang.id) return btn.reply({ content: "Only members of the challenged gang can respond.", ephemeral: true });
         if (btnUserGang.leaderId !== btnUser && !btnUserGang.members.find(m => m.userId === btnUser && m.role === 'Officer')) return btn.reply({ content: "Only the leader or officers can accept wars.", ephemeral: true });
+        if (btnUserGang.members.length < 3) return btn.reply({ content: `❌ Your gang needs at least **3 members** to go to war. You have **${btnUserGang.members.length}**.`, ephemeral: true });
 
         collector.stop();
 
