@@ -414,23 +414,66 @@ app.get('/api/lottery', (req, res) => {
 });
 
 app.post('/api/lottery/settings', (req, res) => {
-  const { active, ticketPrice, intervalHours } = req.body;
+  const { active, ticketPrice, intervalHours, minBonus, maxBonus, minPot } = req.body;
   const config = db.getConfig();
   if (!config.lottery) config.lottery = {};
   if (active        !== undefined) config.lottery.active        = active;
-  if (ticketPrice   !== undefined) config.lottery.ticketPrice   = parseInt(ticketPrice) || 100;
+  if (ticketPrice   !== undefined) config.lottery.ticketPrice   = parseInt(ticketPrice)   || 100;
   if (intervalHours !== undefined) config.lottery.intervalHours = parseFloat(intervalHours) || 24;
+  if (minBonus      !== undefined) config.lottery.minBonus      = parseInt(minBonus)      || 0;
+  if (maxBonus      !== undefined) config.lottery.maxBonus      = parseInt(maxBonus)      || 0;
+  if (minPot        !== undefined) config.lottery.minPot        = parseInt(minPot)        || 0;
   db.saveConfig(config);
 
-  // Update lottery file if it exists
   if (fs.existsSync(LOTTERY_FILE)) {
     const lottery = JSON.parse(fs.readFileSync(LOTTERY_FILE, 'utf8'));
     lottery.active      = config.lottery.active;
     lottery.ticketPrice = config.lottery.ticketPrice;
     fs.writeFileSync(LOTTERY_FILE, JSON.stringify(lottery, null, 2));
   }
-
   res.json({ success: true });
+});
+
+app.post('/api/lottery/force-draw', async (req, res) => {
+  try {
+    if (!fs.existsSync(LOTTERY_FILE)) return res.status(404).json({ error: 'No lottery found' });
+    const lottery = JSON.parse(fs.readFileSync(LOTTERY_FILE, 'utf8'));
+    const config  = db.getConfig();
+
+    if (!lottery.tickets.length || lottery.pot <= 0) {
+      // No tickets — reset timer only
+      lottery.drawAt = Date.now() + (config.lottery?.intervalHours ?? 24) * 3600000;
+      fs.writeFileSync(LOTTERY_FILE, JSON.stringify(lottery, null, 2));
+      return res.json({ success: true, winner: null });
+    }
+
+    // Apply bonus pot randomization
+    const minBonus = config.lottery?.minBonus || 0;
+    const maxBonus = config.lottery?.maxBonus || 0;
+    const minPot   = config.lottery?.minPot   || 0;
+    if (maxBonus > minBonus) lottery.pot += Math.floor(minBonus + Math.random() * (maxBonus - minBonus));
+    if (lottery.pot < minPot) lottery.pot = minPot;
+
+    // Pick winner
+    const totalTickets = lottery.tickets.reduce((s, t) => s + t.count, 0);
+    let roll = Math.random() * totalTickets;
+    let winner = lottery.tickets[lottery.tickets.length - 1];
+    for (const entry of lottery.tickets) { roll -= entry.count; if (roll <= 0) { winner = entry; break; } }
+
+    const winUser = db.getOrCreateUser(winner.userId);
+    winUser.wallet += lottery.pot;
+    db.saveUser(winner.userId, winUser);
+
+    const prize        = lottery.pot;
+    lottery.lastWinner = winner.userId;
+    lottery.lastPot    = prize;
+    lottery.pot        = 0;
+    lottery.tickets    = [];
+    lottery.drawAt     = Date.now() + (config.lottery?.intervalHours ?? 24) * 3600000;
+    fs.writeFileSync(LOTTERY_FILE, JSON.stringify(lottery, null, 2));
+
+    res.json({ success: true, winner: winner.userId, prize });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/lottery/reset', (req, res) => {
@@ -512,6 +555,22 @@ app.post('/api/police/:userId/clear', (req, res) => {
     const { savePoliceRecord } = require('../utils/gangDb');
     savePoliceRecord(req.params.userId, { userId: req.params.userId, heat: 0, arrests: 0, jailUntil: null, offenses: [] });
     res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ============================================================
+// PETS
+// ============================================================
+app.get('/api/pets', (req, res) => {
+  try {
+    const { getAllPets, PET_TYPES, calcPetStats } = require('../utils/petDb');
+    const all  = getAllPets();
+    const list = Object.values(all).map(p => {
+      const type  = PET_TYPES[p.type] || {};
+      const stats = calcPetStats(p);
+      return { ...p, typeName: type.name, typeEmoji: type.emoji, rarity: type.rarity, tier: type.tier, stats };
+    }).sort((a,b) => (b.stats.power||0)-(a.stats.power||0));
+    res.json(list);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

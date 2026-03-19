@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { getOrCreateUser, saveUser, getAllUsers } = require('../../utils/db');
+const { getOrCreateUser, saveUser, getAllUsers, isPurgeActive } = require('../../utils/db');
 const { getGangByMember, getAllGangs, saveGang, getWar, saveWar, deleteWar, getMemberRank } = require('../../utils/gangDb');
 const { addHeat, checkPoliceRaid, isJailed, getJailTimeLeft } = require('../../utils/police');
 const { noAccount } = require('../../utils/accountCheck');
@@ -116,9 +116,9 @@ module.exports = {
 
       const isGang1     = myWar.gang1Id === myGang.id;
       const roll        = Math.random();
-      const success     = roll > 0.35; // 65% success
+      const success     = roll > 0.35;
       const points      = success ? Math.floor(5 + Math.random() * 15) : 0;
-      const heatAdded   = success ? 8 : 3;
+      const heatAdded   = isPurgeActive() ? 0 : (success ? 8 : 3);
 
       if (isGang1) myWar.gang1Score += points;
       else         myWar.gang2Score += points;
@@ -127,12 +127,10 @@ module.exports = {
       myWar.attacks.push({ userId, gangId: myGang.id, points, time: Date.now() });
       saveWar(myWar.id, myWar);
 
-      // Add heat for the attack
-      addHeat(userId, heatAdded, 'gang_attack');
+      if (heatAdded > 0) addHeat(userId, heatAdded, 'gang_attack');
 
-      // Police check
       const config  = require('../../utils/db').getConfig();
-      const raid    = await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
+      const raid    = isPurgeActive() ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
 
       const embed = new EmbedBuilder()
         .setColor(success ? 0xff3b3b : 0x888888)

@@ -291,72 +291,42 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
       <!-- LOTTERY CONTROL -->
       <div class="tbl-wrap" style="margin-bottom:20px">
-        <div class="tbl-head"><h3>🎟️ Lottery Control</h3><button class="btn btn-ghost btn-sm" onclick="loadLottery()">⟳ Refresh</button></div>
-
-        <!-- Live Stats -->
+        <div class="tbl-head"><h3>🎟️ Lottery Control</h3></div>
         <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
-          <div class="stat-card"><div class="stat-label">🏆 Current Pot</div><div class="stat-val c-gold" id="lottery-pot">—</div></div>
-          <div class="stat-card"><div class="stat-label">🎫 Tickets Sold</div><div class="stat-val c-blue" id="lottery-tickets">—</div></div>
-          <div class="stat-card"><div class="stat-label">⏰ Draw In</div><div class="stat-val" id="lottery-timer">—</div></div>
-          <div class="stat-card"><div class="stat-label">📊 Status</div><div class="stat-val" id="lottery-status">—</div></div>
-          <div class="stat-card"><div class="stat-label">🏅 Last Winner</div><div class="stat-val" id="lottery-last-winner" style="font-size:11px;font-family:'JetBrains Mono',monospace">—</div></div>
-          <div class="stat-card"><div class="stat-label">💸 Last Prize</div><div class="stat-val c-green" id="lottery-last-pot">—</div></div>
+          <div class="stat-card"><div class="stat-label">Current Pot</div><div class="stat-val c-gold" id="lottery-pot">—</div></div>
+          <div class="stat-card"><div class="stat-label">Tickets Sold</div><div class="stat-val c-blue" id="lottery-tickets">—</div></div>
+          <div class="stat-card"><div class="stat-label">Draw In</div><div class="stat-val" id="lottery-timer">—</div></div>
+          <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="lottery-status">—</div></div>
         </div>
-
-        <!-- Settings -->
-        <div style="padding:0 16px 12px">
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚙️ Settings</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-            <div class="fg" style="margin:0">
-              <label class="flabel">Ticket Price ($)</label>
-              <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Draw Every</label>
-              <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Interval Unit</label>
-              <select class="fselect" id="lottery-unit">
-                <option value="hours">Hours</option>
-                <option value="minutes">Minutes</option>
-                <option value="seconds">Seconds</option>
-              </select>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Status</label>
-              <select class="fselect" id="lottery-active">
-                <option value="true">✅ Open</option>
-                <option value="false">❌ Closed</option>
-              </select>
-            </div>
+        <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+          <div class="fg" style="margin:0">
+            <label class="flabel">Ticket Price ($)</label>
+            <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
           </div>
-
-          <!-- Bonus pot randomization -->
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🎲 Bonus Pot Randomization (added to ticket sales at draw time)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-            <div class="fg" style="margin:0">
-              <label class="flabel">Min Bonus ($)</label>
-              <input class="finput" id="lottery-min-bonus" type="number" min="0" placeholder="0" value="0">
-              <div class="hint">Minimum extra added to pot at draw. 0 = no bonus.</div>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Max Bonus ($)</label>
-              <input class="finput" id="lottery-max-bonus" type="number" min="0" placeholder="5000" value="0">
-              <div class="hint">Max extra added to pot at draw. Random amount between min and max.</div>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Guaranteed Min Pot ($)</label>
-              <input class="finput" id="lottery-min-pot" type="number" min="0" placeholder="0" value="0">
-              <div class="hint">If ticket sales are below this, pot is topped up to this amount.</div>
-            </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Draw Every</label>
+            <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Interval Unit</label>
+            <select class="fselect" id="lottery-unit">
+              <option value="hours">Hours</option>
+              <option value="minutes">Minutes</option>
+              <option value="seconds">Seconds</option>
+            </select>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Status</label>
+            <select class="fselect" id="lottery-active">
+              <option value="true">✅ Open</option>
+              <option value="false">❌ Closed</option>
+            </select>
           </div>
         </div>
-
         <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="saveLotterySettings()">Save Settings</button>
           <button class="btn btn-ghost" onclick="resetLottery()">🔄 Reset & Clear Tickets</button>
-          <button class="btn btn-gold btn-sm" onclick="forceDrawNow()">⚡ Force Draw Now</button>
+          <span style="font-size:12px;color:var(--muted);align-self:center" id="lottery-last-winner"></span>
         </div>
       </div>
 
@@ -708,7 +678,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="edit_items">🎒 Edit Items — give or take a specific item from user/target on use</option>
               <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
               <option value="ai">🤖 AI Entity — spawn an AI with personality, moods, and autonomy</option>
-              <option value="consume">🍽️ Consume — edible/drinkable item that gives a timed buff or debuff</option>
+              <option value="magic">🔮 Magic — configurable spell with self-buff + target-curse combo</option>
             </select>
           </div>
 
@@ -917,56 +887,104 @@ tr:hover td{background:rgba(255,255,255,.015)}
             </div>
           </div>
 
-          <!-- CONSUME fields -->
-          <div id="ef-consume" class="ef-section">
+          <!-- MAGIC fields -->
+          <div id="ef-magic" class="ef-section">
             <hr class="divider">
             <div class="grid2">
               <div class="fg">
-                <label class="flabel">Consume Type</label>
-                <select class="fselect" id="m-consume-type">
-                  <option value="food">🍽️ Food</option>
-                  <option value="drink">🍺 Drink</option>
-                  <option value="drug">💊 Drug</option>
-                  <option value="potion">🧪 Potion</option>
-                  <option value="pill">💊 Pill</option>
-                  <option value="custom">✨ Custom</option>
-                </select>
+                <label class="flabel">Spell Name</label>
+                <input class="finput" id="m-magic-spell" placeholder="e.g. Cursed Touch">
               </div>
               <div class="fg">
-                <label class="flabel">Consume Verb (optional)</label>
-                <input class="finput" id="m-consume-verb" placeholder="e.g. eat, drink, inject, smoke">
+                <label class="flabel">Spell Emoji</label>
+                <input class="finput" id="m-magic-emoji" placeholder="🔮" maxlength="4" style="width:80px">
               </div>
             </div>
             <div class="grid2">
               <div class="fg">
-                <label class="flabel">Effect Type</label>
-                <select class="fselect" id="m-consume-buff">
-                  <option value="work_boost">💼 Work Boost — higher work payouts</option>
-                  <option value="lucky">🍀 Lucky — better gambling payouts</option>
-                  <option value="rob_boost">🔫 Rob Boost — higher rob success chance</option>
-                  <option value="crime_boost">🌡️ Crime Boost — less heat from crimes</option>
-                  <option value="passive_boost">💰 Passive Boost — more passive income</option>
-                  <option value="speed">⚡ Speed — reduced cooldowns</option>
-                  <option value="focused">🎯 Focused — double work & crime payout</option>
-                  <option value="shield">🛡️ Shield — protection from attacks</option>
-                  <option value="poisoned">☠️ Poisoned — drains wallet over time (debuff)</option>
-                  <option value="high">😵 High — chaotic random wallet changes</option>
+                <label class="flabel">Success Chance (0.0 – 1.0)</label>
+                <input class="finput" id="m-magic-success" type="number" min="0" max="1" step="0.05" placeholder="1.0">
+                <div class="hint">1.0 = always works. 0.5 = 50/50. 0.0 = never.</div>
+              </div>
+              <div class="fg">
+                <label class="flabel">Backfire Chance (0.0 – 1.0)</label>
+                <input class="finput" id="m-magic-backfire" type="number" min="0" max="1" step="0.05" placeholder="0.0">
+                <div class="hint">On failure, chance the spell hits the caster instead.</div>
+              </div>
+            </div>
+
+            <div class="effect-zone-title" style="margin-top:10px;margin-bottom:8px">✨ Self Buff (optional — applied to the caster)</div>
+            <div class="grid2">
+              <div class="fg">
+                <label class="flabel">Buff Type</label>
+                <select class="fselect" id="m-magic-self-type" onchange="onMagicSelfChange()">
+                  <option value="">— None —</option>
+                  <option value="wallet">💵 Add to Wallet</option>
+                  <option value="bank">🏦 Add to Bank</option>
+                  <option value="shield">🛡️ Give Shield</option>
+                  <option value="passive_income">💰 Passive Income</option>
                 </select>
               </div>
               <div class="fg">
-                <label class="flabel">Strength (%)</label>
-                <input class="finput" id="m-consume-strength" type="number" min="1" max="200" placeholder="25">
-                <div class="hint">For most buffs this is a % boost. Ignored for focused/poisoned/high.</div>
+                <label class="flabel">Amount ($)</label>
+                <input class="finput" id="m-magic-self-amount" type="number" min="0" placeholder="500">
               </div>
             </div>
+            <div id="magic-self-shield" style="display:none">
+              <div class="grid2">
+                <div class="fg">
+                  <label class="flabel">Shield Blocks</label>
+                  <input class="finput" id="m-magic-self-blocks" type="number" min="1" placeholder="3">
+                </div>
+                <div class="fg">
+                  <label class="flabel">Shield Duration (hours)</label>
+                  <input class="finput" id="m-magic-self-duration" type="number" min="1" placeholder="24">
+                </div>
+              </div>
+            </div>
+            <div id="magic-self-passive" style="display:none">
+              <div class="grid2">
+                <div class="fg">
+                  <label class="flabel">Interval (minutes)</label>
+                  <input class="finput" id="m-magic-self-interval" type="number" min="1" placeholder="5">
+                </div>
+                <div class="fg">
+                  <label class="flabel">Passive Duration (hours, 0=forever)</label>
+                  <input class="finput" id="m-magic-self-passdur" type="number" min="0" placeholder="0">
+                </div>
+              </div>
+            </div>
+
+            <div class="effect-zone-title" style="margin-top:14px;margin-bottom:8px">🌑 Target Curse (optional — applied to the target)</div>
             <div class="grid2">
               <div class="fg">
-                <label class="flabel">Duration (minutes)</label>
-                <input class="finput" id="m-consume-duration" type="number" min="1" placeholder="10">
+                <label class="flabel">Curse Type</label>
+                <select class="fselect" id="m-magic-target-type" onchange="onMagicTargetChange()">
+                  <option value="">— None —</option>
+                  <option value="drain_wallet">💸 Drain Wallet</option>
+                  <option value="drain_all">💻 Drain All (wallet+bank)</option>
+                  <option value="silence">🔇 Silence</option>
+                  <option value="heat">🚨 Add Heat</option>
+                </select>
               </div>
               <div class="fg">
-                <label class="flabel">Flavor Text (optional)</label>
-                <input class="finput" id="m-consume-flavor" placeholder="e.g. Tastes like victory.">
+                <label class="flabel">Amount / Minutes</label>
+                <input class="finput" id="m-magic-target-amount" type="number" min="0" placeholder="500">
+              </div>
+            </div>
+            <div id="magic-target-drain" style="display:none">
+              <div class="fg">
+                <label class="flabel">Drain Type</label>
+                <select class="fselect" id="m-magic-target-drain-type">
+                  <option value="flat">Flat ($)</option>
+                  <option value="percent">Percent (%)</option>
+                </select>
+              </div>
+            </div>
+            <div id="magic-target-silence" style="display:none">
+              <div class="fg">
+                <label class="flabel">Silence Duration (minutes)</label>
+                <input class="finput" id="m-magic-target-silence-dur" type="number" min="1" placeholder="60">
               </div>
             </div>
           </div>
@@ -1178,8 +1196,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity',consume:'🍽️ Consume'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan',consume:'t-green'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -1283,6 +1301,30 @@ function openEdit(id){
     document.getElementById('m-shield-blocks').value=ef.blocksLeft||3;
     document.getElementById('m-shield-dur').value=ef.durationMs?Math.ceil(ef.durationMs/3600000):24;
   }
+  if(ef.type==='magic'){
+    document.getElementById('m-magic-spell').value=ef.spell||'';
+    document.getElementById('m-magic-emoji').value=ef.spellEmoji||'🔮';
+    document.getElementById('m-magic-success').value=ef.successChance!==undefined?ef.successChance:1.0;
+    document.getElementById('m-magic-backfire').value=ef.backfireChance||0;
+    const se=ef.selfEffect||{};
+    document.getElementById('m-magic-self-type').value=se.type||'';
+    document.getElementById('m-magic-self-amount').value=se.amount||'';
+    if(se.type==='shield'){
+      document.getElementById('m-magic-self-blocks').value=se.blocksLeft||3;
+      document.getElementById('m-magic-self-duration').value=se.durationMs?Math.ceil(se.durationMs/3600000):24;
+    }
+    if(se.type==='passive_income'){
+      document.getElementById('m-magic-self-interval').value=se.intervalMs?Math.ceil(se.intervalMs/60000):5;
+      document.getElementById('m-magic-self-passdur').value=se.durationMs?Math.ceil(se.durationMs/3600000):0;
+    }
+    onMagicSelfChange();
+    const te=ef.targetEffect||{};
+    document.getElementById('m-magic-target-type').value=te.type||'';
+    document.getElementById('m-magic-target-amount').value=te.amount||'';
+    if(te.type==='drain_wallet'||te.type==='drain_all') document.getElementById('m-magic-target-drain-type').value=te.drainType||'flat';
+    if(te.type==='silence') document.getElementById('m-magic-target-silence-dur').value=te.durationMs?Math.ceil(te.durationMs/60000):60;
+    onMagicTargetChange();
+  }
   document.getElementById('item-modal').classList.add('open');
 }
 
@@ -1349,9 +1391,21 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai',consume:'ef-consume'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai',magic:'ef-magic'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
+
+function onMagicSelfChange(){
+  const t=document.getElementById('m-magic-self-type').value;
+  document.getElementById('magic-self-shield').style.display  = t==='shield'          ? 'block':'none';
+  document.getElementById('magic-self-passive').style.display = t==='passive_income'  ? 'block':'none';
+}
+function onMagicTargetChange(){
+  const t=document.getElementById('m-magic-target-type').value;
+  document.getElementById('magic-target-drain').style.display   = (t==='drain_wallet'||t==='drain_all') ? 'block':'none';
+  document.getElementById('magic-target-silence').style.display = t==='silence' ? 'block':'none';
+}
+
 
 function addOutcome(){
   outcomes.push({label:'Outcome',chance:.5,moneyDelta:0,targetMoneyDelta:0,silenceDuration:0});
@@ -1419,20 +1473,43 @@ async function saveItem(){
         effect.blocksLeft=parseInt(document.getElementById('m-shield-blocks').value)||3;
         effect.durationMs=(parseInt(document.getElementById('m-shield-dur').value)||24)*3600000;
       }
-      if(et==='consume'){
-        effect.consumeType      = document.getElementById('m-consume-type').value;
-        effect.consumeVerb      = document.getElementById('m-consume-verb').value.trim()||null;
-        effect.buffType         = document.getElementById('m-consume-buff').value;
-        effect.buffStrength     = parseInt(document.getElementById('m-consume-strength').value)||25;
-        effect.durationMinutes  = parseInt(document.getElementById('m-consume-duration').value)||10;
-        effect.flavorText       = document.getElementById('m-consume-flavor').value.trim()||null;
-      }
       if(et==='ai'){
         effect.archetype    = document.getElementById('m-ai-archetype').value;
         effect.entityName   = document.getElementById('m-ai-name').value.trim()||null;
         effect.startMood    = document.getElementById('m-ai-mood').value;
         effect.startLoyalty = parseInt(document.getElementById('m-ai-loyalty').value)||75;
         effect.forceRogue   = document.getElementById('m-ai-rogue').value==='true';
+      }
+      if(et==='magic'){
+        effect.spell         = document.getElementById('m-magic-spell').value.trim()||'Magic Spell';
+        effect.spellEmoji    = document.getElementById('m-magic-emoji').value.trim()||'🔮';
+        effect.successChance = parseFloat(document.getElementById('m-magic-success').value)||1.0;
+        effect.backfireChance= parseFloat(document.getElementById('m-magic-backfire').value)||0.0;
+        // Self buff
+        const selfType = document.getElementById('m-magic-self-type').value;
+        if(selfType){
+          effect.selfEffect = { type: selfType, amount: parseInt(document.getElementById('m-magic-self-amount').value)||0 };
+          if(selfType==='shield'){
+            effect.selfEffect.blocksLeft = parseInt(document.getElementById('m-magic-self-blocks').value)||3;
+            effect.selfEffect.durationMs = (parseFloat(document.getElementById('m-magic-self-duration').value)||24)*3600000;
+          }
+          if(selfType==='passive_income'){
+            effect.selfEffect.intervalMs = (parseInt(document.getElementById('m-magic-self-interval').value)||5)*60000;
+            const pd = parseFloat(document.getElementById('m-magic-self-passdur').value)||0;
+            effect.selfEffect.durationMs = pd>0 ? pd*3600000 : null;
+          }
+        }
+        // Target curse
+        const targetType = document.getElementById('m-magic-target-type').value;
+        if(targetType){
+          effect.targetEffect = { type: targetType, amount: parseInt(document.getElementById('m-magic-target-amount').value)||0 };
+          if(targetType==='drain_wallet'||targetType==='drain_all'){
+            effect.targetEffect.drainType = document.getElementById('m-magic-target-drain-type').value;
+          }
+          if(targetType==='silence'){
+            effect.targetEffect.durationMs = (parseInt(document.getElementById('m-magic-target-silence-dur').value)||60)*60000;
+          }
+        }
       }
       if(et==='edit_balance'){
         effect.action=document.getElementById('m-eb-action').value;
@@ -1585,24 +1662,15 @@ async function loadLottery() {
     const l = data.lottery;
     const c = data.config;
     const totalTickets = (l.tickets||[]).reduce((s,t)=>s+t.count,0);
-
     document.getElementById('lottery-pot').textContent     = '$' + (l.pot||0).toLocaleString();
     document.getElementById('lottery-tickets').textContent = totalTickets.toString();
     document.getElementById('lottery-status').textContent  = l.active ? '🟢 Open' : '🔴 Closed';
     document.getElementById('lottery-status').className    = 'stat-val ' + (l.active ? 'c-green' : 'c-red');
-    document.getElementById('lottery-last-pot').textContent = l.lastPot ? '$' + (l.lastPot).toLocaleString() : '—';
-
-    if (l.lastWinner) {
-      document.getElementById('lottery-last-winner').textContent = l.lastWinner;
-    } else {
-      document.getElementById('lottery-last-winner').textContent = 'No draws yet';
-    }
-
     const timeLeft = Math.max(0, l.drawAt - Date.now());
     const h = Math.floor(timeLeft/3600000), m = Math.floor((timeLeft%3600000)/60000), s = Math.floor((timeLeft%60000)/1000);
     document.getElementById('lottery-timer').textContent = timeLeft > 0 ? `${h}h ${m}m ${s}s` : 'Drawing...';
-
-    // Populate settings — convert intervalHours to best unit
+    if (l.lastWinner) document.getElementById('lottery-last-winner').textContent = `Last winner: <@${l.lastWinner}> won $${(l.lastPot||0).toLocaleString()}`;
+    // Populate settings — convert intervalHours back to best unit
     const intervalH = c.intervalHours || 24;
     const intervalS = intervalH * 3600;
     if (intervalS < 60) {
@@ -1615,13 +1683,9 @@ async function loadLottery() {
       document.getElementById('lottery-interval').value = intervalH;
       document.getElementById('lottery-unit').value = 'hours';
     }
-
-    document.getElementById('lottery-price').value     = c.ticketPrice    || 100;
-    document.getElementById('lottery-active').value    = (l.active !== false).toString();
-    document.getElementById('lottery-min-bonus').value = c.minBonus        || 0;
-    document.getElementById('lottery-max-bonus').value = c.maxBonus        || 0;
-    document.getElementById('lottery-min-pot').value   = c.minPot          || 0;
-  } catch(e) { console.error('loadLottery error:', e); }
+    document.getElementById('lottery-price').value    = c.ticketPrice || 100;
+    document.getElementById('lottery-active').value   = (l.active !== false).toString();
+  } catch {}
 }
 
 async function saveLotterySettings() {
@@ -1632,22 +1696,9 @@ async function saveLotterySettings() {
     active:        document.getElementById('lottery-active').value === 'true',
     ticketPrice:   document.getElementById('lottery-price').value,
     intervalHours,
-    minBonus:      parseInt(document.getElementById('lottery-min-bonus').value) || 0,
-    maxBonus:      parseInt(document.getElementById('lottery-max-bonus').value) || 0,
-    minPot:        parseInt(document.getElementById('lottery-min-pot').value)   || 0,
   });
   if (r.success) { toast('Lottery settings saved', 'ok'); await loadLottery(); }
   else toast(r.error||'Failed','err');
-}
-
-async function forceDrawNow() {
-  if (!confirm('Force a lottery draw right now? This will pick a winner immediately.')) return;
-  const r = await api('POST', '/api/lottery/force-draw');
-  if (r.success) {
-    if (r.winner) toast(`🎟️ Winner: ${r.winner} won $${r.prize.toLocaleString()}!`, 'ok');
-    else toast('Draw ran — no tickets sold, pot reset', 'ok');
-    await loadLottery();
-  } else toast(r.error || 'Failed', 'err');
 }
 
 async function resetLottery() {
@@ -1829,6 +1880,42 @@ async function viewInventory(userId, username) {
   `).join('');
 }
 
+// ════════════════════════════════════════════════
+// LOTTERY
+// ════════════════════════════════════════════════
+async function loadLottery() {
+  try {
+    const l = await api('GET', '/api/lottery');
+    document.getElementById('lottery-active').value   = l.active ? 'true' : 'false';
+    document.getElementById('lottery-price').value    = l.ticketPrice || 100;
+    document.getElementById('lottery-interval').value = l.drawIntervalHours || 24;
+    document.getElementById('lottery-minpot').value   = l.minPot || 1000;
+    document.getElementById('lottery-channel').value  = l.announceChannelId || '';
+    document.getElementById('lottery-pot').textContent = `$${(l.pot||0).toLocaleString()}`;
+    document.getElementById('lottery-winner').textContent = l.lastWinner ? `<@${l.lastWinner}>` : 'No draws yet';
+  } catch {}
+}
+
+async function saveLottery() {
+  const r = await api('POST', '/api/lottery', {
+    active:             document.getElementById('lottery-active').value,
+    ticketPrice:        document.getElementById('lottery-price').value,
+    drawIntervalHours:  document.getElementById('lottery-interval').value,
+    minPot:             document.getElementById('lottery-minpot').value,
+    announceChannelId:  document.getElementById('lottery-channel').value,
+  });
+  if (r.success) toast('Lottery saved', 'ok');
+  else toast(r.error || 'Failed', 'err');
+}
+
+async function forceDraw() {
+  if (!confirm('Force a lottery draw right now?')) return;
+  const r = await api('POST', '/api/lottery/force-draw');
+  if (r.success) {
+    toast(r.result ? `🎟️ Winner: ${r.result.winnerId} won $${r.result.prize.toLocaleString()}` : 'Draw ran — no tickets sold', 'ok');
+    await loadLottery();
+  } else toast('Failed', 'err');
+}
 // ════════════════════════════════════════════════
 let guildRoles = [];
 async function loadGuildRoles() {

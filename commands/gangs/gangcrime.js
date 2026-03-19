@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getOrCreateUser, saveUser } = require('../../utils/db');
+const { getOrCreateUser, saveUser, getConfig, isPurgeActive } = require('../../utils/db');
 const { getGangByMember, saveGang, getPoliceRecord, savePoliceRecord } = require('../../utils/gangDb');
 const { addHeat, checkPoliceRaid, isJailed, getJailTimeLeft, getHeatLevel } = require('../../utils/police');
 const { noAccount } = require('../../utils/accountCheck');
@@ -89,8 +89,11 @@ module.exports = {
       ]});
     }
 
-    const caught = Math.random() < (crime.risk * (1 - onPayroll * 0.05));
-    const effectiveHeat = Math.max(0, crime.heat - onPayroll * 3);
+    const caught = !isPurgeActive() && Math.random() < (crime.risk * (1 - onPayroll * 0.05));
+    const { getConsumeBuff } = require('../../utils/consumeBuffs');
+    const crimeBoost    = getConsumeBuff(userId, 'crime_boost');
+    const focusedBuff   = getConsumeBuff(userId, 'focused');
+    const effectiveHeat = isPurgeActive() ? 0 : Math.max(0, (crime.heat - onPayroll * 3) * (1 - crimeBoost / 100));
     const record = addHeat(userId, effectiveHeat, crime.id);
     const heatLvl = getHeatLevel(record.heat);
 
@@ -109,7 +112,8 @@ module.exports = {
       ]});
     }
 
-    const payout  = Math.floor(crime.min + Math.random() * (crime.max - crime.min));
+    let payout  = Math.floor(crime.min + Math.random() * (crime.max - crime.min));
+    if (focusedBuff) payout = Math.floor(payout * 2);
     const gangCut = Math.floor(payout * crime.gangPct);
     const userCut = payout - gangCut;
 
@@ -122,7 +126,7 @@ module.exports = {
     saveGang(myGang.id, myGang);
 
     const config = require('../../utils/db').getConfig();
-    const raid   = await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
+    const raid   = isPurgeActive() ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
 
     const mafiaTag = crime.type==='mafia' ? ' 👔' : ' 🔫';
     const embed = new EmbedBuilder()

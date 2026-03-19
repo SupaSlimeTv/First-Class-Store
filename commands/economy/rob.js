@@ -59,7 +59,12 @@ module.exports = {
 
     cooldowns.set(robberId, Date.now());
 
-    const success = Math.random() < (purge ? PURGE_CHANCE : SUCCESS_CHANCE);
+    // Apply rob_boost consume buff
+    const { getConsumeBuff } = require('../../utils/consumeBuffs');
+    const robBoost    = getConsumeBuff(robberId, 'rob_boost');
+    const baseChance  = purge ? PURGE_CHANCE : SUCCESS_CHANCE;
+    const finalChance = Math.min(0.95, baseChance + robBoost / 100);
+    const success     = Math.random() < finalChance;
 
     if (success) {
       const pct    = 0.1 + Math.random() * 0.3;

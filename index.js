@@ -826,6 +826,13 @@ async function tickLottery() {
       return;
     }
 
+    // Apply bonus pot randomization from config
+    const minBonus = config.lottery?.minBonus || 0;
+    const maxBonus = config.lottery?.maxBonus || 0;
+    const minPot   = config.lottery?.minPot   || 0;
+    if (maxBonus > minBonus) lottery.pot += Math.floor(minBonus + Math.random() * (maxBonus - minBonus));
+    if (lottery.pot < minPot) lottery.pot = minPot;
+
     // Pick a winner weighted by ticket count
     const totalTickets = lottery.tickets.reduce((s, t) => s + t.count, 0);
     let roll = Math.random() * totalTickets;
@@ -896,6 +903,10 @@ setInterval(async () => {
   const cfg = require('./utils/db').getConfig();
   await tickCustomers(client, cfg.purgeChannelId);
 }, CUSTOMER_VISIT_INTERVAL);
+
+// ---- CONSUME DEBUFF TICK ----
+const { tickConsumeDebuffs } = require('./utils/consumeBuffs');
+setInterval(tickConsumeDebuffs, 60_000);
 
 // ---- POLICE HEAT DECAY ----
 const { decayHeat } = require('./utils/police');

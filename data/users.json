@@ -5,7 +5,8 @@
     "lastDaily": null,
     "inventory": [],
     "bannedUntil": null,
-    "hitmanCount": 0
+    "hitmanCount": 0,
+    "accountOpen": true
   },
   "1425091994664964106": {
     "wallet": 409,
