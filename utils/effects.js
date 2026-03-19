@@ -101,6 +101,11 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
 
       // ---- SHIELD CHECK ----
       const targetEffects = getUserEffects(targetId);
+      const { getConsumeBuff } = require('./consumeBuffs');
+      const consumeShield = getConsumeBuff(targetId, 'shield');
+      if (consumeShield) {
+        return { success: false, title: '🛡️ Blocked!', description: `**<@${targetId}>** is shielded by a consume effect and blocked your attack!` };
+      }
       if (targetEffects.shield) {
         const shield = targetEffects.shield;
         if (Date.now() < shield.expiresAt && shield.blocksLeft > 0) {
@@ -638,6 +643,225 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
     }
 
     // ----------------------------------------------------------
+    // MAGIC — Customizable spell with configurable target and action
+    // effect.spellName:   string — name of the spell
+    // effect.spellEmoji:  string — emoji for the spell
+    // effect.spellFlavor: string — description text
+    // effect.target:      'self' | 'target' | 'random' | 'all'
+    // effect.actions:     array of action objects, executed in order:
+    //   { type: 'drain',    pct: 20,  from: 'wallet'|'bank'|'both' }  — steal %
+    //   { type: 'give',     amount: 500, to: 'wallet'|'bank' }         — give money
+    //   { type: 'silence',  minutes: 10 }                              — mute
+    //   { type: 'heat',     amount: 20 }                               — add police heat
+    //   { type: 'heal',     pct: 50 }                                  — restore % of wallet
+    //   { type: 'buff',     buffType: 'lucky', strength: 25, minutes: 15 } — consume buff
+    //   { type: 'xp',       amount: 50 }                               — give pet XP
+    //   { type: 'msg',      text: 'Custom message shown' }             — flavor text only
+    // ----------------------------------------------------------
+    case 'magic': {
+      const spellName  = effect.spellName  || 'Unknown Spell';
+      const spellEmoji = effect.spellEmoji || '✨';
+      const flavor     = effect.spellFlavor || 'Magic crackles through the air.';
+      const actions    = effect.actions || [];
+      const targetId2  = effect.target === 'target' ? targetId : effect.target === 'random'
+        ? (() => {
+            const users = Object.entries(db.getAllUsers()).filter(([id]) => id !== userId);
+            return users.length ? users[Math.floor(Math.random() * users.length)][0] : userId;
+          })()
+        : userId;
+
+      const results  = [];
+      let totalDrained = 0, totalGiven = 0;
+
+      for (const action of actions) {
+        if (action.type === 'drain') {
+          const victim   = db.getOrCreateUser(targetId2);
+          const from     = action.from || 'wallet';
+          let taken      = 0;
+          const pct      = (action.pct || 10) / 100;
+          if (from === 'wallet' || from === 'both') { const t = Math.floor(victim.wallet * pct); victim.wallet -= t; taken += t; }
+          if (from === 'bank'   || from === 'both') { const t = Math.floor(victim.bank   * pct); victim.bank   -= t; taken += t; }
+          victim.wallet = Math.max(0, victim.wallet);
+          victim.bank   = Math.max(0, victim.bank);
+          db.saveUser(targetId2, victim);
+          // Give to caster
+          if (targetId2 !== userId) {
+            const caster = db.getOrCreateUser(userId);
+            caster.wallet += taken;
+            db.saveUser(userId, caster);
+          }
+          totalDrained += taken;
+          results.push(`💸 Drained **$${taken.toLocaleString()}** from ${targetId2 === userId ? 'you' : `<@${targetId2}>`}`);
+        }
+        else if (action.type === 'give') {
+          const recv    = db.getOrCreateUser(targetId2);
+          const amount  = action.amount || 100;
+          const to      = action.to || 'wallet';
+          to === 'bank' ? recv.bank += amount : recv.wallet += amount;
+          db.saveUser(targetId2, recv);
+          totalGiven += amount;
+          results.push(`💰 Gave **$${amount.toLocaleString()}** to ${targetId2 === userId ? 'you' : `<@${targetId2}>`}`);
+        }
+        else if (action.type === 'silence') {
+          const victim      = db.getOrCreateUser(targetId2);
+          victim.bannedUntil = Date.now() + (action.minutes || 5) * 60000;
+          db.saveUser(targetId2, victim);
+          results.push(`🔇 Silenced ${targetId2 === userId ? 'you' : `<@${targetId2}>`} for **${action.minutes || 5} minutes**`);
+        }
+        else if (action.type === 'heat') {
+          const { addHeat: ah } = require('./police');
+          ah(targetId2, action.amount || 15, `magic_${spellName}`);
+          results.push(`🌡️ Added **${action.amount || 15} heat** to ${targetId2 === userId ? 'you' : `<@${targetId2}>`}`);
+        }
+        else if (action.type === 'buff') {
+          const { readEffects: re, writeEffects: we } = (() => {
+            const fxPath = require('path').join(__dirname, '../data/activeEffects.json');
+            const fs2    = require('fs');
+            return {
+              readEffects:  () => { try { return JSON.parse(fs2.readFileSync(fxPath,'utf8')); } catch { return {}; } },
+              writeEffects: (d) => fs2.writeFileSync(fxPath, JSON.stringify(d, null, 2)),
+            };
+          })();
+          const allFx   = re();
+          const userFx  = allFx[targetId2] || {};
+          userFx.consume = userFx.consume || [];
+          userFx.consume = userFx.consume.filter(c => c.expiresAt > Date.now());
+          userFx.consume.push({ buffType: action.buffType || 'lucky', strength: action.strength || 25, expiresAt: Date.now() + (action.minutes || 10) * 60000, appliedAt: Date.now(), itemId: item.id });
+          allFx[targetId2] = userFx;
+          we(allFx);
+          results.push(`✨ Applied **${action.buffType || 'lucky'}** buff (+${action.strength || 25}%) for ${action.minutes || 10}min to ${targetId2 === userId ? 'you' : `<@${targetId2}>`}`);
+        }
+        else if (action.type === 'xp') {
+          const { getPet: gp, savePet: sp, xpForLevel: xfl } = require('./petDb');
+          const pet = gp(targetId2);
+          if (pet) {
+            pet.xp = (pet.xp||0) + (action.amount||50);
+            if (pet.xp >= xfl(pet.level)) { pet.xp -= xfl(pet.level); pet.level++; }
+            sp(targetId2, pet);
+            results.push(`🐾 Gave **+${action.amount||50} XP** to ${targetId2 === userId ? 'your' : `<@${targetId2}>'s`} pet`);
+          }
+        }
+        else if (action.type === 'msg') {
+          results.push(action.text || '');
+        }
+      }
+
+      return {
+        success:     true,
+        title:       `${spellEmoji} ${spellName}`,
+        description: `*${flavor}*\n\n${results.join('\n')}`,
+      };
+    }
+
+    // ----------------------------------------------------------
+    // CONSUME — edible/drinkable/injectable item with a timed effect on the user
+    // effect.consumeType: 'food' | 'drink' | 'drug' | 'potion' | 'pill' | 'custom'
+    // effect.consumeVerb: optional string e.g. 'eat', 'drink', 'inject', 'smoke'
+    // effect.buffType:
+    //   'rob_boost'      — increases rob success chance for duration
+    //   'work_boost'     — increases work payout for duration
+    //   'crime_boost'    — reduces heat from crimes for duration
+    //   'passive_boost'  — multiplies passive income for duration
+    //   'shield'         — temporary shield (same as shield effect)
+    //   'speed'          — reduces all cooldowns by X% for duration
+    //   'lucky'          — boosts all gambling payouts for duration
+    //   'poisoned'       — drains small amounts from wallet over time (debuff)
+    //   'high'           — random messages, random wallet changes (chaos)
+    //   'focused'        — doubles work and crime payouts for duration
+    // effect.buffStrength: number (percent or multiplier depending on type)
+    // effect.durationMinutes: how long the effect lasts
+    // effect.flavorText: optional string shown when consumed
+    // ----------------------------------------------------------
+    case 'consume': {
+      const verb       = effect.consumeVerb || (effect.consumeType === 'drink' ? 'drink' : effect.consumeType === 'drug' ? 'take' : effect.consumeType === 'pill' ? 'swallow' : 'eat');
+      const buffType   = effect.buffType    || 'passive_boost';
+      const strength   = effect.buffStrength || 25;
+      const durationMs = (effect.durationMinutes || 10) * 60 * 1000;
+      const expiresAt  = Date.now() + durationMs;
+      const flavor     = effect.flavorText  || null;
+
+      // Debuff: poisoned drains wallet over time
+      if (buffType === 'poisoned') {
+        const effects    = readEffects();
+        const userEffect = effects[userId] || {};
+        if (!userEffect.consume) userEffect.consume = [];
+        userEffect.consume.push({ buffType, strength, expiresAt, itemId: item.id, appliedAt: Date.now() });
+        writeEffects({ ...effects, [userId]: userEffect });
+        return {
+          success: true,
+          title:   `🤢 You ${verb}ed ${item.name}`,
+          description: `${flavor || 'Something doesn\'t feel right...'}\n\n☠️ You\'ve been **poisoned**! Your wallet will drain **${strength}%** over the next ${effect.durationMinutes} minutes.`,
+          fields: [{ name: '⏰ Duration', value: `${effect.durationMinutes} minutes`, inline: true }],
+        };
+      }
+
+      // Debuff: high — chaos mode
+      if (buffType === 'high') {
+        const user    = db.getOrCreateUser(userId);
+        const chaos   = (Math.random() - 0.5) * 2 * strength;
+        const change  = Math.floor(user.wallet * (chaos / 100));
+        user.wallet   = Math.max(0, user.wallet + change);
+        db.saveUser(userId, user);
+
+        const highmessages = [
+          'Everything is vibrating slightly.',
+          'You can hear colors now.',
+          'The bot seems way more interesting than usual.',
+          'You tried to invest in RUGPUL. Twice.',
+          'Time is moving differently.',
+          'You feel AMAZING. Or terrible. Hard to tell.',
+        ];
+        const highMsg = highmessages[Math.floor(Math.random() * highmessages.length)];
+        return {
+          success: true,
+          title:   `😵 You ${verb}ed ${item.name}`,
+          description: `${flavor || highMsg}\n\n${change >= 0 ? `💰 You somehow gained **$${change.toLocaleString()}**.` : `💸 You spent **$${Math.abs(change).toLocaleString()}** on things you don\'t remember.`}`,
+          fields: [{ name: '💵 Wallet', value: `$${user.wallet.toLocaleString()}`, inline: true }],
+        };
+      }
+
+      // All other buffs — store in active effects
+      const allEffects = readEffects();
+      const userFx     = allEffects[userId] || {};
+      if (!userFx.consume) userFx.consume = [];
+
+      // Remove expired consume effects
+      userFx.consume = userFx.consume.filter(c => c.expiresAt > Date.now());
+
+      // Check stacking — max 3 active consume buffs
+      if (userFx.consume.length >= 3) {
+        return { success: false, title: '🚫 Already Buffed', description: 'You\'re already under 3 active effects. Wait for one to wear off before consuming more.' };
+      }
+
+      userFx.consume.push({ buffType, strength, expiresAt, itemId: item.id, appliedAt: Date.now() });
+      writeEffects({ ...allEffects, [userId]: userFx });
+
+      const BUFF_DESC = {
+        rob_boost:     `🔫 Rob success chance +${strength}%`,
+        work_boost:    `💼 Work payouts +${strength}%`,
+        crime_boost:   `🌡️ Heat from crimes -${strength}%`,
+        passive_boost: `💰 Passive income ×${(1 + strength/100).toFixed(1)}`,
+        shield:        `🛡️ Shielded from attacks`,
+        speed:         `⚡ All cooldowns -${strength}%`,
+        lucky:         `🍀 Gambling payouts +${strength}%`,
+        focused:       `🎯 Work & crime payouts ×2`,
+      };
+
+      const BUFF_EMOJIS = { food:'🍽️', drink:'🍺', drug:'💊', potion:'🧪', pill:'💊', custom:'✨' };
+
+      return {
+        success: true,
+        title:   `${BUFF_EMOJIS[effect.consumeType] || '✨'} You ${verb}ed ${item.name}!`,
+        description: `${flavor || `*You consume the ${item.name}.*`}\n\n${BUFF_DESC[buffType] || `+${strength}% buff active`}`,
+        fields: [
+          { name: '⏰ Duration', value: `${effect.durationMinutes} minutes`,                             inline: true },
+          { name: '💪 Effect',   value: BUFF_DESC[buffType] || buffType,                                 inline: true },
+          { name: '🔋 Stacks',   value: `${userFx.consume.length}/3 active buffs`,                      inline: true },
+        ],
+      };
+    }
+
+    // ----------------------------------------------------------
     // AI — Spawns an AI entity with a personality and autonomy
     // effect.archetype: 'robot' | 'phone' | 'companion' | 'drone' | 'assistant'
     // effect.entityName: string — what the AI is called
@@ -685,298 +909,6 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
       };
     }
 
-    // ----------------------------------------------------------
-    // BLACK MAGIC — hex a target, drain their wallet/bank/both
-    // and transfer the stolen funds directly to the hexer.
-    //
-    // effect.drainTarget:  'wallet' | 'bank' | 'both'
-    // effect.drainType:    'percent' | 'flat'
-    // effect.amount:       number (% or flat $)
-    // effect.successChance: 0.0–1.0 (default 0.75)
-    // effect.backfireChance: 0.0–1.0 (if hex fails, % chance it hits hexer)
-    // effect.backfirePercent: number — how much of hexer's own wallet they lose on backfire (default 25%)
-    // effect.hexName:      string — custom hex name shown in embed
-    // ----------------------------------------------------------
-    case 'black_magic': {
-      if (!targetId) return { success: false, title: '🖤 Hex Failed', description: 'Black magic requires a target to hex.' };
-
-      // Protected role check
-      const bmConfig    = db.getConfig();
-      const bmProtected = bmConfig.protectedRoles || [];
-      if (targetMember && bmProtected.some(r => targetMember.roles.cache.has(r))) {
-        return { success: false, title: '🛡️ Hex Deflected', description: `<@${targetId}> is protected — your hex bounced off.` };
-      }
-
-      const hexName  = effect.hexName || 'Hex';
-      const hexEmoji = '🖤';
-
-      // Shield check on target
-      const targetEffects = getUserEffects(targetId);
-      if (targetEffects.shield && Date.now() < targetEffects.shield.expiresAt && targetEffects.shield.blocksLeft > 0) {
-        targetEffects.shield.blocksLeft--;
-        if (targetEffects.shield.blocksLeft <= 0) targetEffects.shield = null;
-        saveUserEffects(targetId, targetEffects);
-        return { success: false, title: `${hexEmoji} ${hexName} — Blocked!`, description: `<@${targetId}>'s shield absorbed the hex! Their shield has ${targetEffects.shield?.blocksLeft ?? 0} block(s) left.` };
-      }
-
-      // Success roll
-      const successChance = effect.successChance !== undefined ? effect.successChance : 0.75;
-      const succeeds      = Math.random() < successChance;
-
-      if (!succeeds) {
-        // Backfire logic
-        const backfireChance = effect.backfireChance !== undefined ? effect.backfireChance : 0.4;
-        const backfires      = Math.random() < backfireChance;
-
-        if (backfires) {
-          const hexerData    = db.getOrCreateUser(userId);
-          const backfirePct  = effect.backfirePercent !== undefined ? effect.backfirePercent : 25;
-          const pool         = effect.drainTarget === 'both' ? hexerData.wallet + hexerData.bank : hexerData.wallet;
-          let   backfireHit  = Math.floor(pool * (backfirePct / 100));
-          const fromWallet   = Math.min(backfireHit, hexerData.wallet);
-          const fromBank     = Math.min(backfireHit - fromWallet, hexerData.bank);
-          hexerData.wallet   = Math.max(0, hexerData.wallet - fromWallet);
-          hexerData.bank     = Math.max(0, hexerData.bank   - fromBank);
-          const actualLost   = fromWallet + fromBank;
-          db.saveUser(userId, hexerData);
-
-          return {
-            success: false,
-            title:   `${hexEmoji} ${hexName} — Backfired!`,
-            description: `Your hex misfired and came back at you!\n**-$${actualLost.toLocaleString()}** (${backfirePct}% of your balance) lost.`,
-            fields: [
-              { name: '💵 Your Wallet', value: `$${hexerData.wallet.toLocaleString()}`, inline: true },
-              { name: '🏦 Your Bank',   value: `$${hexerData.bank.toLocaleString()}`,   inline: true },
-            ],
-          };
-        }
-
-        return {
-          success: false,
-          title:   `${hexEmoji} ${hexName} — Fizzled`,
-          description: `The hex had no effect on <@${targetId}>. The spirits weren't with you today.`,
-        };
-      }
-
-      // ---- HEX SUCCEEDS — drain target and transfer to hexer ----
-      const targetData = db.getUser(targetId);
-      if (!targetData) return { success: false, title: `${hexEmoji} ${hexName} — No Target`, description: `<@${targetId}> doesn't have an account.` };
-
-      const drainTarget = effect.drainTarget || 'wallet';
-      const drainType   = effect.drainType   || 'percent';
-      const amount      = effect.amount       || 25;
-
-      let stolen     = 0;
-      let fromWallet = 0;
-      let fromBank   = 0;
-
-      if (drainTarget === 'wallet') {
-        stolen     = drainType === 'percent' ? Math.floor(targetData.wallet * (amount / 100)) : Math.min(amount, targetData.wallet);
-        fromWallet = stolen;
-        targetData.wallet = Math.max(0, targetData.wallet - stolen);
-      } else if (drainTarget === 'bank') {
-        stolen   = drainType === 'percent' ? Math.floor(targetData.bank * (amount / 100)) : Math.min(amount, targetData.bank);
-        fromBank = stolen;
-        targetData.bank = Math.max(0, targetData.bank - stolen);
-      } else {
-        // both — drain wallet first, then bank
-        const totalPool = targetData.wallet + targetData.bank;
-        stolen          = drainType === 'percent' ? Math.floor(totalPool * (amount / 100)) : Math.min(amount, totalPool);
-        fromWallet      = Math.min(stolen, targetData.wallet);
-        fromBank        = Math.min(stolen - fromWallet, targetData.bank);
-        targetData.wallet = Math.max(0, targetData.wallet - fromWallet);
-        targetData.bank   = Math.max(0, targetData.bank   - fromBank);
-        stolen            = fromWallet + fromBank;
-      }
-
-      db.saveUser(targetId, targetData);
-
-      // Transfer to hexer
-      const hexerData    = db.getOrCreateUser(userId);
-      hexerData.wallet  += stolen;
-      db.saveUser(userId, hexerData);
-
-      const drainLabel = drainTarget === 'both' ? 'wallet + bank' : drainTarget;
-      const amountLabel = drainType === 'percent' ? `${amount}% of ${drainLabel}` : `$${amount.toLocaleString()} flat from ${drainLabel}`;
-
-      return {
-        success: true,
-        title:   `${hexEmoji} ${hexName} — Hex Landed!`,
-        description: `You hexed <@${targetId}> and drained **$${stolen.toLocaleString()}** directly into your wallet.\n*The spirits favor the bold.*`,
-        fields: [
-          { name: '🎯 Drained From',   value: drainLabel,                          inline: true },
-          { name: '💸 Amount',          value: amountLabel,                         inline: true },
-          { name: '💰 You Received',    value: `$${stolen.toLocaleString()}`,        inline: true },
-          { name: '💵 Your Wallet Now', value: `$${hexerData.wallet.toLocaleString()}`, inline: true },
-          { name: "🎭 Target's Wallet", value: `$${targetData.wallet.toLocaleString()}`, inline: true },
-          { name: "🏦 Target's Bank",   value: `$${targetData.bank.toLocaleString()}`,   inline: true },
-        ],
-      };
-    }
-
-    // ----------------------------------------------------------
-    // MAGIC — applies a configurable combo of effects with a
-    // visual flourish. Can buff the user, debuff the target,
-    // or both at once. Configured entirely from the dashboard.
-    //
-    // effect.spell:        string  — display name (e.g. "Cursed Touch")
-    // effect.spellEmoji:   string  — emoji for flavor (e.g. "🔮")
-    //
-    // effect.selfEffect:   object  — optional buff applied to user
-    //   .type: 'wallet'|'bank'|'shield'|'passive_income'
-    //   .amount: number
-    //   .durationMs: number (for passive/shield)
-    //   .blocksLeft: number (for shield)
-    //
-    // effect.targetEffect: object  — optional debuff applied to target
-    //   .type: 'drain_wallet'|'drain_all'|'silence'|'heat'
-    //   .amount: number
-    //   .drainType: 'flat'|'percent'
-    //   .durationMs: number (for silence)
-    //
-    // effect.successChance: 0.0–1.0  — chance the spell works (default 1.0)
-    // effect.backfireChance: 0.0–1.0 — if it fails, chance it hits the caster
-    // ----------------------------------------------------------
-    case 'magic': {
-      const spell      = effect.spell      || 'Magic Spell';
-      const spellEmoji = effect.spellEmoji || '🔮';
-
-      // Success roll
-      const successChance = effect.successChance !== undefined ? effect.successChance : 1.0;
-      const succeeds      = Math.random() < successChance;
-
-      if (!succeeds) {
-        // Backfire check
-        const backfireChance = effect.backfireChance !== undefined ? effect.backfireChance : 0;
-        const backfires      = Math.random() < backfireChance;
-
-        if (backfires && effect.targetEffect) {
-          // Spell bounces back onto caster
-          const selfData = db.getOrCreateUser(userId);
-          const te       = effect.targetEffect;
-          let backfireDesc = '';
-          if (te.type === 'drain_wallet' || te.type === 'drain_all') {
-            const pool   = te.type === 'drain_all' ? selfData.wallet + selfData.bank : selfData.wallet;
-            let hit      = te.drainType === 'percent' ? Math.floor(pool * (te.amount / 100)) : te.amount;
-            hit          = Math.min(hit, selfData.wallet);
-            selfData.wallet = Math.max(0, selfData.wallet - hit);
-            db.saveUser(userId, selfData);
-            backfireDesc = `The spell backfired! **-$${hit.toLocaleString()}** drained from your own wallet.`;
-          } else if (te.type === 'silence') {
-            selfData.bannedUntil = Date.now() + (te.durationMs || 3600000);
-            db.saveUser(userId, selfData);
-            backfireDesc = `The spell backfired! You silenced yourself for **${Math.ceil((te.durationMs||3600000)/60000)} minutes**.`;
-          }
-          return { success: false, title: `${spellEmoji} ${spell} — Backfired!`, description: backfireDesc || 'The spell bounced back at you!' };
-        }
-
-        return { success: false, title: `${spellEmoji} ${spell} — Fizzled`, description: `The magic fizzled out. Nothing happened.` };
-      }
-
-      const results  = [];
-      const fields   = [];
-
-      // ---- SELF BUFF ----
-      if (effect.selfEffect) {
-        const se       = effect.selfEffect;
-        const selfData = db.getOrCreateUser(userId);
-
-        if (se.type === 'wallet') {
-          selfData.wallet += se.amount || 0;
-          db.saveUser(userId, selfData);
-          results.push(`✨ You gained **$${(se.amount||0).toLocaleString()}** in your wallet.`);
-          fields.push({ name: '💵 Your Wallet', value: `$${selfData.wallet.toLocaleString()}`, inline: true });
-        } else if (se.type === 'bank') {
-          selfData.bank += se.amount || 0;
-          db.saveUser(userId, selfData);
-          results.push(`✨ You gained **$${(se.amount||0).toLocaleString()}** in your bank.`);
-          fields.push({ name: '🏦 Your Bank', value: `$${selfData.bank.toLocaleString()}`, inline: true });
-        } else if (se.type === 'shield') {
-          const userEffects     = getUserEffects(userId);
-          const blocks          = se.blocksLeft || 3;
-          const duration        = se.durationMs  || 24 * 60 * 60 * 1000;
-          if (userEffects.shield && userEffects.shield.expiresAt > Date.now()) {
-            userEffects.shield.blocksLeft += blocks;
-            userEffects.shield.expiresAt   = Date.now() + duration;
-          } else {
-            userEffects.shield = { blocksLeft: blocks, expiresAt: Date.now() + duration };
-          }
-          saveUserEffects(userId, userEffects);
-          results.push(`🛡️ A magical shield now protects you (**${userEffects.shield.blocksLeft} block(s)**).`);
-          fields.push({ name: '🛡️ Shield', value: `${userEffects.shield.blocksLeft} blocks`, inline: true });
-        } else if (se.type === 'passive_income') {
-          const userEffects = getUserEffects(userId);
-          if (!userEffects.passiveIncome) userEffects.passiveIncome = [];
-          userEffects.passiveIncome.push({
-            itemId:        item.id,
-            itemName:      item.name,
-            amountPerTick: se.amount || 50,
-            intervalMs:    se.intervalMs || 5 * 60 * 1000,
-            lastTick:      Date.now(),
-            expiresAt:     se.durationMs ? Date.now() + se.durationMs : null,
-            stackCount:    1,
-          });
-          saveUserEffects(userId, userEffects);
-          results.push(`💰 Magic income: **$${se.amount||50}** every **${Math.ceil((se.intervalMs||300000)/60000)} min**.`);
-        }
-      }
-
-      // ---- TARGET DEBUFF ----
-      if (effect.targetEffect && targetId) {
-        const te = effect.targetEffect;
-
-        // Protected role check
-        const cfg          = db.getConfig();
-        const protectedRoles = cfg.protectedRoles || [];
-        if (targetMember && protectedRoles.some(r => targetMember.roles.cache.has(r))) {
-          results.push(`🛡️ <@${targetId}> is protected — the curse was deflected!`);
-        } else {
-          // Shield check
-          const targetEffects = getUserEffects(targetId);
-          if (targetEffects.shield && Date.now() < targetEffects.shield.expiresAt && targetEffects.shield.blocksLeft > 0) {
-            targetEffects.shield.blocksLeft--;
-            if (targetEffects.shield.blocksLeft <= 0) targetEffects.shield = null;
-            saveUserEffects(targetId, targetEffects);
-            results.push(`🛡️ <@${targetId}>'s shield absorbed the curse!`);
-          } else {
-            const targetData = db.getUser(targetId);
-            if (targetData) {
-              if (te.type === 'drain_wallet' || te.type === 'drain_all') {
-                const pool = te.type === 'drain_all' ? targetData.wallet + targetData.bank : targetData.wallet;
-                let stolen = te.drainType === 'percent' ? Math.floor(pool * (te.amount / 100)) : (te.amount || 0);
-                stolen     = Math.min(stolen, targetData.wallet);
-                targetData.wallet = Math.max(0, targetData.wallet - stolen);
-                db.saveUser(targetId, targetData);
-                const attackerData = db.getOrCreateUser(userId);
-                attackerData.wallet += stolen;
-                db.saveUser(userId, attackerData);
-                results.push(`🌑 Cursed <@${targetId}> and stole **$${stolen.toLocaleString()}**.`);
-                fields.push({ name: 'Stolen', value: `$${stolen.toLocaleString()}`, inline: true });
-              } else if (te.type === 'silence') {
-                const existing     = targetData.bannedUntil && targetData.bannedUntil > Date.now() ? targetData.bannedUntil : Date.now();
-                targetData.bannedUntil = existing + (te.durationMs || 3600000);
-                db.saveUser(targetId, targetData);
-                results.push(`🔇 <@${targetId}> has been silenced for **${Math.ceil((te.durationMs||3600000)/60000)} minutes**.`);
-              } else if (te.type === 'heat') {
-                const { addHeat } = require('./police');
-                addHeat(targetId, te.amount || 20, 'magic_curse');
-                results.push(`🚨 Added **${te.amount||20} heat** to <@${targetId}>.`);
-              }
-            }
-          }
-        }
-      } else if (effect.targetEffect && !targetId) {
-        results.push('⚠️ This spell requires a target.');
-      }
-
-      return {
-        success: true,
-        title:   `${spellEmoji} ${spell} — Cast!`,
-        description: results.join('\n') || 'The magic took effect.',
-        fields,
-      };
-    }
-
     default:
       return { success: false, title: 'Unknown Effect', description: `Effect type "${effect.type}" is not recognized.` };
   }
@@ -1005,7 +937,10 @@ function tickPassiveIncome() {
 
       // Check if a tick is due
       if (now - p.lastTick >= p.intervalMs) {
-        userData.wallet += p.amountPerTick;
+        const { getConsumeBuff } = require('./consumeBuffs');
+        const passiveBoost = getConsumeBuff(userId, 'passive_boost');
+        const tickAmount   = Math.floor(p.amountPerTick * (1 + passiveBoost / 100));
+        userData.wallet   += tickAmount;
         p.lastTick       = now;
         userChanged      = true;
         changed          = true;

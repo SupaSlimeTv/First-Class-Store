@@ -436,12 +436,15 @@ client.on('messageCreate', async (message) => {
       .setTitle('📖 Commands')
       .setDescription(`New? Type \`${p}open account\` to get started!`)
       .addFields(
-        { name: '💰 Economy',     value: [`${p}bal`, `${p}dep <amt>`, `${p}with <amt>`, `${p}daily`, `${p}rob @user`, `${p}shop`, `${p}inv`, `${p}collect`, `${p}work`, `${p}beg`, `${p}slots <bet>`, `${p}duel @user <amt>`, `${p}lb`].join(' · '), inline: false },
-        { name: '📈 Market',      value: [`${p}market`, `${p}invest <coin> <amt>`, `${p}cashout <coin>`, `${p}portfolio`].join(' · '), inline: false },
-        { name: '🎮 Games',       value: [`${p}cf <bet>`, `${p}roll`, `${p}8ball <q>`, `${p}rps <choice>`, `${p}lottery`, `/blackjack`, `/roulette`, `/slots`].join(' · '), inline: false },
-        { name: '🏢 Entrepreneur',value: [`${p}biz`, `${p}bizview`, `${p}bizcollect`, `${p}bizupgrade`].join(' · '), inline: false },
-        { name: '🏴 Gangs',       value: [`${p}gang`, `${p}ganginfo`, `${p}gangcrime <crime>`, `${p}gangwar`, `${p}gangs`, `${p}wl`].join(' · '), inline: false },
-        { name: '🤖 AI',          value: [`${p}myai`, `${p}talk <entity>`].join(' · '), inline: false },
+        { name:'💰 Economy',      value:[`${p}bal`,`${p}dep <amt>`,`${p}with <amt>`,`${p}daily`,`${p}rob @user`,`${p}shop`,`${p}inv`,`${p}collect`,`${p}work`,`${p}beg`,`${p}lb`].join(' · '), inline:false },
+        { name:'🎮 Games',        value:[`${p}slots <bet>`,`${p}duel @user <amt>`,`${p}cf <bet>`,`${p}roll`,`${p}8ball <q>`,`${p}rps <choice>`,`/blackjack`,`/roulette`].join(' · '), inline:false },
+        { name:'🎟️ Lottery',     value:[`${p}lottery`,`${p}lottery buy <n>`].join(' · '), inline:false },
+        { name:'📈 Market',       value:[`${p}market`,`${p}invest <coin> <amt>`,`${p}cashout <coin>`,`${p}portfolio`].join(' · '), inline:false },
+        { name:'🏢 Entrepreneur', value:[`${p}biz`,`${p}bizcollect`,`${p}bizupgrade`,`${p}hire @user`,`${p}fire @user`,`${p}myjobs`,`${p}businesses`].join(' · '), inline:false },
+        { name:'🏴 Gangs',        value:[`${p}gang`,`${p}ganginfo`,`${p}gangs`,`${p}gangwar`,`${p}crime`,`${p}gu`,`${p}wl`].join(' · '), inline:false },
+        { name:'🐾 Pets',         value:[`${p}petshop`,`${p}pet`,`${p}petfeed`,`${p}petplay`,`${p}petheal <amt>`,`${p}pa @user`,`${p}pets`].join(' · '), inline:false },
+        { name:'🤖 AI',           value:[`${p}myai`,`${p}talk`].join(' · '), inline:false },
+        { name:'📊 Status',       value:[`${p}status`,`${p}wl`].join(' · '), inline:false },
       )
     ] });
   }
@@ -732,6 +735,243 @@ client.on('messageCreate', async (message) => {
     return message.reply({ embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle('🤖 Your AI Entities').setDescription(lines.join('\n'))] });
   }
 
+  // ---- status ----
+  if (commandName === 'status' || commandName === 'buffs') {
+    const { listConsumeBuffs } = require('./utils/consumeBuffs');
+    const buffs = listConsumeBuffs(message.author.id);
+    if (!buffs.length) return message.reply('No active buffs. Consume items to gain effects!');
+    const BUFF_EMOJIS = { rob_boost:'🔫', work_boost:'💼', crime_boost:'🌡️', passive_boost:'💰', shield:'🛡️', speed:'⚡', lucky:'🍀', poisoned:'☠️', high:'😵', focused:'🎯' };
+    const lines = buffs.map(b=>`${BUFF_EMOJIS[b.buffType]||'✨'} **${b.buffType.replace(/_/g,' ')}** +${b.strength}% — ${b.minutesLeft}m left`);
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle('📊 Active Buffs').setDescription(lines.join('\n'))] });
+  }
+
+  // ---- pet / petstatus / ps ----
+  if (commandName === 'pet' || commandName === 'petstatus' || commandName === 'ps') {
+    if (needsAccount()) return;
+    const { getPet, calcPetStats, xpForLevel } = require('./utils/petDb');
+    const pet = getPet(message.author.id);
+    if (!pet) return message.reply(`You don't have a pet! Use \`${prefix}petshop\` to browse.`);
+    const stats  = calcPetStats(pet);
+    const xpNext = xpForLevel(pet.level);
+    return message.reply({ embeds: [new EmbedBuilder()
+      .setColor(0xff6b35)
+      .setTitle(`${pet.emoji} ${pet.name}`)
+      .addFields(
+        { name:'❤️ HP',       value:`${pet.hp||stats.hp}/${stats.hp}`,       inline:true },
+        { name:'🍖 Hunger',   value:`${pet.hunger||100}/100`,                  inline:true },
+        { name:'💕 Happiness',value:`${pet.happiness||100}/100`,               inline:true },
+        { name:'🔗 Bond',     value:`${pet.bond||0}/100`,                      inline:true },
+        { name:'⭐ Level',    value:`${pet.level} · XP: ${pet.xp||0}/${xpNext}`, inline:true },
+        { name:'⚔️ Power',   value:stats.power.toString(),                     inline:true },
+        { name:'🏆 Record',  value:`${pet.wins||0}W/${pet.losses||0}L`,        inline:true },
+      )
+      .setFooter({ text:`Use ${prefix}petfeed · ${prefix}petplay · ${prefix}petheal <amt>` })
+    ]});
+  }
+
+  // ---- petfeed ----
+  if (commandName === 'petfeed' || commandName === 'feed') {
+    if (needsAccount()) return;
+    const { getPet, savePet, xpForLevel } = require('./utils/petDb');
+    const pet = getPet(message.author.id);
+    if (!pet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
+    const now = Date.now(), FEED_CD = 30*60*1000;
+    if (now - (pet.lastFed||0) < FEED_CD) return message.reply(`${pet.emoji} **${pet.name}** is still full! Wait **${Math.ceil((FEED_CD-(now-(pet.lastFed||0)))/60000)} minutes**.`);
+    pet.hunger = Math.min(100, (pet.hunger||100)+30);
+    pet.happiness = Math.min(100, (pet.happiness||100)+5);
+    pet.lastFed = now; pet.xp = (pet.xp||0)+10;
+    require('./utils/petDb').savePet(message.author.id, pet);
+    return message.reply(`${pet.emoji} **${pet.name}** ate happily! 🍖 Hunger: ${pet.hunger}/100 · +10 XP`);
+  }
+
+  // ---- petplay ----
+  if (commandName === 'petplay' || commandName === 'play') {
+    if (needsAccount()) return;
+    const { getPet, savePet, xpForLevel } = require('./utils/petDb');
+    const pet = getPet(message.author.id);
+    if (!pet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
+    const now = Date.now(), PLAY_CD = 60*60*1000;
+    if (now - (pet.lastPlayed||0) < PLAY_CD) return message.reply(`${pet.emoji} **${pet.name}** is tired! Wait **${Math.ceil((PLAY_CD-(now-(pet.lastPlayed||0)))/60000)} minutes**.`);
+    const bondGain = 2 + Math.floor(Math.random()*4);
+    pet.happiness = Math.min(100,(pet.happiness||100)+20);
+    pet.bond = Math.min(100,(pet.bond||0)+bondGain);
+    pet.lastPlayed = now; pet.xp=(pet.xp||0)+15;
+    require('./utils/petDb').savePet(message.author.id, pet);
+    return message.reply(`${pet.emoji} **${pet.name}** had a blast! 💕 Happiness: ${pet.happiness}/100 · Bond: ${pet.bond}/100 · +15 XP`);
+  }
+
+  // ---- petheal ----
+  if (commandName === 'petheal') {
+    if (needsAccount()) return;
+    const amount = parseInt(args[0]);
+    if (!amount || amount < 10) return message.reply(`Usage: \`${prefix}petheal <amount>\``);
+    const { getPet, savePet, calcPetStats } = require('./utils/petDb');
+    const pet = getPet(message.author.id);
+    if (!pet) return message.reply('No pet to heal.');
+    const user = getOrCreateUser(message.author.id);
+    if (user.wallet < amount) return message.reply(`You only have **$${user.wallet.toLocaleString()}**.`);
+    const stats = calcPetStats(pet);
+    if (pet.hp >= stats.hp) return message.reply(`${pet.emoji} **${pet.name}** is already at full HP!`);
+    const healAmt = Math.floor(amount/10);
+    user.wallet -= amount; pet.hp = Math.min(stats.hp,(pet.hp||0)+healAmt);
+    saveUser(message.author.id, user); savePet(message.author.id, pet);
+    return message.reply(`💊 Healed **${pet.name}** for ${healAmt} HP! ❤️ ${pet.hp}/${stats.hp}`);
+  }
+
+  // ---- petshop ----
+  if (commandName === 'petshop') {
+    const { PET_TYPES } = require('./utils/petDb');
+    const RARITY_E = { Common:'🟢', Uncommon:'🔵', Rare:'🟣', Epic:'🟠', Legendary:'🔴', Mythic:'⭐' };
+    const lines = Object.entries(PET_TYPES).map(([,p])=>`${p.emoji} **${p.name}** ${RARITY_E[p.rarity]} — $${p.cost.toLocaleString()} · Tier ${p.tier}`);
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xff6b35).setTitle('🐾 Pet Shop').setDescription(lines.join('\n')).setFooter({text:`Use /petshop to buy · /petshop <pet> for details`})] });
+  }
+
+  // ---- pets ----
+  if (commandName === 'pets') {
+    const { getAllPets, PET_TYPES, calcPetStats } = require('./utils/petDb');
+    const all  = getAllPets();
+    const list = Object.values(all).sort((a,b)=>calcPetStats(b).power-calcPetStats(a).power).slice(0,10);
+    if (!list.length) return message.reply('No pets yet! Use `/petshop` to adopt one.');
+    const lines = list.map((p,i)=>{ const t=PET_TYPES[p.type]||{}; const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`**${i+1}.**`; return `${medal} ${p.emoji} **${p.name}** (${t.name}) Lv${p.level} · ⚔️${calcPetStats(p).power} · <@${p.ownerId}>`; });
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xff6b35).setTitle('🐾 Pet Rankings').setDescription(lines.join('\n'))] });
+  }
+
+  // ---- petattack / pa ----
+  if (commandName === 'petattack' || commandName === 'pa') {
+    if (needsAccount()) return;
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}petattack @user\``);
+    if (target.id === message.author.id) return message.reply("You can't attack yourself.");
+    const { getPet, savePet, calcPetStats, xpForLevel } = require('./utils/petDb');
+    const myPet = getPet(message.author.id);
+    if (!myPet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
+    if ((myPet.hunger||100) < 20 || (myPet.happiness||100) < 20) return message.reply(`${myPet.emoji} **${myPet.name}** is too hungry or unhappy to fight! Feed and play with it first.`);
+    const myStats  = calcPetStats(myPet);
+    const { PET_TYPES } = require('./utils/petDb');
+    const pType    = PET_TYPES[myPet.type] || {};
+    const victim   = getOrCreateUser(target.id);
+    const defPet   = getPet(target.id);
+    const defStats = defPet ? calcPetStats(defPet) : null;
+    // Defense check
+    if (defPet && (defPet.hp||defStats.hp) > 0 && defStats) {
+      if (Math.random() * (defStats.defense + myStats.power) > Math.random() * myStats.power * 1.5) {
+        const dmg = Math.floor(defStats.power * 0.3);
+        myPet.hp  = Math.max(0,(myPet.hp||myStats.hp)-dmg);
+        savePet(message.author.id, myPet);
+        return message.reply(`${defPet.emoji} **${defPet.name}** blocked the attack and hit back for **${dmg} damage**! ${myPet.emoji} ${myPet.name}: ${myPet.hp}/${myStats.hp} HP`);
+      }
+    }
+    const stolen = Math.floor(victim.wallet * Math.min(0.3, 0.05 + myStats.power/1000));
+    if (stolen < 1) return message.reply(`${myPet.emoji} **${myPet.name}** attacked but <@${target.id}> had nothing to steal.`);
+    victim.wallet -= stolen;
+    const owner    = getOrCreateUser(message.author.id);
+    owner.wallet  += stolen;
+    myPet.hunger   = Math.max(0,(myPet.hunger||100)-15);
+    myPet.happiness= Math.max(0,(myPet.happiness||100)-10);
+    myPet.xp       = (myPet.xp||0)+25; myPet.wins=(myPet.wins||0)+1;
+    if (myPet.xp >= xpForLevel(myPet.level)) { myPet.xp -= xpForLevel(myPet.level); myPet.level++; }
+    saveUser(target.id, victim); saveUser(message.author.id, owner); savePet(message.author.id, myPet);
+    const flavor = (pType.attackFlavor||['attacked'])[Math.floor(Math.random()*(pType.attackFlavor||['attacked']).length)];
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xff3b3b).setTitle(`${myPet.emoji} Pet Attack!`).setDescription(`${myPet.emoji} **${myPet.name}** ${flavor} <@${target.id}> and stole **$${stolen.toLocaleString()}**!`).addFields({ name:'💵 Your Wallet', value:`$${owner.wallet.toLocaleString()}`, inline:true },{ name:'⭐ Level', value:`Lv${myPet.level}`, inline:true })] });
+  }
+
+  // ---- hire ----
+  if (commandName === 'hire') {
+    if (needsAccount()) return;
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}hire @user\``);
+    const { getBusiness, saveBusiness } = require('./utils/bizDb');
+    const biz = getBusiness(message.author.id);
+    if (!biz) return message.reply(`You don't own a business. Use \`/business start\` first.`);
+    if ((biz.employees||[]).length >= 5) return message.reply('Your business already has 5 employees (max).');
+    if ((biz.employees||[]).some(e=>e.userId===target.id)) return message.reply(`**${target.username}** already works for you.`);
+    biz.employees = biz.employees || [];
+    biz.employees.push({ userId:target.id, role:'Employee', joinedAt:Date.now() });
+    saveBusiness(message.author.id, biz);
+    return message.reply(`👔 **${target.username}** hired at **${biz.name}**! They'll earn 10% of each collection.`);
+  }
+
+  // ---- fire ----
+  if (commandName === 'fire') {
+    if (needsAccount()) return;
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}fire @user\``);
+    const { getBusiness, saveBusiness } = require('./utils/bizDb');
+    const biz = getBusiness(message.author.id);
+    if (!biz) return message.reply("You don't own a business.");
+    const idx = (biz.employees||[]).findIndex(e=>e.userId===target.id);
+    if (idx===-1) return message.reply(`**${target.username}** doesn't work for you.`);
+    biz.employees.splice(idx,1);
+    saveBusiness(message.author.id, biz);
+    return message.reply(`📋 **${target.username}** has been let go from **${biz.name}**.`);
+  }
+
+  // ---- myjobs ----
+  if (commandName === 'myjobs') {
+    if (needsAccount()) return;
+    const { getAllBusinesses, BIZ_TYPES, calcIncome } = require('./utils/bizDb');
+    const jobs = Object.values(getAllBusinesses()).filter(b=>(b.employees||[]).some(e=>e.userId===message.author.id));
+    if (!jobs.length) return message.reply("You're not employed anywhere. Wait for a business owner to hire you!");
+    const lines = jobs.map(b=>{ const t=BIZ_TYPES[b.type]||{}; return `${t.emoji||'🏢'} **${b.name}** — ~$${Math.floor(calcIncome(b)*0.1).toLocaleString()}/collection`; });
+    return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.SUCCESS).setTitle('💼 Your Jobs').setDescription(lines.join('\n'))] });
+  }
+
+  // ---- gangcrime / crime ----
+  if (commandName === 'gangcrime' || commandName === 'crime') {
+    const crime = args[0]?.toLowerCase();
+    if (!crime) return message.reply(`Usage: \`${prefix}gangcrime <pickpocket|carjack|heist|mugging|bankjob|murder>\``);
+    const { getGangByMember } = require('./utils/gangDb');
+    const gang = getGangByMember(message.author.id);
+    if (!gang) return message.reply("You need to be in a gang to commit crimes.");
+    return message.reply(`Use the slash command \`/gangcrime\` for the full crime menu with all options and autocomplete.`);
+  }
+
+  // ---- ganginvite / gi ----
+  if (commandName === 'ganginvite' || commandName === 'gi') {
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}ganginvite @user\``);
+    return message.reply(`Use \`/ganginvite @${target.username}\` to send a proper invite with Accept/Decline buttons!`);
+  }
+
+  // ---- gangupgrade / gu ----
+  if (commandName === 'gangupgrade' || commandName === 'gu') {
+    const { getGangByMember } = require('./utils/gangDb');
+    const gang = getGangByMember(message.author.id);
+    if (!gang) return message.reply("You're not in a gang.");
+    const upgrades = [];
+    if (!gang.police_payroll) upgrades.push(`👮 police_payroll ($20,000)`);
+    if (!gang.armory)         upgrades.push(`🔫 armory ($15,000)`);
+    if (!gang.safehouses)     upgrades.push(`🏠 safehouses ($25,000)`);
+    if (gang.gangType!=='mafia') upgrades.push(`👔 mafia ($50,000 · 500 rep · 5 wins)`);
+    return message.reply(`Use \`/gangupgrade\` for upgrades:\n${upgrades.join('\n')||'All upgrades purchased!'}`);
+  }
+
+  // ---- businesses / allbiz ----
+  if (commandName === 'businesses' || commandName === 'allbiz') {
+    const { getAllBusinesses, BIZ_TYPES, calcIncome } = require('./utils/bizDb');
+    const list = Object.values(getAllBusinesses()).sort((a,b)=>b.level-a.level).slice(0,10);
+    if (!list.length) return message.reply('No businesses yet. Use `/business start` to open one.');
+    const lines = list.map((b,i)=>{ const t=BIZ_TYPES[b.type]||{}; const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`**${i+1}.**`; return `${medal} ${t.emoji||'🏢'} **${b.name}** Lv${b.level} · $${calcIncome(b).toLocaleString()}/min · <@${b.ownerId}>`; });
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xf5c518).setTitle('🏢 Business Rankings').setDescription(lines.join('\n'))] });
+  }
+
+  // ---- talk ----
+  if (commandName === 'talk') {
+    if (needsAccount()) return;
+    const { getEntitiesByOwner, AI_ARCHETYPES } = require('./utils/aiEntities');
+    const entities = getEntitiesByOwner(message.author.id);
+    if (!entities.length) return message.reply("You don't have any AI entities. Buy items with the AI effect type.");
+    if (entities.length === 1) {
+      const e    = entities[0];
+      const arch = AI_ARCHETYPES[e.archetype] || {};
+      const moodResponses = arch.responses?.[e.mood] || arch.responses?.loyal || ['...'];
+      const response = moodResponses[Math.floor(Math.random()*moodResponses.length)];
+      const moodEmoji = e.mood==='rogue'?'😡':e.mood==='happy'?'😊':'😐';
+      return message.reply(`${arch.emoji||'🤖'} **${e.name}** ${moodEmoji}: *"${response}"*`);
+    }
+    return message.reply(`Use \`/talk\` to talk to your AI — you have ${entities.length} entities. The slash command lets you choose which one.`);
+  }
+
 });
 
 // ---- PURGE WATCHER ----
@@ -947,6 +1187,32 @@ setInterval(async () => {
     }
   } catch(e) { console.error('War resolution error:', e); }
 }, 60_000);
+
+// ---- PET CARE TICK ENGINE (every hour) ----
+setInterval(() => {
+  try {
+    const { getAllPets, PET_TYPES, calcPetStats } = require('./utils/petDb');
+    const fsp   = require('fs');
+    const pathp = require('path');
+    const all   = getAllPets();
+    let changed = false;
+    for (const userId in all) {
+      const pet  = all[userId];
+      const type = PET_TYPES[pet.type];
+      if (!type) continue;
+      pet.hunger    = Math.max(0, (pet.hunger    || 100) - type.hungerDrain);
+      pet.happiness = Math.max(0, (pet.happiness || 100) - type.happinessDrain);
+      if (pet.hunger === 0) {
+        const maxHp = calcPetStats(pet).hp;
+        pet.hp      = Math.max(0, (pet.hp || maxHp) - Math.floor(maxHp * 0.05));
+      }
+      all[userId] = pet;
+      changed = true;
+    }
+    if (changed) fsp.writeFileSync(pathp.join(__dirname, 'data/pets.json'), JSON.stringify(all, null, 2));
+  } catch(e) { console.error('Pet tick error:', e); }
+}, 60 * 60 * 1000);
+
 require('./dashboard/server.js');
 
 // ---- LOGIN ----
