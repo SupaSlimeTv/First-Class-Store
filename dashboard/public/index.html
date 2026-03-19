@@ -846,42 +846,6 @@ async function refresh(){
 
   document.getElementById('refresh-ts').textContent='Last sync: '+new Date().toLocaleTimeString();
 }
-  await loadLottery();
-
-  // Populate prefix input with current value
-  const prefixInput = document.getElementById('prefix-input');
-  if (prefixInput) {
-    prefixInput.value = config.prefix || '!';
-    document.getElementById('prefix-display').textContent  = config.prefix || '!';
-    document.getElementById('prefix-display2').textContent = config.prefix || '!';
-  }
-
-  // Populate restricted role
-  const rrInput  = document.getElementById('restricted-role-input');
-  const rrStatus = document.getElementById('restricted-role-status');
-  if (rrInput) {
-    rrInput.value = config.restrictedRoleId || '';
-    rrStatus.textContent = config.restrictedRoleId
-      ? 'Role ID: ' + config.restrictedRoleId
-      : 'No restriction set — open to everyone';
-  }
-
-  // Populate rob cooldown
-  const rcInput = document.getElementById('rob-cooldown-input');
-  if (rcInput) rcInput.value = config.robCooldownMinutes ?? 5;
-
-  // Populate purge channel
-  const pcInput  = document.getElementById('purge-channel-input');
-  const pcStatus = document.getElementById('purge-channel-status');
-  if (pcInput) {
-    pcInput.value = config.purgeChannelId || '';
-    if (pcStatus) pcStatus.textContent = config.purgeChannelId
-      ? 'Channel ID: ' + config.purgeChannelId
-      : 'No channel set — announcements disabled';
-  }
-
-  document.getElementById('refresh-ts').textContent='Last sync: '+new Date().toLocaleTimeString();
-}
 
 function renderStats(){
   const s=S.stats;
