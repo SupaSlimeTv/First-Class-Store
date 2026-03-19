@@ -579,7 +579,6 @@ async function tickLottery() {
 setInterval(tickLottery, 60_000);
 
 // ---- BUSINESS REVENUE TICK ENGINE ----
-// Every 60 seconds, add income to all active businesses
 setInterval(() => {
   try {
     const bizDb = require('./utils/bizDb');
@@ -593,11 +592,58 @@ setInterval(() => {
       changed = true;
     }
     if (changed) {
-      const fs   = require('fs');
-      const path = require('path');
-      fs.writeFileSync(path.join(__dirname, 'data/businesses.json'), JSON.stringify(all, null, 2));
+      const fsb  = require('fs');
+      const pathb = require('path');
+      fsb.writeFileSync(pathb.join(__dirname, 'data/businesses.json'), JSON.stringify(all, null, 2));
     }
   } catch {}
+}, 60_000);
+
+// ---- CUSTOMER ALGORITHM TICK ----
+const { tickCustomers, CUSTOMER_VISIT_INTERVAL } = require('./utils/customerAlgo');
+setInterval(async () => {
+  const cfg = require('./utils/db').getConfig();
+  await tickCustomers(client, cfg.purgeChannelId);
+}, CUSTOMER_VISIT_INTERVAL);
+
+// ---- POLICE HEAT DECAY ----
+const { decayHeat } = require('./utils/police');
+setInterval(decayHeat, 60_000);
+
+// ---- GANG WAR RESOLUTION ----
+setInterval(async () => {
+  try {
+    const { getAllWars, deleteWar, getGang, saveGang } = require('./utils/gangDb');
+    const { EmbedBuilder } = require('discord.js');
+    const wars = getAllWars();
+    const cfg  = require('./utils/db').getConfig();
+    for (const warId in wars) {
+      const war = wars[warId];
+      if (Date.now() < war.endsAt) continue;
+      // Resolve
+      const gang1 = getGang(war.gang1Id);
+      const gang2 = getGang(war.gang2Id);
+      const gang1Wins = (war.gang1Score || 0) >= (war.gang2Score || 0);
+      const winner    = gang1Wins ? gang1 : gang2;
+      const loser     = gang1Wins ? gang2 : gang1;
+
+      if (winner) { winner.wins = (winner.wins||0)+1; winner.rep = (winner.rep||0)+50; if (war.bet>0) winner.bank=(winner.bank||0)+war.bet*2; saveGang(winner.id, winner); }
+      if (loser)  { loser.losses=(loser.losses||0)+1; if(war.bet>0&&loser.bank>=war.bet){loser.bank-=war.bet;}  saveGang(loser.id,  loser);  }
+
+      deleteWar(warId);
+
+      if (cfg.purgeChannelId) {
+        const channel = await client.channels.fetch(cfg.purgeChannelId).catch(()=>null);
+        if (channel) {
+          await channel.send({ embeds: [new EmbedBuilder()
+            .setColor(0xff3b3b)
+            .setTitle('⚔️ War Over!')
+            .setDescription(`**${winner?.name || 'Unknown'}** defeated **${loser?.name || 'Unknown'}**!\n\nFinal: ${war.gang1Score} vs ${war.gang2Score}${war.bet>0?`\n💰 Winner takes $${(war.bet*2).toLocaleString()}`:''}`)
+          ]});
+        }
+      }
+    }
+  } catch(e) { console.error('War resolution error:', e); }
 }, 60_000);
 require('./dashboard/server.js');
 

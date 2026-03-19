@@ -466,6 +466,56 @@ app.get('/api/businesses', (req, res) => {
 });
 
 // ============================================================
+// GANGS
+// ============================================================
+app.get('/api/gangs', (req, res) => {
+  try {
+    const { getAllGangs, getAllWars, getMemberRank } = require('../utils/gangDb');
+    const gangs = Object.values(getAllGangs()).sort((a,b) => (b.rep||0)-(a.rep||0));
+    const wars  = Object.values(getAllWars()).filter(w => w.endsAt > Date.now());
+    res.json({ gangs, activeWars: wars });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/gangs/:id/delete', (req, res) => {
+  try {
+    const { deleteGang } = require('../utils/gangDb');
+    deleteGang(req.params.id);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/police', (req, res) => {
+  try {
+    const fs   = require('fs');
+    const path = require('path');
+    const POLICE_FILE = path.join(__dirname, '../data/police.json');
+    const data = fs.existsSync(POLICE_FILE) ? JSON.parse(fs.readFileSync(POLICE_FILE, 'utf8')) : {};
+    const list = Object.values(data).filter(r => r.heat > 0 || r.jailUntil).sort((a,b) => (b.heat||0)-(a.heat||0));
+    res.json(list);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/police/:userId/release', (req, res) => {
+  try {
+    const { getPoliceRecord, savePoliceRecord } = require('../utils/gangDb');
+    const record = getPoliceRecord(req.params.userId);
+    record.jailUntil = null;
+    record.heat = Math.max(0, (record.heat || 0) - 20);
+    savePoliceRecord(req.params.userId, record);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/police/:userId/clear', (req, res) => {
+  try {
+    const { savePoliceRecord } = require('../utils/gangDb');
+    savePoliceRecord(req.params.userId, { userId: req.params.userId, heat: 0, arrests: 0, jailUntil: null, offenses: [] });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ============================================================
 // CATCH-ALL
 // ============================================================
 app.get('*', (req, res) => {

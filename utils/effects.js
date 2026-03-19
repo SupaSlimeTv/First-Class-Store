@@ -637,6 +637,54 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
       };
     }
 
+    // ----------------------------------------------------------
+    // AI — Spawns an AI entity with a personality and autonomy
+    // effect.archetype: 'robot' | 'phone' | 'companion' | 'drone' | 'assistant'
+    // effect.entityName: string — what the AI is called
+    // effect.startMood: 'loyal' | 'passive' | 'aggressive'
+    // effect.startLoyalty: 0-100
+    // effect.forceRogue: bool — starts rogue immediately
+    // ----------------------------------------------------------
+    case 'ai': {
+      const { AI_ARCHETYPES, saveEntity } = require('./aiEntities');
+      const archetype = effect.archetype || 'robot';
+      const arch      = AI_ARCHETYPES[archetype];
+      if (!arch) return { success: false, title: 'Unknown AI Type', description: `Archetype "${archetype}" not found.` };
+
+      const entityId   = `${userId}_${archetype}_${Date.now()}`;
+      const entityName = effect.entityName || arch.name;
+      const startMood  = effect.forceRogue ? 'rogue' : (effect.startMood || arch.basePersonality === 'aggressive' ? 'passive' : 'loyal');
+
+      const entity = {
+        id:           entityId,
+        ownerId:      userId,
+        name:         entityName,
+        archetype,
+        mood:         startMood,
+        loyalty:      effect.forceRogue ? 0 : (effect.startLoyalty ?? 75),
+        interactions: 0,
+        createdAt:    Date.now(),
+        lastTalked:   null,
+        abilities:    arch.abilities || [],
+      };
+      saveEntity(entityId, entity);
+
+      const rogueNote = effect.forceRogue
+        ? '\n\n⚠️ **WARNING:** This entity started in ROGUE mode. It does not answer to you.'
+        : '\n\nUse `/talk` to interact with it. Keep it happy or it might turn on you.';
+
+      return {
+        success: true,
+        title:   `${arch.emoji} ${entityName} Activated!`,
+        description: `You now own a **${arch.name}**.\n*"${arch.responses.loyal[0]}"*${rogueNote}`,
+        fields:  [
+          { name: '🧠 Mood',    value: startMood.charAt(0).toUpperCase() + startMood.slice(1), inline: true },
+          { name: '❤️ Loyalty', value: `${entity.loyalty}/100`,                               inline: true },
+          { name: '🎯 Abilities', value: arch.abilities.join(', '),                            inline: false },
+        ],
+      };
+    }
+
     default:
       return { success: false, title: 'Unknown Effect', description: `Effect type "${effect.type}" is not recognized.` };
   }

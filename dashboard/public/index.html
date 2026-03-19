@@ -126,6 +126,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="nav('effects')" data-s="effects"><span class="nav-icon">⚡</span>Live Effects</div>
     <div class="nav-item" onclick="nav('stocks')" data-s="stocks"><span class="nav-icon">📈</span>Stock Market</div>
     <div class="nav-item" onclick="nav('entrepreneur')" data-s="entrepreneur"><span class="nav-icon">🏢</span>Entrepreneur</div>
+    <div class="nav-item" onclick="nav('gangs')" data-s="gangs"><span class="nav-icon">🏴</span>Gangs</div>
+    <div class="nav-item" onclick="nav('police')" data-s="police"><span class="nav-icon">🚔</span>Police</div>
     <div class="nav-item" onclick="nav('purge')" data-s="purge"><span class="nav-icon">⬡</span>Purge</div>
   </nav>
   <div id="purge-badge" class="purge-badge">● PURGE ACTIVE</div>
@@ -390,6 +392,46 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
     </div>
 
+    <!-- GANGS -->
+    <div id="section-gangs" class="section">
+      <p class="sub-txt">All active gangs across the server. Gang members earn money through crimes, win wars, and build rep. You can delete gangs or manage them here.</p>
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Total Gangs</div><div class="stat-val c-red" id="gang-count">—</div></div>
+        <div class="stat-card"><div class="stat-label">Active Wars</div><div class="stat-val c-orange" id="gang-wars">—</div></div>
+        <div class="stat-card"><div class="stat-label">Most Dangerous</div><div class="stat-val" id="gang-top">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Members</div><div class="stat-val c-blue" id="gang-members">—</div></div>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:16px">
+        <div class="tbl-head"><h3>🏴 Gang Rankings</h3><button class="btn btn-ghost btn-sm" onclick="loadGangs()">⟳ Refresh</button></div>
+        <table>
+          <thead><tr><th>Rank</th><th>Gang</th><th>Leader</th><th>Members</th><th>Rep</th><th>W/L</th><th>Bank</th><th>Actions</th></tr></thead>
+          <tbody id="gangs-tbody"><tr><td colspan="8" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>⚔️ Active Wars</h3></div>
+        <table>
+          <thead><tr><th>Gang 1</th><th>Score</th><th>Gang 2</th><th>Score</th><th>Time Left</th><th>Stakes</th></tr></thead>
+          <tbody id="wars-tbody"><tr><td colspan="6" class="empty-cell">No active wars</td></tr></tbody>
+        </table>
+      </div>
+      <div class="info-box" style="margin-top:12px">
+        <strong>Commands:</strong> <code>/gang create</code> · <code>/ganginvite @user</code> · <code>/gangwar challenge</code> · <code>/gangwar attack</code> · <code>/gangcrime</code> · <code>/myheat</code> · <code>/gangs</code>
+      </div>
+    </div>
+
+    <!-- POLICE -->
+    <div id="section-police" class="section">
+      <p class="sub-txt">Monitor heat levels and manage arrests. High heat players are at risk of police raids. You can release players from jail or clear their record here.</p>
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>🚔 Active Heat Records</h3><button class="btn btn-ghost btn-sm" onclick="loadPolice()">⟳ Refresh</button></div>
+        <table>
+          <thead><tr><th>User</th><th>Heat</th><th>Level</th><th>Arrests</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="police-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- PURGE -->
     <div id="section-purge" class="section">
       <p class="sub-txt">Server-wide chaos event. Activating it instantly drains every user's bank to their wallet.</p>
@@ -635,6 +677,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="edit_balance">💵 Edit Balance — give or take money from user/target on use</option>
               <option value="edit_items">🎒 Edit Items — give or take a specific item from user/target on use</option>
               <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
+              <option value="ai">🤖 AI Entity — spawn an AI with personality, moods, and autonomy</option>
             </select>
           </div>
 
@@ -801,6 +844,48 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <div class="fg"><label class="flabel">Target</label><select class="fselect" id="m-er-target"><option value="self">🙋 Self</option><option value="target">🎯 Target</option></select></div>
           </div>
 
+          <!-- AI ENTITY fields -->
+          <div id="ef-ai" class="ef-section">
+            <hr class="divider">
+            <div class="grid2">
+              <div class="fg">
+                <label class="flabel">AI Archetype</label>
+                <select class="fselect" id="m-ai-archetype">
+                  <option value="robot">🤖 Robot</option>
+                  <option value="phone">📱 Smart Phone</option>
+                  <option value="companion">🧠 AI Companion</option>
+                  <option value="drone">🚁 Combat Drone</option>
+                  <option value="assistant">💬 AI Assistant</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="flabel">Entity Name (optional)</label>
+                <input class="finput" id="m-ai-name" placeholder="e.g. Unit-7, ARIA, HAL">
+              </div>
+            </div>
+            <div class="grid2">
+              <div class="fg">
+                <label class="flabel">Starting Mood</label>
+                <select class="fselect" id="m-ai-mood">
+                  <option value="loyal">😊 Loyal</option>
+                  <option value="passive">😐 Passive</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="flabel">Starting Loyalty (0-100)</label>
+                <input class="finput" id="m-ai-loyalty" type="number" min="0" max="100" placeholder="75">
+              </div>
+            </div>
+            <div class="fg">
+              <label class="flabel">Force Rogue from Start?</label>
+              <select class="fselect" id="m-ai-rogue">
+                <option value="false">No — starts friendly</option>
+                <option value="true">Yes — immediately hostile 😈</option>
+              </select>
+              <div class="hint">Rogue entities start with 0 loyalty and immediately work against their owner.</div>
+            </div>
+          </div>
+
         </div>
 
         <!-- TRIGGER -->
@@ -832,7 +917,7 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur'}[n]||n;
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police'}[n]||n;
 }
 
 async function api(m,u,b){
@@ -852,6 +937,8 @@ async function refresh(){
   await loadGuildRoles();
   await loadLottery();
   await loadBusinesses();
+  await loadGangs();
+  await loadPolice();
 
   // Load users separately so the list doesn't flash blank
   api('GET','/api/users').then(users => {
@@ -1006,8 +1093,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -1177,7 +1264,7 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
 
@@ -1246,6 +1333,13 @@ async function saveItem(){
       if(et==='shield'){
         effect.blocksLeft=parseInt(document.getElementById('m-shield-blocks').value)||3;
         effect.durationMs=(parseInt(document.getElementById('m-shield-dur').value)||24)*3600000;
+      }
+      if(et==='ai'){
+        effect.archetype    = document.getElementById('m-ai-archetype').value;
+        effect.entityName   = document.getElementById('m-ai-name').value.trim()||null;
+        effect.startMood    = document.getElementById('m-ai-mood').value;
+        effect.startLoyalty = parseInt(document.getElementById('m-ai-loyalty').value)||75;
+        effect.forceRogue   = document.getElementById('m-ai-rogue').value==='true';
       }
       if(et==='edit_balance'){
         effect.action=document.getElementById('m-eb-action').value;
@@ -1813,6 +1907,104 @@ async function loadBusinesses() {
   } catch(e) {
     console.error('loadBusinesses error:', e);
   }
+}
+
+// ════════════════════════════════════════════════
+// GANGS
+// ════════════════════════════════════════════════
+async function loadGangs() {
+  try {
+    const data  = await api('GET', '/api/gangs');
+    const gangs = data.gangs || [];
+    const wars  = data.activeWars || [];
+
+    document.getElementById('gang-count').textContent   = gangs.length;
+    document.getElementById('gang-wars').textContent    = wars.length;
+    document.getElementById('gang-members').textContent = gangs.reduce((s,g)=>s+g.members.length,0);
+    document.getElementById('gang-top').textContent     = gangs[0] ? `${gangs[0].color} ${gangs[0].name}` : '—';
+
+    const gt = document.getElementById('gangs-tbody');
+    if (!gangs.length) { gt.innerHTML='<tr><td colspan="8" class="empty-cell">No gangs yet.</td></tr>'; }
+    else gt.innerHTML = gangs.map((g,i)=>{
+      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`;
+      return `<tr>
+        <td style="font-weight:700;color:var(--gold)">${medal}</td>
+        <td><div style="font-weight:700">${g.color} ${g.name} <span style="color:var(--muted);font-size:11px">${g.tag}</span></div></td>
+        <td class="mono" style="font-size:11px">${g.leaderId}</td>
+        <td>${g.members.length}/20</td>
+        <td style="color:var(--gold);font-weight:700">${g.rep||0}</td>
+        <td>${g.wins||0}W/${g.losses||0}L</td>
+        <td class="mono">$${(g.bank||0).toLocaleString()}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteGang('${g.id}','${g.name}')">Delete</button></td>
+      </tr>`;
+    }).join('');
+
+    const wt = document.getElementById('wars-tbody');
+    if (!wars.length) { wt.innerHTML='<tr><td colspan="6" class="empty-cell">No active wars</td></tr>'; }
+    else wt.innerHTML = wars.map(w=>{
+      const left = Math.ceil((w.endsAt-Date.now())/60000);
+      return `<tr>
+        <td style="font-weight:700">${w.gang1Name}</td>
+        <td style="color:var(--gold);font-weight:700">${w.gang1Score||0}</td>
+        <td style="font-weight:700">${w.gang2Name}</td>
+        <td style="color:var(--gold);font-weight:700">${w.gang2Score||0}</td>
+        <td>${left}m</td>
+        <td>${w.bet>0?'$'+(w.bet).toLocaleString():'None'}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error('loadGangs error:', e); }
+}
+
+async function deleteGang(gangId, name) {
+  if (!confirm(`Delete gang "${name}"? This cannot be undone. The gang bank is lost.`)) return;
+  const r = await api('POST', `/api/gangs/${gangId}/delete`);
+  if (r.success) { toast('Gang deleted','ok'); await loadGangs(); }
+  else toast(r.error||'Failed','err');
+}
+
+// ════════════════════════════════════════════════
+// POLICE
+// ════════════════════════════════════════════════
+async function loadPolice() {
+  try {
+    const list = await api('GET', '/api/police');
+    const tb   = document.getElementById('police-tbody');
+    if (!list.length) { tb.innerHTML='<tr><td colspan="6" class="empty-cell">No active heat records.</td></tr>'; return; }
+
+    const HEAT_COLORS = { 0:'#2ecc71', 25:'#f5c518', 50:'#ff8800', 75:'#ff3b3b', 90:'#cc00cc' };
+    tb.innerHTML = list.map(r => {
+      const heat     = r.heat || 0;
+      const jailed   = r.jailUntil && Date.now() < r.jailUntil;
+      const jailLeft = jailed ? Math.ceil((r.jailUntil-Date.now())/60000) : 0;
+      const heatClr  = heat>75?'#cc00cc':heat>50?'#ff3b3b':heat>25?'#ff8800':'#f5c518';
+      const lvl      = heat>75?'💀 Most Wanted':heat>50?'🔴 Fugitive':heat>25?'🟠 Hot':'🟡 Wanted';
+      const bar      = '█'.repeat(Math.floor(heat/10))+'░'.repeat(10-Math.floor(heat/10));
+      return `<tr>
+        <td class="mono" style="font-size:11px">${r.userId}</td>
+        <td><span style="color:${heatClr};font-family:'JetBrains Mono',monospace;font-weight:700">[${bar}] ${heat}</span></td>
+        <td>${lvl}</td>
+        <td>${r.arrests||0}</td>
+        <td>${jailed?`🔒 ${jailLeft}m left`:'🟢 Free'}</td>
+        <td style="display:flex;gap:4px">
+          ${jailed?`<button class="btn btn-ghost btn-sm" onclick="releasePlayer('${r.userId}')">Release</button>`:''}
+          <button class="btn btn-danger btn-sm" onclick="clearHeat('${r.userId}')">Clear Record</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error('loadPolice error:', e); }
+}
+
+async function releasePlayer(userId) {
+  const r = await api('POST', `/api/police/${userId}/release`);
+  if (r.success) { toast('Player released','ok'); await loadPolice(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function clearHeat(userId) {
+  if (!confirm('Clear this player\'s entire police record?')) return;
+  const r = await api('POST', `/api/police/${userId}/clear`);
+  if (r.success) { toast('Record cleared','ok'); await loadPolice(); }
+  else toast(r.error||'Failed','err');
 }
 
 // ════════════════════════════════════════════════
