@@ -82,8 +82,18 @@ app.get('/api/stats', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   const accountUsers = db.getAllUsers();
 
-  // Fetch members from ALL guilds the bot is in
+  // Start with everyone who has an account — they always show
   const memberMap = {};
+  for (const [id, data] of Object.entries(accountUsers)) {
+    const d = await fetchDiscordUser(id);
+    memberMap[id] = {
+      id,
+      username: d?.username || id,
+      avatar:   d?.avatar   || null,
+    };
+  }
+
+  // Then try to add all guild members (including those without accounts)
   try {
     const guildsRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
       headers: { Authorization: `Bot ${process.env.TOKEN}` },
@@ -97,10 +107,10 @@ app.get('/api/users', async (req, res) => {
           });
           if (!r.ok) continue;
           const members = await r.json();
+          if (!Array.isArray(members)) continue;
           for (const member of members) {
-            if (member.user.bot) continue;
+            if (!member.user || member.user.bot) continue;
             const u = member.user;
-            // Don't overwrite if already found — first server wins for display name
             if (!memberMap[u.id]) {
               memberMap[u.id] = {
                 id:       u.id,
@@ -115,14 +125,6 @@ app.get('/api/users', async (req, res) => {
       }
     }
   } catch {}
-
-  // Also include anyone with an account who may not be in any current guild
-  for (const id of Object.keys(accountUsers)) {
-    if (!memberMap[id]) {
-      const d = await fetchDiscordUser(id);
-      memberMap[id] = { id, username: d?.username || id, avatar: d?.avatar || null };
-    }
-  }
 
   const list = Object.values(memberMap).map(member => {
     const data = accountUsers[member.id] || null;

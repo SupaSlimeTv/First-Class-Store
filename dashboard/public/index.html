@@ -1860,6 +1860,9 @@ document.getElementById('inv-modal').addEventListener('click',function(e){if(e.t
 // INIT
 // ════════════════════════════════════════════════
 async function safeRefresh() {
+  // Don't refresh if a modal is open — would reset dropdowns mid-edit
+  const anyOpen = document.querySelector('.backdrop.open');
+  if (anyOpen) return;
   try {
     await refresh();
     setStatus('online');
