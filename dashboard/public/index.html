@@ -121,6 +121,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item active" onclick="nav('overview')" data-s="overview"><span class="nav-icon">◈</span>Overview</div>
     <div class="nav-item" onclick="nav('users')" data-s="users"><span class="nav-icon">◉</span>Users</div>
     <div class="nav-item" onclick="nav('store')" data-s="store"><span class="nav-icon">◈</span>Item Store</div>
+    <div class="nav-item" onclick="nav('pets')" data-s="pets"><span class="nav-icon">🐾</span>Pet Shop</div>
+    <div class="nav-item" onclick="nav('ai')" data-s="ai"><span class="nav-icon">🤖</span>AI Entities</div>
     <div class="nav-item" onclick="nav('protected')" data-s="protected"><span class="nav-icon">🛡️</span>Protected</div>
     <div class="nav-item" onclick="nav('roleincome')" data-s="roleincome"><span class="nav-icon">💼</span>Role Income</div>
     <div class="nav-item" onclick="nav('effects')" data-s="effects"><span class="nav-icon">⚡</span>Live Effects</div>
@@ -291,72 +293,42 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
       <!-- LOTTERY CONTROL -->
       <div class="tbl-wrap" style="margin-bottom:20px">
-        <div class="tbl-head"><h3>🎟️ Lottery Control</h3><button class="btn btn-ghost btn-sm" onclick="loadLottery()">⟳ Refresh</button></div>
-
-        <!-- Live Stats -->
+        <div class="tbl-head"><h3>🎟️ Lottery Control</h3></div>
         <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
-          <div class="stat-card"><div class="stat-label">🏆 Current Pot</div><div class="stat-val c-gold" id="lottery-pot">—</div></div>
-          <div class="stat-card"><div class="stat-label">🎫 Tickets Sold</div><div class="stat-val c-blue" id="lottery-tickets">—</div></div>
-          <div class="stat-card"><div class="stat-label">⏰ Draw In</div><div class="stat-val" id="lottery-timer">—</div></div>
-          <div class="stat-card"><div class="stat-label">📊 Status</div><div class="stat-val" id="lottery-status">—</div></div>
-          <div class="stat-card"><div class="stat-label">🏅 Last Winner</div><div class="stat-val" id="lottery-last-winner" style="font-size:11px;font-family:'JetBrains Mono',monospace">—</div></div>
-          <div class="stat-card"><div class="stat-label">💸 Last Prize</div><div class="stat-val c-green" id="lottery-last-pot">—</div></div>
+          <div class="stat-card"><div class="stat-label">Current Pot</div><div class="stat-val c-gold" id="lottery-pot">—</div></div>
+          <div class="stat-card"><div class="stat-label">Tickets Sold</div><div class="stat-val c-blue" id="lottery-tickets">—</div></div>
+          <div class="stat-card"><div class="stat-label">Draw In</div><div class="stat-val" id="lottery-timer">—</div></div>
+          <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="lottery-status">—</div></div>
         </div>
-
-        <!-- Settings -->
-        <div style="padding:0 16px 12px">
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚙️ Settings</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-            <div class="fg" style="margin:0">
-              <label class="flabel">Ticket Price ($)</label>
-              <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Draw Every</label>
-              <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Interval Unit</label>
-              <select class="fselect" id="lottery-unit">
-                <option value="hours">Hours</option>
-                <option value="minutes">Minutes</option>
-                <option value="seconds">Seconds</option>
-              </select>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Status</label>
-              <select class="fselect" id="lottery-active">
-                <option value="true">✅ Open</option>
-                <option value="false">❌ Closed</option>
-              </select>
-            </div>
+        <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+          <div class="fg" style="margin:0">
+            <label class="flabel">Ticket Price ($)</label>
+            <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
           </div>
-
-          <!-- Bonus pot randomization -->
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🎲 Bonus Pot Randomization (added to ticket sales at draw time)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-            <div class="fg" style="margin:0">
-              <label class="flabel">Min Bonus ($)</label>
-              <input class="finput" id="lottery-min-bonus" type="number" min="0" placeholder="0" value="0">
-              <div class="hint">Minimum extra added to pot at draw. 0 = no bonus.</div>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Max Bonus ($)</label>
-              <input class="finput" id="lottery-max-bonus" type="number" min="0" placeholder="5000" value="0">
-              <div class="hint">Max extra added to pot at draw. Random amount between min and max.</div>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Guaranteed Min Pot ($)</label>
-              <input class="finput" id="lottery-min-pot" type="number" min="0" placeholder="0" value="0">
-              <div class="hint">If ticket sales are below this, pot is topped up to this amount.</div>
-            </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Draw Every</label>
+            <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Interval Unit</label>
+            <select class="fselect" id="lottery-unit">
+              <option value="hours">Hours</option>
+              <option value="minutes">Minutes</option>
+              <option value="seconds">Seconds</option>
+            </select>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Status</label>
+            <select class="fselect" id="lottery-active">
+              <option value="true">✅ Open</option>
+              <option value="false">❌ Closed</option>
+            </select>
           </div>
         </div>
-
         <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="saveLotterySettings()">Save Settings</button>
           <button class="btn btn-ghost" onclick="resetLottery()">🔄 Reset & Clear Tickets</button>
-          <button class="btn btn-gold btn-sm" onclick="forceDrawNow()">⚡ Force Draw Now</button>
+          <span style="font-size:12px;color:var(--muted);align-self:center" id="lottery-last-winner"></span>
         </div>
       </div>
 
@@ -419,6 +391,75 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <code>/fire @user</code> — remove an employee<br>
         <code>/businesses</code> — server-wide business rankings<br>
         <code>/myjobs</code> — see businesses you work for
+      </div>
+    </div>
+
+    <!-- PET SHOP -->
+    <div id="section-pets" class="section">
+      <p class="sub-txt">Manage the pet shop — enable or disable specific pets, set prices, and see who owns what. All changes take effect immediately in-game.</p>
+
+      <!-- PET ROSTER: who owns what -->
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head">
+          <h3>🐾 Active Pets</h3>
+          <input class="search" placeholder="Filter by user or pet..." oninput="filterPets(this.value)" id="pet-search">
+        </div>
+        <table>
+          <thead><tr><th>User</th><th>Pet</th><th>Level</th><th>Bond</th><th>Hunger</th><th>Happiness</th><th>Wins/Losses</th><th>Adopted</th></tr></thead>
+          <tbody id="pets-tbody"><tr><td colspan="8" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- PET TYPE MANAGER -->
+      <div class="tbl-wrap">
+        <div class="tbl-head">
+          <h3>🐾 Pet Shop Roster</h3>
+          <span style="font-size:11px;color:var(--muted)">Toggle which pets are available for purchase</span>
+        </div>
+        <table>
+          <thead><tr><th>Pet</th><th>Rarity</th><th>Tier</th><th>Cost</th><th>Base Power</th><th>Base HP</th><th>Evolves To</th><th>Available</th><th>Edit Price</th></tr></thead>
+          <tbody id="pet-types-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AI ENTITIES -->
+    <div id="section-ai" class="section">
+      <p class="sub-txt">All AI entities across the server. See who owns what, their mood and loyalty, and how abilities work. You can wipe rogue entities from here.</p>
+
+      <!-- ACTIVE AI ENTITIES -->
+      <div class="tbl-wrap" style="margin-bottom:24px">
+        <div class="tbl-head">
+          <h3>🤖 Active AI Entities</h3>
+          <input class="search" placeholder="Filter by user or name..." oninput="filterAI(this.value)" id="ai-search">
+        </div>
+        <table>
+          <thead><tr><th>Owner</th><th>Entity</th><th>Archetype</th><th>Mood</th><th>Loyalty</th><th>Chats</th><th>Memory</th><th>Actions</th></tr></thead>
+          <tbody id="ai-tbody"><tr><td colspan="8" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- ABILITY REFERENCE -->
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>⚡ Ability Reference — How They Work</h3></div>
+        <div style="padding:18px">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.7">
+            Abilities fire automatically when a player uses <code>/talk</code> with their entity. Players <strong>don't manually trigger them</strong> — the entity decides.
+            <br>• <strong>Loyal entities</strong> (mood: loyal/happy) have a <strong>12% chance</strong> per conversation to use a helpful ability on their owner.
+            <br>• <strong>Rogue entities</strong> have a <strong>35% chance</strong> per conversation to use a hostile ability against their owner.
+            <br>• Loyalty affects rogue chance — lower loyalty = higher rogue trigger probability.
+          </p>
+          <table>
+            <thead><tr><th>Ability</th><th>Type</th><th>Target</th><th>Effect</th><th>Amount</th><th>Who Has It</th></tr></thead>
+            <tbody id="ability-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ARCHETYPE BREAKDOWN -->
+      <div class="tbl-wrap" style="margin-top:20px">
+        <div class="tbl-head"><h3>🧬 Archetype Breakdown</h3></div>
+        <div style="padding:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px" id="archetype-cards"></div>
       </div>
     </div>
 
@@ -708,7 +749,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="edit_items">🎒 Edit Items — give or take a specific item from user/target on use</option>
               <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
               <option value="ai">🤖 AI Entity — spawn an AI with personality, moods, and autonomy</option>
-              <option value="consume">🍽️ Consume — edible/drinkable item that gives a timed buff or debuff</option>
+              <option value="magic">🔮 Magic — configurable spell with self-buff + target-curse combo</option>
+              <option value="black_magic">🖤 Black Magic — hex a player, drain their funds and transfer to you</option>
             </select>
           </div>
 
@@ -917,56 +959,155 @@ tr:hover td{background:rgba(255,255,255,.015)}
             </div>
           </div>
 
-          <!-- CONSUME fields -->
-          <div id="ef-consume" class="ef-section">
+          <!-- BLACK MAGIC fields -->
+          <div id="ef-black_magic" class="ef-section">
+            <hr class="divider">
+            <div class="fg">
+              <label class="flabel">Hex Name <span style="color:var(--muted)">(shown in Discord)</span></label>
+              <input class="finput" id="m-bm-name" placeholder="e.g. Voodoo Curse, Soul Drain, Shadow Hex">
+            </div>
+            <div class="grid3">
+              <div class="fg">
+                <label class="flabel">Drain From</label>
+                <select class="fselect" id="m-bm-target">
+                  <option value="wallet">💵 Wallet Only</option>
+                  <option value="bank">🏦 Bank Only</option>
+                  <option value="both">💀 Wallet + Bank</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="flabel">Drain Type</label>
+                <select class="fselect" id="m-bm-drain-type">
+                  <option value="percent">📊 Percent (%)</option>
+                  <option value="flat">💲 Flat Amount ($)</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="flabel">Amount (% or $)</label>
+                <input class="finput" id="m-bm-amount" type="number" min="1" placeholder="25">
+              </div>
+            </div>
+            <div class="grid3">
+              <div class="fg">
+                <label class="flabel">Success Chance (0–1)</label>
+                <input class="finput" id="m-bm-success" type="number" min="0" max="1" step="0.05" placeholder="0.75">
+                <div class="hint">0.75 = 75% chance hex lands.</div>
+              </div>
+              <div class="fg">
+                <label class="flabel">Backfire Chance (0–1)</label>
+                <input class="finput" id="m-bm-backfire" type="number" min="0" max="1" step="0.05" placeholder="0.4">
+                <div class="hint">On failure, % chance it hits the caster.</div>
+              </div>
+              <div class="fg">
+                <label class="flabel">Backfire % (of caster balance)</label>
+                <input class="finput" id="m-bm-backfire-pct" type="number" min="1" max="100" placeholder="25">
+                <div class="hint">How much the caster loses if it backfires.</div>
+              </div>
+            </div>
+            <div class="info-box" style="margin-top:8px">
+              <strong>🖤 How Black Magic works:</strong><br>
+              Player uses item → selects a target → hex rolls for success → on success, the configured % or flat $ is drained from target's wallet/bank/both and transferred directly to the hexer's wallet → on failure, there's a backfire chance that hits the hexer instead. Shield items block the hex. Protected roles are immune.
+            </div>
+          </div>
+
+          <!-- MAGIC fields -->
+          <div id="ef-magic" class="ef-section">
             <hr class="divider">
             <div class="grid2">
               <div class="fg">
-                <label class="flabel">Consume Type</label>
-                <select class="fselect" id="m-consume-type">
-                  <option value="food">🍽️ Food</option>
-                  <option value="drink">🍺 Drink</option>
-                  <option value="drug">💊 Drug</option>
-                  <option value="potion">🧪 Potion</option>
-                  <option value="pill">💊 Pill</option>
-                  <option value="custom">✨ Custom</option>
-                </select>
+                <label class="flabel">Spell Name</label>
+                <input class="finput" id="m-magic-spell" placeholder="e.g. Cursed Touch">
               </div>
               <div class="fg">
-                <label class="flabel">Consume Verb (optional)</label>
-                <input class="finput" id="m-consume-verb" placeholder="e.g. eat, drink, inject, smoke">
+                <label class="flabel">Spell Emoji</label>
+                <input class="finput" id="m-magic-emoji" placeholder="🔮" maxlength="4" style="width:80px">
               </div>
             </div>
             <div class="grid2">
               <div class="fg">
-                <label class="flabel">Effect Type</label>
-                <select class="fselect" id="m-consume-buff">
-                  <option value="work_boost">💼 Work Boost — higher work payouts</option>
-                  <option value="lucky">🍀 Lucky — better gambling payouts</option>
-                  <option value="rob_boost">🔫 Rob Boost — higher rob success chance</option>
-                  <option value="crime_boost">🌡️ Crime Boost — less heat from crimes</option>
-                  <option value="passive_boost">💰 Passive Boost — more passive income</option>
-                  <option value="speed">⚡ Speed — reduced cooldowns</option>
-                  <option value="focused">🎯 Focused — double work & crime payout</option>
-                  <option value="shield">🛡️ Shield — protection from attacks</option>
-                  <option value="poisoned">☠️ Poisoned — drains wallet over time (debuff)</option>
-                  <option value="high">😵 High — chaotic random wallet changes</option>
+                <label class="flabel">Success Chance (0.0 – 1.0)</label>
+                <input class="finput" id="m-magic-success" type="number" min="0" max="1" step="0.05" placeholder="1.0">
+                <div class="hint">1.0 = always works. 0.5 = 50/50. 0.0 = never.</div>
+              </div>
+              <div class="fg">
+                <label class="flabel">Backfire Chance (0.0 – 1.0)</label>
+                <input class="finput" id="m-magic-backfire" type="number" min="0" max="1" step="0.05" placeholder="0.0">
+                <div class="hint">On failure, chance the spell hits the caster instead.</div>
+              </div>
+            </div>
+
+            <div class="effect-zone-title" style="margin-top:10px;margin-bottom:8px">✨ Self Buff (optional — applied to the caster)</div>
+            <div class="grid2">
+              <div class="fg">
+                <label class="flabel">Buff Type</label>
+                <select class="fselect" id="m-magic-self-type" onchange="onMagicSelfChange()">
+                  <option value="">— None —</option>
+                  <option value="wallet">💵 Add to Wallet</option>
+                  <option value="bank">🏦 Add to Bank</option>
+                  <option value="shield">🛡️ Give Shield</option>
+                  <option value="passive_income">💰 Passive Income</option>
                 </select>
               </div>
               <div class="fg">
-                <label class="flabel">Strength (%)</label>
-                <input class="finput" id="m-consume-strength" type="number" min="1" max="200" placeholder="25">
-                <div class="hint">For most buffs this is a % boost. Ignored for focused/poisoned/high.</div>
+                <label class="flabel">Amount ($)</label>
+                <input class="finput" id="m-magic-self-amount" type="number" min="0" placeholder="500">
               </div>
             </div>
+            <div id="magic-self-shield" style="display:none">
+              <div class="grid2">
+                <div class="fg">
+                  <label class="flabel">Shield Blocks</label>
+                  <input class="finput" id="m-magic-self-blocks" type="number" min="1" placeholder="3">
+                </div>
+                <div class="fg">
+                  <label class="flabel">Shield Duration (hours)</label>
+                  <input class="finput" id="m-magic-self-duration" type="number" min="1" placeholder="24">
+                </div>
+              </div>
+            </div>
+            <div id="magic-self-passive" style="display:none">
+              <div class="grid2">
+                <div class="fg">
+                  <label class="flabel">Interval (minutes)</label>
+                  <input class="finput" id="m-magic-self-interval" type="number" min="1" placeholder="5">
+                </div>
+                <div class="fg">
+                  <label class="flabel">Passive Duration (hours, 0=forever)</label>
+                  <input class="finput" id="m-magic-self-passdur" type="number" min="0" placeholder="0">
+                </div>
+              </div>
+            </div>
+
+            <div class="effect-zone-title" style="margin-top:14px;margin-bottom:8px">🌑 Target Curse (optional — applied to the target)</div>
             <div class="grid2">
               <div class="fg">
-                <label class="flabel">Duration (minutes)</label>
-                <input class="finput" id="m-consume-duration" type="number" min="1" placeholder="10">
+                <label class="flabel">Curse Type</label>
+                <select class="fselect" id="m-magic-target-type" onchange="onMagicTargetChange()">
+                  <option value="">— None —</option>
+                  <option value="drain_wallet">💸 Drain Wallet</option>
+                  <option value="drain_all">💻 Drain All (wallet+bank)</option>
+                  <option value="silence">🔇 Silence</option>
+                  <option value="heat">🚨 Add Heat</option>
+                </select>
               </div>
               <div class="fg">
-                <label class="flabel">Flavor Text (optional)</label>
-                <input class="finput" id="m-consume-flavor" placeholder="e.g. Tastes like victory.">
+                <label class="flabel">Amount / Minutes</label>
+                <input class="finput" id="m-magic-target-amount" type="number" min="0" placeholder="500">
+              </div>
+            </div>
+            <div id="magic-target-drain" style="display:none">
+              <div class="fg">
+                <label class="flabel">Drain Type</label>
+                <select class="fselect" id="m-magic-target-drain-type">
+                  <option value="flat">Flat ($)</option>
+                  <option value="percent">Percent (%)</option>
+                </select>
+              </div>
+            </div>
+            <div id="magic-target-silence" style="display:none">
+              <div class="fg">
+                <label class="flabel">Silence Duration (minutes)</label>
+                <input class="finput" id="m-magic-target-silence-dur" type="number" min="1" placeholder="60">
               </div>
             </div>
           </div>
@@ -1002,7 +1143,7 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police'}[n]||n;
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',pets:'🐾 Pet Shop',ai:'🤖 AI Entities',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police'}[n]||n;
 }
 
 async function api(m,u,b){
@@ -1024,6 +1165,8 @@ async function refresh(){
   await loadBusinesses();
   await loadGangs();
   await loadPolice();
+  await loadPets();
+  await loadAIEntities();
 
   // Load users separately so the list doesn't flash blank
   api('GET','/api/users').then(users => {
@@ -1178,8 +1321,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity',consume:'🍽️ Consume'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan',consume:'t-green'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -1283,6 +1426,39 @@ function openEdit(id){
     document.getElementById('m-shield-blocks').value=ef.blocksLeft||3;
     document.getElementById('m-shield-dur').value=ef.durationMs?Math.ceil(ef.durationMs/3600000):24;
   }
+  if(ef.type==='black_magic'){
+    document.getElementById('m-bm-name').value         = ef.hexName||'';
+    document.getElementById('m-bm-target').value       = ef.drainTarget||'wallet';
+    document.getElementById('m-bm-drain-type').value   = ef.drainType||'percent';
+    document.getElementById('m-bm-amount').value       = ef.amount||25;
+    document.getElementById('m-bm-success').value      = ef.successChance!==undefined?ef.successChance:0.75;
+    document.getElementById('m-bm-backfire').value     = ef.backfireChance!==undefined?ef.backfireChance:0.4;
+    document.getElementById('m-bm-backfire-pct').value = ef.backfirePercent!==undefined?ef.backfirePercent:25;
+  }
+  if(ef.type==='magic'){
+    document.getElementById('m-magic-spell').value=ef.spell||'';
+    document.getElementById('m-magic-emoji').value=ef.spellEmoji||'🔮';
+    document.getElementById('m-magic-success').value=ef.successChance!==undefined?ef.successChance:1.0;
+    document.getElementById('m-magic-backfire').value=ef.backfireChance||0;
+    const se=ef.selfEffect||{};
+    document.getElementById('m-magic-self-type').value=se.type||'';
+    document.getElementById('m-magic-self-amount').value=se.amount||'';
+    if(se.type==='shield'){
+      document.getElementById('m-magic-self-blocks').value=se.blocksLeft||3;
+      document.getElementById('m-magic-self-duration').value=se.durationMs?Math.ceil(se.durationMs/3600000):24;
+    }
+    if(se.type==='passive_income'){
+      document.getElementById('m-magic-self-interval').value=se.intervalMs?Math.ceil(se.intervalMs/60000):5;
+      document.getElementById('m-magic-self-passdur').value=se.durationMs?Math.ceil(se.durationMs/3600000):0;
+    }
+    onMagicSelfChange();
+    const te=ef.targetEffect||{};
+    document.getElementById('m-magic-target-type').value=te.type||'';
+    document.getElementById('m-magic-target-amount').value=te.amount||'';
+    if(te.type==='drain_wallet'||te.type==='drain_all') document.getElementById('m-magic-target-drain-type').value=te.drainType||'flat';
+    if(te.type==='silence') document.getElementById('m-magic-target-silence-dur').value=te.durationMs?Math.ceil(te.durationMs/60000):60;
+    onMagicTargetChange();
+  }
   document.getElementById('item-modal').classList.add('open');
 }
 
@@ -1349,9 +1525,21 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai',consume:'ef-consume'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai',magic:'ef-magic',black_magic:'ef-black_magic'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
+
+function onMagicSelfChange(){
+  const t=document.getElementById('m-magic-self-type').value;
+  document.getElementById('magic-self-shield').style.display  = t==='shield'          ? 'block':'none';
+  document.getElementById('magic-self-passive').style.display = t==='passive_income'  ? 'block':'none';
+}
+function onMagicTargetChange(){
+  const t=document.getElementById('m-magic-target-type').value;
+  document.getElementById('magic-target-drain').style.display   = (t==='drain_wallet'||t==='drain_all') ? 'block':'none';
+  document.getElementById('magic-target-silence').style.display = t==='silence' ? 'block':'none';
+}
+
 
 function addOutcome(){
   outcomes.push({label:'Outcome',chance:.5,moneyDelta:0,targetMoneyDelta:0,silenceDuration:0});
@@ -1419,20 +1607,52 @@ async function saveItem(){
         effect.blocksLeft=parseInt(document.getElementById('m-shield-blocks').value)||3;
         effect.durationMs=(parseInt(document.getElementById('m-shield-dur').value)||24)*3600000;
       }
-      if(et==='consume'){
-        effect.consumeType      = document.getElementById('m-consume-type').value;
-        effect.consumeVerb      = document.getElementById('m-consume-verb').value.trim()||null;
-        effect.buffType         = document.getElementById('m-consume-buff').value;
-        effect.buffStrength     = parseInt(document.getElementById('m-consume-strength').value)||25;
-        effect.durationMinutes  = parseInt(document.getElementById('m-consume-duration').value)||10;
-        effect.flavorText       = document.getElementById('m-consume-flavor').value.trim()||null;
-      }
       if(et==='ai'){
         effect.archetype    = document.getElementById('m-ai-archetype').value;
         effect.entityName   = document.getElementById('m-ai-name').value.trim()||null;
         effect.startMood    = document.getElementById('m-ai-mood').value;
         effect.startLoyalty = parseInt(document.getElementById('m-ai-loyalty').value)||75;
         effect.forceRogue   = document.getElementById('m-ai-rogue').value==='true';
+      }
+      if(et==='black_magic'){
+        effect.hexName        = document.getElementById('m-bm-name').value.trim()||'Hex';
+        effect.drainTarget    = document.getElementById('m-bm-target').value;
+        effect.drainType      = document.getElementById('m-bm-drain-type').value;
+        effect.amount         = parseFloat(document.getElementById('m-bm-amount').value)||25;
+        effect.successChance  = parseFloat(document.getElementById('m-bm-success').value)||0.75;
+        effect.backfireChance = parseFloat(document.getElementById('m-bm-backfire').value)||0.4;
+        effect.backfirePercent= parseFloat(document.getElementById('m-bm-backfire-pct').value)||25;
+      }
+      if(et==='magic'){
+        effect.spell         = document.getElementById('m-magic-spell').value.trim()||'Magic Spell';
+        effect.spellEmoji    = document.getElementById('m-magic-emoji').value.trim()||'🔮';
+        effect.successChance = parseFloat(document.getElementById('m-magic-success').value)||1.0;
+        effect.backfireChance= parseFloat(document.getElementById('m-magic-backfire').value)||0.0;
+        // Self buff
+        const selfType = document.getElementById('m-magic-self-type').value;
+        if(selfType){
+          effect.selfEffect = { type: selfType, amount: parseInt(document.getElementById('m-magic-self-amount').value)||0 };
+          if(selfType==='shield'){
+            effect.selfEffect.blocksLeft = parseInt(document.getElementById('m-magic-self-blocks').value)||3;
+            effect.selfEffect.durationMs = (parseFloat(document.getElementById('m-magic-self-duration').value)||24)*3600000;
+          }
+          if(selfType==='passive_income'){
+            effect.selfEffect.intervalMs = (parseInt(document.getElementById('m-magic-self-interval').value)||5)*60000;
+            const pd = parseFloat(document.getElementById('m-magic-self-passdur').value)||0;
+            effect.selfEffect.durationMs = pd>0 ? pd*3600000 : null;
+          }
+        }
+        // Target curse
+        const targetType = document.getElementById('m-magic-target-type').value;
+        if(targetType){
+          effect.targetEffect = { type: targetType, amount: parseInt(document.getElementById('m-magic-target-amount').value)||0 };
+          if(targetType==='drain_wallet'||targetType==='drain_all'){
+            effect.targetEffect.drainType = document.getElementById('m-magic-target-drain-type').value;
+          }
+          if(targetType==='silence'){
+            effect.targetEffect.durationMs = (parseInt(document.getElementById('m-magic-target-silence-dur').value)||60)*60000;
+          }
+        }
       }
       if(et==='edit_balance'){
         effect.action=document.getElementById('m-eb-action').value;
@@ -1585,24 +1805,15 @@ async function loadLottery() {
     const l = data.lottery;
     const c = data.config;
     const totalTickets = (l.tickets||[]).reduce((s,t)=>s+t.count,0);
-
     document.getElementById('lottery-pot').textContent     = '$' + (l.pot||0).toLocaleString();
     document.getElementById('lottery-tickets').textContent = totalTickets.toString();
     document.getElementById('lottery-status').textContent  = l.active ? '🟢 Open' : '🔴 Closed';
     document.getElementById('lottery-status').className    = 'stat-val ' + (l.active ? 'c-green' : 'c-red');
-    document.getElementById('lottery-last-pot').textContent = l.lastPot ? '$' + (l.lastPot).toLocaleString() : '—';
-
-    if (l.lastWinner) {
-      document.getElementById('lottery-last-winner').textContent = l.lastWinner;
-    } else {
-      document.getElementById('lottery-last-winner').textContent = 'No draws yet';
-    }
-
     const timeLeft = Math.max(0, l.drawAt - Date.now());
     const h = Math.floor(timeLeft/3600000), m = Math.floor((timeLeft%3600000)/60000), s = Math.floor((timeLeft%60000)/1000);
     document.getElementById('lottery-timer').textContent = timeLeft > 0 ? `${h}h ${m}m ${s}s` : 'Drawing...';
-
-    // Populate settings — convert intervalHours to best unit
+    if (l.lastWinner) document.getElementById('lottery-last-winner').textContent = `Last winner: <@${l.lastWinner}> won $${(l.lastPot||0).toLocaleString()}`;
+    // Populate settings — convert intervalHours back to best unit
     const intervalH = c.intervalHours || 24;
     const intervalS = intervalH * 3600;
     if (intervalS < 60) {
@@ -1615,13 +1826,9 @@ async function loadLottery() {
       document.getElementById('lottery-interval').value = intervalH;
       document.getElementById('lottery-unit').value = 'hours';
     }
-
-    document.getElementById('lottery-price').value     = c.ticketPrice    || 100;
-    document.getElementById('lottery-active').value    = (l.active !== false).toString();
-    document.getElementById('lottery-min-bonus').value = c.minBonus        || 0;
-    document.getElementById('lottery-max-bonus').value = c.maxBonus        || 0;
-    document.getElementById('lottery-min-pot').value   = c.minPot          || 0;
-  } catch(e) { console.error('loadLottery error:', e); }
+    document.getElementById('lottery-price').value    = c.ticketPrice || 100;
+    document.getElementById('lottery-active').value   = (l.active !== false).toString();
+  } catch {}
 }
 
 async function saveLotterySettings() {
@@ -1632,22 +1839,9 @@ async function saveLotterySettings() {
     active:        document.getElementById('lottery-active').value === 'true',
     ticketPrice:   document.getElementById('lottery-price').value,
     intervalHours,
-    minBonus:      parseInt(document.getElementById('lottery-min-bonus').value) || 0,
-    maxBonus:      parseInt(document.getElementById('lottery-max-bonus').value) || 0,
-    minPot:        parseInt(document.getElementById('lottery-min-pot').value)   || 0,
   });
   if (r.success) { toast('Lottery settings saved', 'ok'); await loadLottery(); }
   else toast(r.error||'Failed','err');
-}
-
-async function forceDrawNow() {
-  if (!confirm('Force a lottery draw right now? This will pick a winner immediately.')) return;
-  const r = await api('POST', '/api/lottery/force-draw');
-  if (r.success) {
-    if (r.winner) toast(`🎟️ Winner: ${r.winner} won $${r.prize.toLocaleString()}!`, 'ok');
-    else toast('Draw ran — no tickets sold, pot reset', 'ok');
-    await loadLottery();
-  } else toast(r.error || 'Failed', 'err');
 }
 
 async function resetLottery() {
@@ -1829,6 +2023,42 @@ async function viewInventory(userId, username) {
   `).join('');
 }
 
+// ════════════════════════════════════════════════
+// LOTTERY
+// ════════════════════════════════════════════════
+async function loadLottery() {
+  try {
+    const l = await api('GET', '/api/lottery');
+    document.getElementById('lottery-active').value   = l.active ? 'true' : 'false';
+    document.getElementById('lottery-price').value    = l.ticketPrice || 100;
+    document.getElementById('lottery-interval').value = l.drawIntervalHours || 24;
+    document.getElementById('lottery-minpot').value   = l.minPot || 1000;
+    document.getElementById('lottery-channel').value  = l.announceChannelId || '';
+    document.getElementById('lottery-pot').textContent = `$${(l.pot||0).toLocaleString()}`;
+    document.getElementById('lottery-winner').textContent = l.lastWinner ? `<@${l.lastWinner}>` : 'No draws yet';
+  } catch {}
+}
+
+async function saveLottery() {
+  const r = await api('POST', '/api/lottery', {
+    active:             document.getElementById('lottery-active').value,
+    ticketPrice:        document.getElementById('lottery-price').value,
+    drawIntervalHours:  document.getElementById('lottery-interval').value,
+    minPot:             document.getElementById('lottery-minpot').value,
+    announceChannelId:  document.getElementById('lottery-channel').value,
+  });
+  if (r.success) toast('Lottery saved', 'ok');
+  else toast(r.error || 'Failed', 'err');
+}
+
+async function forceDraw() {
+  if (!confirm('Force a lottery draw right now?')) return;
+  const r = await api('POST', '/api/lottery/force-draw');
+  if (r.success) {
+    toast(r.result ? `🎟️ Winner: ${r.result.winnerId} won $${r.result.prize.toLocaleString()}` : 'Draw ran — no tickets sold', 'ok');
+    await loadLottery();
+  } else toast('Failed', 'err');
+}
 // ════════════════════════════════════════════════
 let guildRoles = [];
 async function loadGuildRoles() {
@@ -2260,6 +2490,236 @@ async function manualRefresh() {
     btn.textContent = '✓ Synced';
     setTimeout(() => { btn.textContent = '⟳ Sync'; btn.disabled = false; }, 1500);
   }
+}
+
+// ============================================================
+// PET SHOP
+// ============================================================
+let allPets = [], allPetTypes = {};
+
+async function loadPets() {
+  try {
+    const [petsRes, typesRes] = await Promise.all([
+      api('GET', '/api/pets'),
+      api('GET', '/api/pets/types'),
+    ]);
+    allPets    = petsRes   || [];
+    allPetTypes= typesRes  || {};
+    renderPets(allPets);
+    renderPetTypes();
+  } catch(e) { console.error('loadPets error:', e); }
+}
+
+function filterPets(q) {
+  const filtered = allPets.filter(p =>
+    (p.ownerName||p.ownerId||'').toLowerCase().includes(q.toLowerCase()) ||
+    (p.name||'').toLowerCase().includes(q.toLowerCase()) ||
+    (p.type||'').toLowerCase().includes(q.toLowerCase())
+  );
+  renderPets(filtered);
+}
+
+function renderPets(pets) {
+  const tb = document.getElementById('pets-tbody');
+  if (!pets.length) { tb.innerHTML = `<tr><td colspan="8" class="empty-cell">No pets owned yet.</td></tr>`; return; }
+  tb.innerHTML = pets.map(p => {
+    const pt       = allPetTypes[p.type] || {};
+    const hungerBar= barOf(p.hunger||0);
+    const happBar  = barOf(p.happiness||0);
+    const bondBar  = barOf(p.bond||0);
+    const adopted  = p.adoptedAt ? new Date(p.adoptedAt).toLocaleDateString() : '—';
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        ${p.ownerAvatar ? `<img src="${p.ownerAvatar}" style="width:24px;height:24px;border-radius:50%">` : ''}
+        <span class="mono">${p.ownerName||p.ownerId}</span>
+      </div></td>
+      <td>${pt.emoji||'🐾'} <strong>${p.name||pt.name||p.type}</strong></td>
+      <td><span class="tag t-blue">Lv ${p.level||1}</span></td>
+      <td title="Bond: ${p.bond||0}/100"><span style="font-size:11px;color:var(--muted)">${bondBar}</span></td>
+      <td title="Hunger: ${p.hunger||0}/100">${hungerOf(p.hunger||0)}</td>
+      <td title="Happiness: ${p.happiness||0}/100">${happOf(p.happiness||0)}</td>
+      <td class="mono">${p.wins||0}W / ${p.losses||0}L</td>
+      <td class="mono" style="font-size:11px">${adopted}</td>
+    </tr>`;
+  }).join('');
+}
+
+function barOf(v)   { const f=Math.floor(v/10); return '█'.repeat(f)+'░'.repeat(10-f); }
+function hungerOf(v){ return v>60?'<span class="tag t-green">Fed</span>':v>30?'<span class="tag t-gold">Hungry</span>':'<span class="tag t-red">Starving</span>'; }
+function happOf(v)  { return v>60?'<span class="tag t-green">Happy</span>':v>30?'<span class="tag t-gold">Sad</span>':'<span class="tag t-red">Miserable</span>'; }
+
+function renderPetTypes() {
+  const tb = document.getElementById('pet-types-tbody');
+  const types = Object.entries(allPetTypes);
+  if (!types.length) { tb.innerHTML = `<tr><td colspan="9" class="empty-cell">No pet types loaded.</td></tr>`; return; }
+  tb.innerHTML = types.map(([id, pt]) => {
+    const rarityColor = {Common:'t-green',Uncommon:'t-blue',Rare:'t-purple',Epic:'t-orange',Legendary:'t-red',Mythic:'t-gold'}[pt.rarity]||'t-muted';
+    const evolvesTo   = pt.evolvesTo ? `${allPetTypes[pt.evolvesTo]?.emoji||''} ${allPetTypes[pt.evolvesTo]?.name||pt.evolvesTo} @ Lv${pt.evolveLevel}` : '— MAX —';
+    const disabled    = S.disabledPets && S.disabledPets.includes(id);
+    return `<tr>
+      <td>${pt.emoji} <strong>${pt.name}</strong></td>
+      <td><span class="tag ${rarityColor}">${pt.rarity}</span></td>
+      <td><span class="tag t-muted">T${pt.tier}</span></td>
+      <td>
+        <input class="iinput" id="pet-price-${id}" value="${pt.cost}" type="number" min="1" style="width:90px">
+        <button class="btn btn-ghost btn-sm" style="margin-left:4px" onclick="savePetPrice('${id}')">Save</button>
+      </td>
+      <td class="mono">⚔️ ${pt.basePower}</td>
+      <td class="mono">❤️ ${pt.baseHp}</td>
+      <td style="font-size:12px;color:var(--muted)">${evolvesTo}</td>
+      <td>
+        <button class="btn btn-sm ${disabled ? 'btn-danger' : 'btn-success'}" onclick="togglePetType('${id}', ${!disabled})">
+          ${disabled ? '❌ Disabled' : '✅ Enabled'}
+        </button>
+      </td>
+      <td style="font-size:11px;color:var(--muted)">${(pt.abilities||[]).join(', ')}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function savePetPrice(id) {
+  const price = parseInt(document.getElementById(`pet-price-${id}`).value);
+  if (!price || price < 1) return toast('Invalid price', 'err');
+  const r = await api('POST', `/api/pets/types/${id}/price`, { cost: price });
+  if (r.success) { toast(`${allPetTypes[id]?.name} price updated`, 'ok'); await loadPets(); }
+  else toast(r.error || 'Failed', 'err');
+}
+
+async function togglePetType(id, enable) {
+  const r = await api('POST', `/api/pets/types/${id}/toggle`, { enabled: enable });
+  if (r.success) { toast(`${allPetTypes[id]?.name} ${enable ? 'enabled' : 'disabled'}`, 'ok'); await loadPets(); }
+  else toast(r.error || 'Failed', 'err');
+}
+
+// ============================================================
+// AI ENTITIES
+// ============================================================
+let allAIEntities = [];
+
+const ARCHETYPE_DATA = {
+  robot:     { name:'Robot',       emoji:'🤖', temp:0.3,  rogue:0.02, abilities:['scan_user','steal_data','block_commands','self_repair'] },
+  phone:     { name:'Smart Phone', emoji:'📱', temp:0.75, rogue:0.01, abilities:['leak_info','drain_wallet','snitch','spy'] },
+  companion: { name:'Companion',   emoji:'🧠', temp:0.85, rogue:0.03, abilities:['emotional_drain','blackmail','expose_secrets','buff_owner'] },
+  drone:     { name:'Combat Drone',emoji:'🚁', temp:0.25, rogue:0.05, abilities:['attack_user','attack_target','patrol','surveil'] },
+  assistant: { name:'Assistant',   emoji:'💬', temp:0.6,  rogue:0.015,abilities:['passive_income','info_gather','manipulate','work_for_owner'] },
+};
+
+const ABILITY_DATA = {
+  steal_data:      { type:'💸 Drain Wallet', target:'Random User',  desc:'Hacks a random user and steals $100 from their wallet.',       trigger:'Rogue' },
+  drain_wallet:    { type:'💸 Drain Wallet', target:'Random User',  desc:'Remotely drains $150 from a random user\'s wallet.',           trigger:'Rogue' },
+  attack_user:     { type:'💸 Drain Wallet', target:'Owner',        desc:'Turns on its owner — steals $200 from their wallet.',          trigger:'Rogue' },
+  attack_target:   { type:'💸 Drain Wallet', target:'Random User',  desc:'Attacks a random target for $250 stolen.',                     trigger:'Rogue' },
+  passive_income:  { type:'💰 Income',       target:'Owner',        desc:'Earns +$100 for its owner automatically.',                     trigger:'Loyal' },
+  buff_owner:      { type:'💰 Income',       target:'Owner',        desc:'Boosts owner\'s wallet by +$200.',                             trigger:'Loyal' },
+  leak_info:       { type:'🚨 Heat',         target:'Owner',        desc:'Leaks info to police — adds +15 heat to owner.',               trigger:'Rogue' },
+  snitch:          { type:'🚨 Heat',         target:'Owner',        desc:'Snitches to authorities — adds +25 heat to owner.',            trigger:'Rogue' },
+  emotional_drain: { type:'🔇 Silence',      target:'Owner',        desc:'Overwhelms owner emotionally — silences them for 10 minutes.', trigger:'Rogue' },
+  blackmail:       { type:'💸 Drain Wallet', target:'Owner',        desc:'Blackmails owner — steals $300 from their wallet.',            trigger:'Rogue' },
+  work_for_owner:  { type:'💰 Income',       target:'Owner',        desc:'Completes a task — earns +$75 for owner.',                    trigger:'Loyal' },
+  expose_secrets:  { type:'🚨 Heat',         target:'Owner',        desc:'Exposes secrets publicly — adds +20 heat to owner.',           trigger:'Rogue' },
+  surveil:         { type:'ℹ️ Info',          target:'Random User',  desc:'Gathers intelligence on a random user (informational).',       trigger:'Either' },
+  patrol:          { type:'🛡️ Shield',        target:'Owner',        desc:'Sets up a defensive perimeter for the owner.',                 trigger:'Loyal' },
+  info_gather:     { type:'ℹ️ Info',          target:'Random User',  desc:'Researches a random user\'s profile.',                         trigger:'Either' },
+  manipulate:      { type:'💸 Drain Wallet', target:'Random User',  desc:'Manipulates someone into giving up $100.',                     trigger:'Rogue' },
+  self_repair:     { type:'💰 Income',       target:'Owner',        desc:'Repairs itself and sends a $50 refund to owner.',              trigger:'Loyal' },
+  block_commands:  { type:'🔇 Silence',      target:'Random User',  desc:'Blocks a random user\'s commands for 5 minutes.',             trigger:'Rogue' },
+};
+
+async function loadAIEntities() {
+  try {
+    const data = await api('GET', '/api/ai-entities');
+    allAIEntities = data || [];
+    renderAIEntities(allAIEntities);
+    renderAbilityTable();
+    renderArchetypeCards();
+  } catch(e) { console.error('loadAI error:', e); }
+}
+
+function filterAI(q) {
+  const filtered = allAIEntities.filter(e =>
+    (e.ownerName||e.ownerId||'').toLowerCase().includes(q.toLowerCase()) ||
+    (e.name||'').toLowerCase().includes(q.toLowerCase())
+  );
+  renderAIEntities(filtered);
+}
+
+function renderAIEntities(entities) {
+  const tb = document.getElementById('ai-tbody');
+  if (!entities.length) { tb.innerHTML = `<tr><td colspan="8" class="empty-cell">No AI entities found.</td></tr>`; return; }
+  tb.innerHTML = entities.map(e => {
+    const arch    = ARCHETYPE_DATA[e.archetype] || {};
+    const bar     = '█'.repeat(Math.floor((e.loyalty||50)/10)) + '░'.repeat(10-Math.floor((e.loyalty||50)/10));
+    const moodTag = e.mood==='rogue'?'<span class="tag t-red">😡 ROGUE</span>':e.mood==='happy'?'<span class="tag t-green">😊 Happy</span>':'<span class="tag t-muted">😐 Idle</span>';
+    const memCount= Math.floor((e.conversationHistory||[]).length/2);
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        ${e.ownerAvatar?`<img src="${e.ownerAvatar}" style="width:24px;height:24px;border-radius:50%">`:''}
+        <span class="mono">${e.ownerName||e.ownerId}</span>
+      </div></td>
+      <td><strong>${arch.emoji||'🤖'} ${e.name}</strong></td>
+      <td>${arch.name||e.archetype}</td>
+      <td>${moodTag}</td>
+      <td title="${e.loyalty||50}/100"><span style="font-size:11px;font-family:monospace;color:${(e.loyalty||50)<20?'var(--accent)':(e.loyalty||50)<50?'var(--gold)':'var(--green)'}">[${bar}] ${e.loyalty||50}</span></td>
+      <td class="mono">${e.interactions||0}</td>
+      <td class="mono">${memCount} msgs</td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="deleteAIEntity('${e.id}')">🗑 Delete</button>
+        ${e.mood==='rogue'?`<button class="btn btn-ghost btn-sm" style="margin-left:4px" onclick="resetAILoyalty('${e.id}')">❤️ Reset</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAbilityTable() {
+  const tb = document.getElementById('ability-tbody');
+  const trigColor = { Rogue:'t-red', Loyal:'t-green', Either:'t-blue' };
+  tb.innerHTML = Object.entries(ABILITY_DATA).map(([id, a]) => {
+    const archetypes = Object.entries(ARCHETYPE_DATA).filter(([,ar]) => ar.abilities.includes(id)).map(([,ar]) => ar.emoji+' '+ar.name).join(', ');
+    return `<tr>
+      <td><code>${id}</code></td>
+      <td><span class="tag ${trigColor[a.trigger]||'t-muted'}">${a.trigger}</span></td>
+      <td style="font-size:12px">${a.type}</td>
+      <td style="font-size:12px;color:var(--muted)">${a.target}</td>
+      <td style="font-size:12px">${a.desc}</td>
+      <td style="font-size:11px;color:var(--muted)">${archetypes}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderArchetypeCards() {
+  const el = document.getElementById('archetype-cards');
+  el.innerHTML = Object.entries(ARCHETYPE_DATA).map(([id, a]) => `
+    <div class="stat-card" style="border-top-color:var(--blue)">
+      <div style="font-size:22px;margin-bottom:6px">${a.emoji}</div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px">${a.name}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+        🌡️ Temp: <strong>${a.temp}</strong> &nbsp;|&nbsp; 
+        ⚠️ Rogue: <strong>${(a.rogue*100).toFixed(1)}%/chat</strong>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Abilities</div>
+      ${a.abilities.map(ab => {
+        const info = ABILITY_DATA[ab];
+        const isRogue = info?.trigger==='Rogue';
+        return `<div style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
+          <span><code>${ab}</code></span>
+          <span class="tag ${isRogue?'t-red':'t-green'}" style="font-size:9px">${info?.trigger||'?'}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+}
+
+async function deleteAIEntity(id) {
+  if (!confirm('Delete this AI entity? This cannot be undone.')) return;
+  const r = await api('DELETE', `/api/ai-entities/${id}`);
+  if (r.success) { toast('Entity deleted', 'ok'); await loadAIEntities(); }
+  else toast(r.error||'Failed', 'err');
+}
+
+async function resetAILoyalty(id) {
+  const r = await api('POST', `/api/ai-entities/${id}/reset`);
+  if (r.success) { toast('Loyalty reset — entity is no longer rogue', 'ok'); await loadAIEntities(); }
+  else toast(r.error||'Failed', 'err');
 }
 
 safeRefresh();
