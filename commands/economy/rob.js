@@ -19,7 +19,7 @@ module.exports = {
     const target   = interaction.options.getUser('target');
     const purge    = isPurgeActive();
 
-    // Read cooldown from config — dashboard can change it live
+    // Always read fresh config — dashboard may have changed it
     const config      = getConfig();
     const COOLDOWN_MS = (config.robCooldownMinutes ?? 5) * 60 * 1000;
 
@@ -31,6 +31,8 @@ module.exports = {
     if (protectedRoles.length > 0) {
       const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
       if (targetMember) {
+        // Force refresh the member's roles cache
+        await targetMember.fetch().catch(() => {});
         const isProtected = protectedRoles.some(roleId => targetMember.roles.cache.has(roleId));
         if (isProtected) {
           return interaction.reply({

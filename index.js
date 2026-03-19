@@ -277,6 +277,7 @@ client.on('messageCreate', async (message) => {
     if (protectedRoles.length > 0) {
       const targetMember = await message.guild.members.fetch(target.id).catch(() => null);
       if (targetMember) {
+        await targetMember.fetch().catch(() => {});
         const isProtected = protectedRoles.some(roleId => targetMember.roles.cache.has(roleId));
         if (isProtected) return message.reply(`🛡️ **${target.username}** is protected and cannot be robbed.`);
       }
@@ -490,18 +491,29 @@ tickPassiveIncome();
 // ---- STOCK PRICE TICK ENGINE ----
 const stockFs   = require('fs');
 const stockPath = require('path');
-const PRICES_FILE = stockPath.join(__dirname, 'data/stockPrices.json');
-const STOCK_COINS = ['DOGE2','PEPE','RUGPUL','MOON','BODEN','CHAD'];
+const PRICES_FILE  = stockPath.join(__dirname, 'data/stockPrices.json');
+const HISTORY_FILE = stockPath.join(__dirname, 'data/stockHistory.json');
+const STOCK_COINS  = ['DOGE2','PEPE','RUGPUL','MOON','BODEN','CHAD'];
 
 function tickStockPrices() {
-  let prices = {};
-  try { prices = JSON.parse(stockFs.readFileSync(PRICES_FILE, 'utf8')); } catch {}
+  let prices  = {};
+  let history = {};
+  try { prices  = JSON.parse(stockFs.readFileSync(PRICES_FILE,  'utf8')); } catch {}
+  try { history = JSON.parse(stockFs.readFileSync(HISTORY_FILE, 'utf8')); } catch {}
+
   STOCK_COINS.forEach(id => {
     const current = prices[id] || (50 + Math.random() * 450);
     const swing   = (Math.random() - 0.5) * 0.25;
     prices[id]    = Math.max(1, current * (1 + swing));
+
+    // Keep last 1440 ticks (~4 hours at 10s intervals)
+    if (!history[id]) history[id] = [];
+    history[id].push(prices[id]);
+    if (history[id].length > 1440) history[id] = history[id].slice(-1440);
   });
-  stockFs.writeFileSync(PRICES_FILE, JSON.stringify(prices, null, 2));
+
+  stockFs.writeFileSync(PRICES_FILE,  JSON.stringify(prices,  null, 2));
+  stockFs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
 }
 
 if (!stockFs.existsSync(PRICES_FILE)) tickStockPrices();
@@ -566,7 +578,27 @@ async function tickLottery() {
 
 setInterval(tickLottery, 60_000);
 
-// ---- DASHBOARD SERVER ----
+// ---- BUSINESS REVENUE TICK ENGINE ----
+// Every 60 seconds, add income to all active businesses
+setInterval(() => {
+  try {
+    const bizDb = require('./utils/bizDb');
+    const all   = bizDb.getAllBusinesses();
+    const now   = Date.now();
+    let changed = false;
+    for (const ownerId in all) {
+      const biz    = all[ownerId];
+      const income = bizDb.calcIncome(biz);
+      biz.revenue  = (biz.revenue || 0) + income;
+      changed = true;
+    }
+    if (changed) {
+      const fs   = require('fs');
+      const path = require('path');
+      fs.writeFileSync(path.join(__dirname, 'data/businesses.json'), JSON.stringify(all, null, 2));
+    }
+  } catch {}
+}, 60_000);
 require('./dashboard/server.js');
 
 // ---- LOGIN ----

@@ -125,6 +125,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="nav('roleincome')" data-s="roleincome"><span class="nav-icon">💼</span>Role Income</div>
     <div class="nav-item" onclick="nav('effects')" data-s="effects"><span class="nav-icon">⚡</span>Live Effects</div>
     <div class="nav-item" onclick="nav('stocks')" data-s="stocks"><span class="nav-icon">📈</span>Stock Market</div>
+    <div class="nav-item" onclick="nav('entrepreneur')" data-s="entrepreneur"><span class="nav-icon">🏢</span>Entrepreneur</div>
     <div class="nav-item" onclick="nav('purge')" data-s="purge"><span class="nav-icon">⬡</span>Purge</div>
   </nav>
   <div id="purge-badge" class="purge-badge">● PURGE ACTIVE</div>
@@ -175,12 +176,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <!-- RESTRICTED ROLE -->
       <div class="purge-panel owner-only" style="margin-bottom:14px">
         <div class="purge-info">
-          <h3>🔒 Restricted Commands Role</h3>
-          <p>Only members with this role can use <strong>hitman</strong> and <strong>attack items</strong>. Leave blank to allow everyone. Admins always bypass this.</p>
+          <h3>🔒 Mod Commands Role</h3>
+          <p>Only members with this role can run moderation commands through the bot — <strong>kick, ban, mute, warn, and give/take items</strong>. Admins always bypass this. Leave blank to use the default permission system.</p>
           <p id="restricted-role-status" style="margin-top:4px;color:var(--muted);font-size:11px;font-family:'JetBrains Mono',monospace"></p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;flex-direction:column">
-          <input id="restricted-role-input" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 12px;width:200px;outline:none" placeholder="Paste Role ID here">
+          <select id="restricted-role-input" class="fselect" style="width:200px">
+            <option value="">— No restriction (use defaults) —</option>
+          </select>
           <div style="display:flex;gap:6px;width:100%">
             <button class="btn btn-primary" style="flex:1" onclick="saveRestrictedRole()">Set Role</button>
             <button class="btn btn-ghost" style="flex:1" onclick="clearRestrictedRole()">Clear</button>
@@ -239,23 +242,25 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- PROTECTED ROLES -->
     <div id="section-protected" class="section">
-      <p class="sub-txt">Members with protected roles <strong>cannot be robbed, hitman'd, or attacked with drain items</strong> — even during the purge. Add as many roles as you want.</p>
+      <p class="sub-txt">Members with protected roles <strong>cannot be robbed, hitman'd, or attacked with drain items</strong> — even during the purge. Select roles from the dropdown below.</p>
       <div class="tbl-wrap">
         <div class="tbl-head">
           <h3>🛡️ Protected Roles</h3>
           <div style="display:flex;gap:8px;align-items:center">
-            <input id="protected-role-input" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;padding:5px 11px;outline:none;width:200px" placeholder="Paste Role ID...">
+            <select id="protected-role-select" class="fselect" style="width:220px;padding:5px 11px;font-size:13px">
+              <option value="">— Choose a role —</option>
+            </select>
             <button class="btn btn-gold btn-sm" onclick="addProtectedRole()">+ Add</button>
           </div>
         </div>
         <table>
-          <thead><tr><th>Role ID</th><th>Actions</th></tr></thead>
-          <tbody id="protected-tbody"><tr><td colspan="2" class="empty-cell">Loading...</td></tr></tbody>
+          <thead><tr><th>Role Name</th><th>Role ID</th><th>Actions</th></tr></thead>
+          <tbody id="protected-tbody"><tr><td colspan="3" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
       <div class="info-box" style="margin-top:4px">
-        <strong>How to get a Role ID:</strong> In Discord, enable Developer Mode (User Settings → Advanced), then right-click any role in Server Settings → Roles and click <strong>Copy Role ID</strong>.<br><br>
-        <strong>What it blocks:</strong> /rob, hitman item, drain wallet item, drain all item. Protection applies even during the purge.
+        <strong>What it blocks:</strong> /rob, !rob, hitman item, drain wallet item, drain all item, minigame drain. Protection applies even during the purge.<br><br>
+        <strong>Note:</strong> Make sure the role ID shown matches exactly what's in your server. If a protected user is still being robbed, remove and re-add their role here.
       </div>
     </div>
 
@@ -291,14 +296,22 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="stat-card"><div class="stat-label">Draw In</div><div class="stat-val" id="lottery-timer">—</div></div>
           <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="lottery-status">—</div></div>
         </div>
-        <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div style="padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
           <div class="fg" style="margin:0">
             <label class="flabel">Ticket Price ($)</label>
             <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
           </div>
           <div class="fg" style="margin:0">
-            <label class="flabel">Draw Every (hours)</label>
+            <label class="flabel">Draw Every</label>
             <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Interval Unit</label>
+            <select class="fselect" id="lottery-unit">
+              <option value="hours">Hours</option>
+              <option value="minutes">Minutes</option>
+              <option value="seconds">Seconds</option>
+            </select>
           </div>
           <div class="fg" style="margin:0">
             <label class="flabel">Status</label>
@@ -338,6 +351,42 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div class="info-box">
         <strong>How it works:</strong> Each coin has a hype score that drives its price. Every 10 seconds prices shift randomly ±5–25%. Users can invest any amount from their wallet and cash out at any time for the current value. No limits — full risk, full reward.<br><br>
         <strong>Commands:</strong> <code>/invest &lt;coin&gt; &lt;amount&gt;</code> · <code>/cashout &lt;coin&gt;</code> · <code>/portfolio</code>
+      </div>
+    </div>
+
+    <!-- ENTREPRENEUR -->
+    <div id="section-entrepreneur" class="section">
+      <p class="sub-txt">All active businesses across the server. Users start businesses with <strong>/business start</strong>, hire employees with <strong>/hire</strong>, and collect revenue with <strong>/business collect</strong>.</p>
+
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Total Businesses</div><div class="stat-val c-gold" id="biz-count">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Revenue/min</div><div class="stat-val c-green" id="biz-income">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Employees</div><div class="stat-val c-blue" id="biz-employees">—</div></div>
+        <div class="stat-card"><div class="stat-label">Highest Level</div><div class="stat-val" id="biz-maxlevel">—</div></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-head">
+          <h3>🏢 All Businesses</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadBusinesses()">⟳ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Rank</th><th>Business</th><th>Owner</th><th>Type</th><th>Level</th><th>Income/min</th><th>Employees</th><th>Total Earned</th><th>Revenue Ready</th></tr></thead>
+          <tbody id="biz-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="info-box">
+        <strong>Commands:</strong><br>
+        <code>/business start</code> — open a business (10 types available)<br>
+        <code>/business view</code> — see your business stats and staff<br>
+        <code>/business collect</code> — collect revenue (employees get 10% each)<br>
+        <code>/business upgrade</code> — level up for higher income<br>
+        <code>/business close</code> — permanently close your business<br>
+        <code>/hire @user</code> — add an employee (max 5)<br>
+        <code>/fire @user</code> — remove an employee<br>
+        <code>/businesses</code> — server-wide business rankings<br>
+        <code>/myjobs</code> — see businesses you work for
       </div>
     </div>
 
@@ -783,7 +832,7 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market'}[n]||n;
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur'}[n]||n;
 }
 
 async function api(m,u,b){
@@ -802,6 +851,7 @@ async function refresh(){
   await loadProtectedRoles();
   await loadGuildRoles();
   await loadLottery();
+  await loadBusinesses();
 
   // Load users separately so the list doesn't flash blank
   api('GET','/api/users').then(users => {
@@ -821,14 +871,14 @@ async function refresh(){
   }
 
   // Populate restricted role
-  const rrInput  = document.getElementById('restricted-role-input');
   const rrStatus = document.getElementById('restricted-role-status');
-  if (rrInput) {
-    rrInput.value = config.restrictedRoleId || '';
-    rrStatus.textContent = config.restrictedRoleId
-      ? 'Role ID: ' + config.restrictedRoleId
-      : 'No restriction set — open to everyone';
+  const rrSelect = document.getElementById('restricted-role-input');
+  if (rrSelect && config.restrictedRoleId) {
+    rrSelect.value = config.restrictedRoleId;
   }
+  if (rrStatus) rrStatus.textContent = config.restrictedRoleId
+    ? 'Current role ID: ' + config.restrictedRoleId
+    : 'No restriction set — open to everyone';
 
   // Populate rob cooldown
   const rcInput = document.getElementById('rob-cooldown-input');
@@ -1276,11 +1326,11 @@ async function savePrefix(){
 }
 
 async function saveRestrictedRole(){
-  const roleId=document.getElementById('restricted-role-input').value.trim();
-  if(!roleId){toast('Paste a Role ID first','err');return;}
+  const roleId=document.getElementById('restricted-role-input').value;
+  if(!roleId){toast('Choose a role first','err');return;}
   const r=await api('POST','/api/config/restricted-role',{roleId});
   if(r.success){
-    toast('Restricted role set','ok');
+    toast('Mod role set','ok');
     document.getElementById('restricted-role-status').textContent='Role ID: '+r.restrictedRoleId;
   } else toast(r.error||'Failed','err');
 }
@@ -1288,7 +1338,7 @@ async function saveRestrictedRole(){
 async function clearRestrictedRole(){
   const r=await api('POST','/api/config/restricted-role',{roleId:null});
   if(r.success){
-    toast('Restriction cleared — all users can now use hitman/attacks','ok');
+    toast('Restriction cleared','ok');
     document.getElementById('restricted-role-input').value='';
     document.getElementById('restricted-role-status').textContent='No restriction set — open to everyone';
   } else toast(r.error||'Failed','err');
@@ -1353,21 +1403,35 @@ async function loadLottery() {
     document.getElementById('lottery-status').textContent  = l.active ? '🟢 Open' : '🔴 Closed';
     document.getElementById('lottery-status').className    = 'stat-val ' + (l.active ? 'c-green' : 'c-red');
     const timeLeft = Math.max(0, l.drawAt - Date.now());
-    const h = Math.floor(timeLeft/3600000), m = Math.floor((timeLeft%3600000)/60000);
-    document.getElementById('lottery-timer').textContent = timeLeft > 0 ? `${h}h ${m}m` : 'Drawing...';
+    const h = Math.floor(timeLeft/3600000), m = Math.floor((timeLeft%3600000)/60000), s = Math.floor((timeLeft%60000)/1000);
+    document.getElementById('lottery-timer').textContent = timeLeft > 0 ? `${h}h ${m}m ${s}s` : 'Drawing...';
     if (l.lastWinner) document.getElementById('lottery-last-winner').textContent = `Last winner: <@${l.lastWinner}> won $${(l.lastPot||0).toLocaleString()}`;
-    // Populate settings
-    document.getElementById('lottery-price').value    = c.ticketPrice    || 100;
-    document.getElementById('lottery-interval').value = c.intervalHours  || 24;
+    // Populate settings — convert intervalHours back to best unit
+    const intervalH = c.intervalHours || 24;
+    const intervalS = intervalH * 3600;
+    if (intervalS < 60) {
+      document.getElementById('lottery-interval').value = intervalS;
+      document.getElementById('lottery-unit').value = 'seconds';
+    } else if (intervalS < 3600) {
+      document.getElementById('lottery-interval').value = intervalS / 60;
+      document.getElementById('lottery-unit').value = 'minutes';
+    } else {
+      document.getElementById('lottery-interval').value = intervalH;
+      document.getElementById('lottery-unit').value = 'hours';
+    }
+    document.getElementById('lottery-price').value    = c.ticketPrice || 100;
     document.getElementById('lottery-active').value   = (l.active !== false).toString();
   } catch {}
 }
 
 async function saveLotterySettings() {
+  const amount   = parseFloat(document.getElementById('lottery-interval').value) || 24;
+  const unit     = document.getElementById('lottery-unit').value;
+  let intervalHours = unit === 'seconds' ? amount / 3600 : unit === 'minutes' ? amount / 60 : amount;
   const r = await api('POST', '/api/lottery/settings', {
     active:        document.getElementById('lottery-active').value === 'true',
     ticketPrice:   document.getElementById('lottery-price').value,
-    intervalHours: document.getElementById('lottery-interval').value,
+    intervalHours,
   });
   if (r.success) { toast('Lottery settings saved', 'ok'); await loadLottery(); }
   else toast(r.error||'Failed','err');
@@ -1390,24 +1454,27 @@ function renderProtectedRoles() {
   const tb   = document.getElementById('protected-tbody');
   const list = S.protectedRoles || [];
   if (!list.length) {
-    tb.innerHTML = '<tr><td colspan="2" class="empty-cell">No protected roles. Add one above.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="3" class="empty-cell">No protected roles. Add one above.</td></tr>';
     return;
   }
-  tb.innerHTML = list.map(roleId => `
-    <tr>
-      <td class="mono">${roleId}</td>
+  tb.innerHTML = list.map(roleId => {
+    const role = guildRoles.find(r => r.id === roleId);
+    const name = role ? role.name : roleId;
+    return `<tr>
+      <td style="font-weight:600">${name}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">${roleId}</td>
       <td><button class="btn btn-danger btn-sm" onclick="removeProtectedRole('${roleId}')">Remove</button></td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function addProtectedRole() {
-  const roleId = document.getElementById('protected-role-input').value.trim();
-  if (!roleId) { toast('Paste a Role ID first', 'err'); return; }
+  const roleId = document.getElementById('protected-role-select').value;
+  if (!roleId) { toast('Choose a role first', 'err'); return; }
   const r = await api('POST', '/api/protected-roles', { roleId });
   if (r.success) {
     toast('Role protected', 'ok');
-    document.getElementById('protected-role-input').value = '';
+    document.getElementById('protected-role-select').value = '';
     await loadProtectedRoles();
   } else toast(r.error || 'Failed', 'err');
 }
@@ -1595,15 +1662,33 @@ async function loadGuildRoles() {
 }
 
 function populateRoleDropdowns() {
-  const roleOpts = `<option value="">— No role —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-  const roleRewardSelect = document.getElementById('m-role');
-  const reqRoleSelect    = document.getElementById('m-req-role-val');
-  const erRoleSelect     = document.getElementById('m-er-role');
-  if (roleRewardSelect) roleRewardSelect.innerHTML = `<option value="">— No role reward —</option>` + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-  if (reqRoleSelect)    reqRoleSelect.innerHTML    = `<option value="">— Choose a role —</option>`  + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-  if (erRoleSelect)     erRoleSelect.innerHTML     = `<option value="">— Choose role —</option>`    + guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  const roleOpts = guildRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
 
-  // Populate edit_items item dropdown
+  // Role reward in item modal
+  const roleRewardSelect = document.getElementById('m-role');
+  if (roleRewardSelect) roleRewardSelect.innerHTML = `<option value="">— No role reward —</option>` + roleOpts;
+
+  // Req role in item modal
+  const reqRoleSelect = document.getElementById('m-req-role-val');
+  if (reqRoleSelect) reqRoleSelect.innerHTML = `<option value="">— Choose a role —</option>` + roleOpts;
+
+  // Edit roles effect in item modal
+  const erRoleSelect = document.getElementById('m-er-role');
+  if (erRoleSelect) erRoleSelect.innerHTML = `<option value="">— Choose role —</option>` + roleOpts;
+
+  // Protected roles dropdown
+  const protectedSelect = document.getElementById('protected-role-select');
+  if (protectedSelect) protectedSelect.innerHTML = `<option value="">— Choose a role —</option>` + roleOpts;
+
+  // Restricted/Mod role dropdown
+  const restrictedSelect = document.getElementById('restricted-role-input');
+  if (restrictedSelect) {
+    const currentVal = restrictedSelect.value;
+    restrictedSelect.innerHTML = `<option value="">— No restriction (use defaults) —</option>` + roleOpts;
+    if (currentVal) restrictedSelect.value = currentVal;
+  }
+
+  // Edit items item dropdown
   const eiItemSelect = document.getElementById('m-ei-item');
   if (eiItemSelect) eiItemSelect.innerHTML = `<option value="">— Choose item —</option>` + (S.store||[]).map(i => `<option value="${i.id}">${i.name}</option>`).join('');
 }
@@ -1673,6 +1758,62 @@ const EMOJIS = [
   '🎁','🎀','🎊','🎉','🎈','🏆','🥇','🎖️','🏅','🎗️',
   '❤️','🧡','💛','💚','💙','💜','🖤','🤍','❤️‍🔥','💯',
 ];
+
+// ════════════════════════════════════════════════
+// ENTREPRENEUR
+// ════════════════════════════════════════════════
+async function loadBusinesses() {
+  try {
+    const list = await api('GET', '/api/businesses');
+    const tb   = document.getElementById('biz-tbody');
+    if (!tb) return;
+
+    if (!list.length) {
+      tb.innerHTML = '<tr><td colspan="9" class="empty-cell">No businesses yet. Users can start one with /business start.</td></tr>';
+      document.getElementById('biz-count').textContent     = '0';
+      document.getElementById('biz-income').textContent    = '$0';
+      document.getElementById('biz-employees').textContent = '0';
+      document.getElementById('biz-maxlevel').textContent  = '—';
+      return;
+    }
+
+    // Stats
+    const totalIncome    = list.reduce((s, b) => s + b.income, 0);
+    const totalEmployees = list.reduce((s, b) => s + b.employees.length, 0);
+    const maxLevel       = Math.max(...list.map(b => b.level));
+    document.getElementById('biz-count').textContent     = list.length;
+    document.getElementById('biz-income').textContent    = '$' + totalIncome.toLocaleString();
+    document.getElementById('biz-employees').textContent = totalEmployees;
+    document.getElementById('biz-maxlevel').textContent  = 'Lv ' + maxLevel;
+
+    tb.innerHTML = list.map((biz, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      const pct   = Math.round((biz.level / biz.maxLevel) * 100);
+      const empNames = biz.employees.map(e => `<@${e.userId}>`).join(', ') || '—';
+      return `<tr>
+        <td style="font-weight:700;color:var(--gold)">${medal}</td>
+        <td>
+          <div style="font-weight:700">${biz.typeEmoji} ${biz.name}</div>
+          <div style="font-size:10px;color:var(--muted)">${biz.typeName}</div>
+        </td>
+        <td class="mono" style="font-size:11px;color:var(--muted)">${biz.ownerId}</td>
+        <td><span class="tag t-blue">${biz.typeName}</span></td>
+        <td>
+          <div style="font-weight:700">Lv ${biz.level}</div>
+          <div style="background:var(--bg4);border-radius:2px;height:3px;width:60px;margin-top:3px">
+            <div style="width:${pct}%;height:100%;background:var(--gold);border-radius:2px"></div>
+          </div>
+        </td>
+        <td class="mono" style="color:var(--green)">$${biz.income.toLocaleString()}</td>
+        <td>${biz.employees.length} / 5</td>
+        <td class="mono" style="color:var(--gold)">$${biz.totalEarned.toLocaleString()}</td>
+        <td class="mono" style="color:var(--cyan)">$${biz.revenue.toLocaleString()}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    console.error('loadBusinesses error:', e);
+  }
+}
 
 // ════════════════════════════════════════════════
 // STOCK MARKET ENGINE

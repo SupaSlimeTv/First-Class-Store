@@ -445,6 +445,27 @@ app.post('/api/lottery/reset', (req, res) => {
 });
 
 // ============================================================
+// ENTREPRENEUR / BUSINESSES
+// ============================================================
+app.get('/api/businesses', (req, res) => {
+  try {
+    const bizDb = require('../utils/bizDb');
+    const all   = bizDb.getAllBusinesses();
+    const list  = Object.values(all).map(biz => {
+      const type = bizDb.BIZ_TYPES[biz.type] || {};
+      return {
+        ...biz,
+        typeName:   type.name || biz.type,
+        typeEmoji:  type.emoji || '🏢',
+        income:     bizDb.calcIncome(biz),
+        maxLevel:   type.maxLevel || 10,
+      };
+    }).sort((a,b) => b.level - a.level || b.totalEarned - a.totalEarned);
+    res.json(list);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ============================================================
 // CATCH-ALL
 // ============================================================
 app.get('*', (req, res) => {
