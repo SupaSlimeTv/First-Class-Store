@@ -176,6 +176,12 @@ module.exports = {
       const biz = getBusiness(userId);
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business.")], ephemeral: true });
 
+      // If business is corrupt (undefined name/type), just delete it immediately
+      if (!biz.name || !biz.type) {
+        deleteBusiness(userId);
+        return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Business Cleared').setDescription('Your corrupt business record has been removed. You can now start a new one with `/business start`.')], ephemeral: true });
+      }
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('biz_close_confirm').setLabel('Yes, close it').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('biz_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
