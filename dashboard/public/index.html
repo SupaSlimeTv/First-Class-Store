@@ -592,11 +592,13 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div class="purge-panel" style="margin-bottom:20px">
         <div class="purge-info">
           <h3>📢 Announcement Channel</h3>
-          <p>When the purge starts or ends, the bot will @everyone in this channel. Get the channel ID by right-clicking any channel in Discord → Copy Channel ID (requires Developer Mode).</p>
+          <p>When the purge starts or ends, the bot will <strong>@everyone</strong> in this channel with a full announcement embed.</p>
           <p id="purge-channel-status" style="margin-top:4px;color:var(--muted);font-size:11px;font-family:'JetBrains Mono',monospace"></p>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;flex-direction:column">
-          <input id="purge-channel-input" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 12px;width:200px;outline:none" placeholder="Paste Channel ID here">
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;flex-direction:column;min-width:220px">
+          <select id="purge-channel-select" class="fselect" style="width:100%">
+            <option value="">— Select a channel —</option>
+          </select>
           <div style="display:flex;gap:6px;width:100%">
             <button class="btn btn-primary" style="flex:1" onclick="savePurgeChannel()">Set Channel</button>
             <button class="btn btn-ghost" style="flex:1" onclick="clearPurgeChannel()">Clear</button>
@@ -650,6 +652,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <option value="tokens">🪙 Pet Tokens</option>
           <option value="petlevel">⭐ Pet Level</option>
           <option value="gun">🔫 Gun</option>
+          <option value="gang">🏴 Add to Gang</option>
+          <option value="business">🏢 Give Business Money</option>
         </select>
       </div>
       <!-- Store item -->
@@ -679,6 +683,18 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div id="give-gun-section" class="fg" style="display:none">
         <label class="flabel">Select Gun</label>
         <select class="fselect" id="give-gun-select"><option value="">— Choose a gun —</option></select>
+      </div>
+      <!-- Gang -->
+      <div id="give-gang-section" class="fg" style="display:none">
+        <label class="flabel">Select Gang to Add User To</label>
+        <select class="fselect" id="give-gang-select"><option value="">— Choose a gang —</option></select>
+        <div class="hint">User will be added as a Member. They must not already be in a gang.</div>
+      </div>
+      <!-- Business -->
+      <div id="give-business-section" class="fg" style="display:none">
+        <label class="flabel">Amount to Add to Business Bank ($)</label>
+        <input class="finput" id="give-business-amount" type="number" min="1" placeholder="5000">
+        <div class="hint">Adds money directly to this user's business bank. User must own a business.</div>
       </div>
       <div class="hint" id="give-modal-hint" style="margin-top:8px"></div>
     </div>
@@ -1339,15 +1355,15 @@ async function refresh(){
   const stInput = document.getElementById('shot-timeout-input');
   if (stInput) stInput.value = config.shotTimeoutMinutes ?? 5;
 
-  // Populate purge channel
-  const pcInput  = document.getElementById('purge-channel-input');
+  // Populate purge channel dropdown
+  const pcSelect = document.getElementById('purge-channel-select');
   const pcStatus = document.getElementById('purge-channel-status');
-  if (pcInput) {
-    pcInput.value = config.purgeChannelId || '';
-    if (pcStatus) pcStatus.textContent = config.purgeChannelId
-      ? 'Channel ID: ' + config.purgeChannelId
-      : 'No channel set — announcements disabled';
+  if (pcSelect && config.purgeChannelId) {
+    pcSelect.value = config.purgeChannelId;
   }
+  if (pcStatus) pcStatus.textContent = config.purgeChannelId
+    ? 'Active: #' + (_guildChannels.find(c=>c.id===config.purgeChannelId)?.name || config.purgeChannelId) + ' — bot will @everyone here'
+    : 'No channel set — @everyone announcements disabled';
 
   document.getElementById('refresh-ts').textContent='Last sync: '+new Date().toLocaleTimeString();
 }
@@ -1823,12 +1839,13 @@ async function clearRestrictedRole(){
 }
 
 async function savePurgeChannel(){
-  const channelId=document.getElementById('purge-channel-input').value.trim();
-  if(!channelId){toast('Paste a Channel ID first','err');return;}
+  const channelId=document.getElementById('purge-channel-select').value;
+  if(!channelId){toast('Select a channel first','err');return;}
   const r=await api('POST',`/api/${GUILD}/config/purge-channel`,{channelId});
   if(r.success){
+    const ch=(_guildChannels||[]).find(c=>c.id===channelId);
     toast('Announcement channel set','ok');
-    document.getElementById('purge-channel-status').textContent='Channel ID: '+r.purgeChannelId;
+    document.getElementById('purge-channel-status').textContent='Active: #'+(ch?.name||channelId)+' — bot will @everyone here';
   } else toast(r.error||'Failed','err');
 }
 
@@ -1836,8 +1853,8 @@ async function clearPurgeChannel(){
   const r=await api('POST',`/api/${GUILD}/config/purge-channel`,{channelId:null});
   if(r.success){
     toast('Channel cleared','ok');
-    document.getElementById('purge-channel-input').value='';
-    document.getElementById('purge-channel-status').textContent='No channel set — announcements disabled';
+    document.getElementById('purge-channel-select').value='';
+    document.getElementById('purge-channel-status').textContent='No channel set — @everyone announcements disabled';
   } else toast(r.error||'Failed','err');
 }
 
@@ -2130,11 +2147,24 @@ async function viewInventory(userId, username) {
 
 // ════════════════════════════════════════════════
 let guildRoles = [];
+let _guildChannels = [];
+
 async function loadGuildRoles() {
   try {
     guildRoles = await api('GET', `/api/${GUILD}/guild/roles`);
     populateRoleDropdowns();
   } catch { guildRoles = []; }
+  // Load channels for purge dropdown
+  try {
+    _guildChannels = await api('GET', `/api/${GUILD}/guild/channels`);
+    const sel = document.getElementById('purge-channel-select');
+    if (sel) {
+      const current = sel.value;
+      sel.innerHTML = '<option value="">— Select a channel —</option>' +
+        _guildChannels.map(c=>`<option value="${c.id}">#${c.name}</option>`).join('');
+      if (current) sel.value = current;
+    }
+  } catch { _guildChannels = []; }
 }
 
 function populateRoleDropdowns() {
@@ -2177,7 +2207,7 @@ let giveTakeUserId = '';
 
 function onGiveCategoryChange() {
   const cat = document.getElementById('give-category').value;
-  ['item','money','tokens','petlevel','gun'].forEach(s => {
+  ['item','money','tokens','petlevel','gun','gang','business'].forEach(s => {
     document.getElementById(`give-${s}-section`).style.display = cat===s?'block':'none';
   });
 }
@@ -2198,7 +2228,7 @@ function openTakeItem(userId, username) {
   giveTakeMode   = 'take';
   giveTakeUserId = userId;
   document.getElementById('give-modal-title').textContent = `Take from ${username}`;
-  document.getElementById('give-confirm-btn').textContent = 'Take Item';
+  document.getElementById('give-confirm-btn').textContent = 'Take';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
   document.getElementById('give-category').value = 'item';
   onGiveCategoryChange();
@@ -2209,11 +2239,16 @@ function openTakeItem(userId, username) {
 function populateGiveSelect() {
   // Store items
   const sel  = document.getElementById('give-item-select');
-  const items = S.store || [];
-  sel.innerHTML = '<option value="">— Choose an item —</option>' + items.map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
+  sel.innerHTML = '<option value="">— Choose an item —</option>' + (S.store||[]).map(i=>`<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
   // Guns
   const gunSel = document.getElementById('give-gun-select');
   gunSel.innerHTML = '<option value="">— Choose a gun —</option>' + (_gunShopCache||[]).map(g=>`<option value="${g.id}">${g.emoji} ${g.name}</option>`).join('');
+  // Gangs — fetch live
+  api('GET',`/api/${GUILD}/gangs`).then(data=>{
+    const gangs = data.gangs || [];
+    const gSel  = document.getElementById('give-gang-select');
+    gSel.innerHTML = '<option value="">— Choose a gang —</option>' + gangs.map(g=>`<option value="${g.id}">${g.color} ${g.name} ${g.tag} (${g.members.length} members)</option>`).join('');
+  }).catch(()=>{});
 }
 
 function closeGiveTakeModal() {
@@ -2224,7 +2259,15 @@ async function confirmGiveTake() {
   const cat = document.getElementById('give-category').value;
 
   if (giveTakeMode === 'take') {
-    // Take is always item only
+    const cat = document.getElementById('give-category').value;
+    if (cat === 'money') {
+      const amount = parseInt(document.getElementById('give-money-amount').value)||0;
+      if (amount < 1) return toast('Enter a valid amount','err');
+      const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { addWallet: -amount, announce: true, announceType: 'tax' });
+      if (r.success) { toast(`$${amount.toLocaleString()} taken!`,'ok'); closeGiveTakeModal(); refresh(); }
+      else toast(r.error||'Failed','err');
+      return;
+    }
     const itemId = document.getElementById('give-item-select').value;
     if (!itemId) return toast('Select an item first','err');
     const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/take-item`, { itemId });
@@ -2233,7 +2276,6 @@ async function confirmGiveTake() {
     return;
   }
 
-  // Give
   if (cat === 'item') {
     const itemId = document.getElementById('give-item-select').value;
     if (!itemId) return toast('Select an item first','err');
@@ -2243,7 +2285,7 @@ async function confirmGiveTake() {
   } else if (cat === 'money') {
     const amount = parseInt(document.getElementById('give-money-amount').value)||0;
     if (amount < 1) return toast('Enter a valid amount','err');
-    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { wallet: null, addWallet: amount });
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { addWallet: amount, announce: true, announceType: 'stimulus' });
     if (r.success) { toast(`$${amount.toLocaleString()} given!`,'ok'); closeGiveTakeModal(); refresh(); }
     else toast(r.error||'Failed','err');
   } else if (cat === 'tokens') {
@@ -2263,6 +2305,18 @@ async function confirmGiveTake() {
     if (!gunId) return toast('Select a gun first','err');
     const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/give-gun`, { gunId });
     if (r.success) { toast('Gun given!','ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'gang') {
+    const gangId = document.getElementById('give-gang-select').value;
+    if (!gangId) return toast('Select a gang first','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/give-gang`, { gangId });
+    if (r.success) { toast('User added to gang!','ok'); closeGiveTakeModal(); refresh(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'business') {
+    const amount = parseInt(document.getElementById('give-business-amount').value)||0;
+    if (amount < 1) return toast('Enter a valid amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/business-money`, { amount });
+    if (r.success) { toast(`$${amount.toLocaleString()} added to business!`,'ok'); closeGiveTakeModal(); }
     else toast(r.error||'Failed','err');
   }
 }

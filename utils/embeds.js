@@ -159,14 +159,15 @@ function purgeEmbed(starting) {
   if (starting) {
     return new EmbedBuilder()
       .setColor(COLORS.PURGE)
-      .setTitle('🔴 THE PURGE HAS BEGUN')
-      .setDescription('**All bank funds have been forcefully moved to wallets.**\n\n> 💸 All money is now vulnerable\n> 🚫 Deposits and withdrawals are **DISABLED**\n> ⚡ Rob cooldowns are **REMOVED**\n\n*The purge will continue until further notice.*')
+      .setTitle('🔴 THE PURGE IS NOW ACTIVE @everyone')
+      .setDescription('**@everyone — The Purge has begun. All bank funds have been forcefully moved to wallets.**\n\n> 💸 All money is now exposed and vulnerable\n> 🚫 Deposits and withdrawals are **DISABLED**\n> ⚡ Rob cooldowns are **COMPLETELY REMOVED**\n> 🔫 All attacks, drains, and hitmen still work\n> 🏴 Gang wars have zero consequences\n\n**Protect yourself. Trust nobody.**\n\n*The purge will continue until the server owner ends it.*')
+      .setImage('https://media.giphy.com/media/l0HlKrB02QY0f1mbm/giphy.gif')
       .setTimestamp();
   }
   return new EmbedBuilder()
     .setColor(COLORS.SUCCESS)
-    .setTitle('🟢 THE PURGE HAS ENDED')
-    .setDescription('Normal operations have resumed. Deposit your money to keep it safe.')
+    .setTitle('🟢 THE PURGE HAS ENDED @everyone')
+    .setDescription('**@everyone — The Purge is over. Normal operations have resumed.**\n\n> 🏦 Deposits and withdrawals are back\n> ⏱️ Rob cooldowns are restored\n> 🛡️ Standard protections apply\n\nDeposit your money to keep it safe.')
     .setTimestamp();
 }
 

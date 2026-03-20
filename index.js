@@ -1444,6 +1444,9 @@ setInterval(() => {
   } catch(e) { console.error('Pet tick error:', e); }
 }, 60 * 60 * 1000);
 
+// Export client so dashboard server can send Discord messages
+require('./index.client').set(client);
+
 require('./dashboard/server.js');
 
 // ---- LOGIN ----

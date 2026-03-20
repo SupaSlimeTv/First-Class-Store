@@ -249,11 +249,41 @@ app.post('/api/:guildId/users/:id/pet-level', requireGuildAuth, async (req, res)
 
 app.post('/api/:guildId/users/:id/money', requireGuildAuth, async (req, res) => {
   const user = db.getOrCreateUser(req.params.id);
-  const { wallet, bank, addWallet } = req.body;
+  const { wallet, bank, addWallet, announce, announceType } = req.body;
   if (wallet    != null) user.wallet = Math.max(0, parseInt(wallet)||0);
   if (bank      != null) user.bank   = Math.max(0, parseInt(bank)||0);
-  if (addWallet != null) user.wallet = Math.max(0, user.wallet + (parseInt(addWallet)||0));
+  const added = parseInt(addWallet)||0;
+  if (added !== 0) user.wallet = Math.max(0, user.wallet + added);
   db.saveUser(req.params.id, user);
+
+  // Announce in purge/announcement channel if requested
+  if (announce && added !== 0) {
+    try {
+      const config    = db.getConfig(req.params.guildId || req.guildId);
+      const channelId = config.purgeChannelId;
+      if (channelId) {
+        const { EmbedBuilder } = require('discord.js');
+        // We need the bot client — import it via a shared reference
+        const botClient = require('../index.client');
+        if (botClient) {
+          const channel = await botClient.channels.fetch(channelId).catch(() => null);
+          if (channel) {
+            const isStimulus = announceType === 'stimulus';
+            const amt        = Math.abs(added);
+            const embed = new EmbedBuilder()
+              .setColor(isStimulus ? 0x2ecc71 : 0xff3b3b)
+              .setTitle(isStimulus ? '💵 Stimulus Check' : '🏛️ Government Tax')
+              .setDescription(isStimulus
+                ? `<@${req.params.id}> was given a stimulus check of **$${amt.toLocaleString()}**!`
+                : `<@${req.params.id}> was taxed by the government **$${amt.toLocaleString()}**.`)
+              .setTimestamp();
+            await channel.send({ embeds: [embed] });
+          }
+        }
+      }
+    } catch(e) { console.error('announce error:', e.message); }
+  }
+
   res.json({ success: true });
 });
 
@@ -417,6 +447,48 @@ app.get('/api/:guildId/guild/roles', requireGuildAuth, async (req, res) => {
     if (!roles) return res.status(500).json({ error: 'Failed to fetch roles' });
     res.json(roles.filter(r=>r.name!=='@everyone').sort((a,b)=>b.position-a.position).map(r=>({id:r.id,name:r.name,color:r.color})));
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/:guildId/guild/channels', requireGuildAuth, async (req, res) => {
+  try {
+    const channels = await fetchBotAPI(`/guilds/${req.guildId}/channels`);
+    if (!channels) return res.status(500).json({ error: 'Failed to fetch channels' });
+    // Only text channels (type 0) and announcement channels (type 5)
+    const textChannels = channels
+      .filter(c => c.type === 0 || c.type === 5)
+      .sort((a,b) => (a.position||0) - (b.position||0))
+      .map(c => ({ id: c.id, name: c.name, type: c.type }));
+    res.json(textChannels);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/give-gang', requireGuildAuth, async (req, res) => {
+  try {
+    const { gangId } = req.body;
+    if (!gangId) return res.status(400).json({ error: 'gangId required' });
+    const { getAllGangs, saveGang, getGangByMember } = require('../utils/gangDb');
+    if (getGangByMember(req.params.id)) return res.status(400).json({ error: 'User is already in a gang' });
+    const all  = getAllGangs();
+    const gang = all[gangId];
+    if (!gang) return res.status(404).json({ error: 'Gang not found' });
+    gang.members = gang.members || [];
+    gang.members.push({ userId: req.params.id, role: 'Member', rep: 0, joinedAt: Date.now(), addedByDashboard: true });
+    saveGang(gangId, gang);
+    res.json({ success: true, gangName: gang.name });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/business-money', requireGuildAuth, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || amount < 1) return res.status(400).json({ error: 'amount required' });
+    const bizDb = require('../utils/bizDb');
+    const biz   = bizDb.getBusiness(req.params.id);
+    if (!biz) return res.status(404).json({ error: 'User does not own a business' });
+    biz.revenue = (biz.revenue||0) + parseInt(amount);
+    bizDb.saveBusiness(req.params.id, biz);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── EFFECTS ───────────────────────────────────────────────────
