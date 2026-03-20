@@ -81,7 +81,7 @@ module.exports = {
       const record = getPoliceRecord(userId);
       const heatReduction = 20 + onPayroll * 5;
       record.heat  = Math.max(0, (record.heat||0) - heatReduction);
-      savePoliceRecord(userId, record);
+      await savePoliceRecord(userId, record);
       return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0x003580)
         .setTitle('👮 Bribe Paid')
@@ -94,7 +94,7 @@ module.exports = {
     const crimeBoost    = getConsumeBuff(userId, 'crime_boost');
     const focusedBuff   = getConsumeBuff(userId, 'focused');
     const effectiveHeat = isPurgeActive(interaction.guildId) ? 0 : Math.max(0, (crime.heat - onPayroll * 3) * (1 - crimeBoost / 100));
-    const record = addHeat(userId, effectiveHeat, crime.id);
+    const record = await addHeat(userId, effectiveHeat, crime.id);
     const heatLvl = getHeatLevel(record.heat);
 
     if (caught) {
@@ -103,7 +103,7 @@ module.exports = {
       user.wallet    = Math.max(0, user.wallet - fine);
       const jailMins = crime.cd;
       record.jailUntil = Date.now() + jailMins * 60_000;
-      savePoliceRecord(userId, record);
+      await savePoliceRecord(userId, record);
       saveUser(userId, user);
       return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0x003580)
@@ -123,7 +123,7 @@ module.exports = {
     const member = myGang.members.find(m => m.userId === userId);
     if (member) { member.rep = (member.rep||0)+crime.heat; myGang.rep=(myGang.rep||0)+Math.floor(crime.heat/2); }
     saveUser(userId, user);
-    saveGang(myGang.id, myGang);
+    await saveGang(myGang.id, myGang);
 
     const config = require('../../utils/db').getConfig(interaction.guildId);
     const raid   = isPurgeActive(interaction.guildId) ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);

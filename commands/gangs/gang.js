@@ -65,7 +65,7 @@ module.exports = {
         allies:      [],
         rivals:      [],
       };
-      saveGang(gangId, gang);
+      await saveGang(gangId, gang);
 
       return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0xff3b3b)
@@ -117,7 +117,7 @@ module.exports = {
       if (!gang) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You're not in a gang.")], ephemeral: true });
       if (gang.leaderId === userId) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Leaders can't leave — disband the gang or transfer leadership first.")], ephemeral: true });
       gang.members = gang.members.filter(m => m.userId !== userId);
-      saveGang(gang.id, gang);
+      await saveGang(gang.id, gang);
       return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription(`You left **${gang.name}**.`)] });
     }
 
@@ -140,7 +140,7 @@ module.exports = {
         const user = getOrCreateUser(userId);
         user.wallet += gang.bank;
         saveUser(userId, user);
-        deleteGang(gang.id);
+        await deleteGang(gang.id);
         await btn.update({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('Gang Disbanded').setDescription(`**${gang.name}** has been disbanded. $${gang.bank.toLocaleString()} returned to your wallet.`)], components: [] });
       });
     }
@@ -156,7 +156,7 @@ module.exports = {
       const member = gang.members.find(m => m.userId === userId);
       if (member) { member.rep = (member.rep || 0) + Math.floor(amount / 100); gang.rep = (gang.rep || 0) + Math.floor(amount / 100); }
       saveUser(userId, user);
-      saveGang(gang.id, gang);
+      await saveGang(gang.id, gang);
       return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.SUCCESS).setTitle('💰 Gang Bank Deposit').setDescription(`You deposited **$${amount.toLocaleString()}** into the **${gang.name}** bank.\n\nGang bank: **$${gang.bank.toLocaleString()}**`)] });
     }
 
@@ -170,7 +170,7 @@ module.exports = {
       user.wallet += amount;
       gang.bank   -= amount;
       saveUser(userId, user);
-      saveGang(gang.id, gang);
+      await saveGang(gang.id, gang);
       return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`You withdrew **$${amount.toLocaleString()}** from the gang bank.\n\nGang bank: **$${gang.bank.toLocaleString()}**`)] });
     }
   },

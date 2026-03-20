@@ -99,7 +99,7 @@ module.exports = {
       savePet(userId, myPet);
 
       // Add some heat
-      addHeat(userId, 5, 'pet_attack');
+      await addHeat(userId, 5, 'pet_attack');
 
       const flavor = pType.attackFlavor[Math.floor(Math.random() * pType.attackFlavor.length)];
       await interaction.reply({ embeds: [new EmbedBuilder()

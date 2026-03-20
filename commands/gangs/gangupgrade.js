@@ -80,7 +80,7 @@ module.exports = {
 
       gang.bank     -= upgrade.cost;
       gang.gangType  = 'mafia';
-      saveGang(gang.id, gang);
+      await saveGang(gang.id, gang);
 
       return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0x2c3e50)
@@ -101,7 +101,7 @@ module.exports = {
 
     gang.bank -= cost;
     gang[upgradeId] = currentLevel + 1;
-    saveGang(gang.id, gang);
+    await saveGang(gang.id, gang);
 
     const perks = {
       police_payroll: `Arrest chance -${(currentLevel+1)*5}% · Heat per crime -${(currentLevel+1)*3}`,

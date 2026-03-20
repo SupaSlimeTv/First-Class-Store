@@ -1,79 +1,109 @@
 // ============================================================
-// utils/gangDb.js — Multi-Server Edition
-// Gangs, police, wars = PER-SERVER (guildId required)
+// utils/gangDb.js — Gang Database (MongoDB)
 // ============================================================
+const { col } = require('./mongo');
 
-const { guildCol } = require('./mongo');
+// ── In-memory caches ──────────────────────────────────────
+let _gangs  = {};
+let _police = {};
+let _wars   = {};
 
-// ── GANGS (PER-SERVER) ────────────────────────────────────────
-
-async function getGang(gangId, guildId) {
-  const c = await guildCol('gangs', guildId);
-  return await c.findOne({ _id: gangId }) || null;
+async function preloadGangCache() {
+  try {
+    const [gc, pc, wc] = await Promise.all([col('gangs'), col('police'), col('gangWars')]);
+    const [gangs, police, wars] = await Promise.all([gc.find({}).toArray(), pc.find({}).toArray(), wc.find({}).toArray()]);
+    _gangs  = Object.fromEntries(gangs.map(d  => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
+    _police = Object.fromEntries(police.map(d => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
+    _wars   = Object.fromEntries(wars.map(d   => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
+    console.log(`📦 Gang cache loaded (${Object.keys(_gangs).length} gangs)`);
+  } catch(e) { console.error('preloadGangCache error:', e.message); }
 }
 
-async function getGangByMember(userId, guildId) {
-  const c = await guildCol('gangs', guildId);
-  return await c.findOne({ 'members.userId': userId }) || null;
+// ── GANGS ─────────────────────────────────────────────────
+function getGang(gangId)         { return _gangs[gangId] || null; }
+function getGangByMember(userId) { return Object.values(_gangs).find(g => (g.members||[]).some(m => m.userId === userId)) || null; }
+function getAllGangs()            { return { ..._gangs }; }
+function getAllWars()             { return { ..._wars }; }
+
+async function saveGang(gangId, data) {
+  _gangs[gangId] = data;
+  try { const c = await col('gangs');  await c.replaceOne({ _id: gangId }, { _id: gangId, ...data }, { upsert: true }); }
+  catch(e) { console.error('saveGang error:', e.message); }
 }
 
-async function getAllGangs(guildId) {
-  const c    = await guildCol('gangs', guildId);
-  const docs = await c.find({}).toArray();
-  return Object.fromEntries(docs.map(d => [d._id, d]));
+async function deleteGang(gangId) {
+  delete _gangs[gangId];
+  try { const c = await col('gangs'); await c.deleteOne({ _id: gangId }); }
+  catch(e) { console.error('deleteGang error:', e.message); }
 }
 
-async function saveGang(gangId, data, guildId) {
-  const c = await guildCol('gangs', guildId);
-  const { _id, ...rest } = data;
-  await c.updateOne({ _id: gangId }, { $set: rest }, { upsert: true });
+// ── POLICE ────────────────────────────────────────────────
+function getPoliceRecord(userId) {
+  return _police[userId] || { userId, heat: 0, arrests: 0, jailUntil: null, offenses: [] };
 }
 
-async function deleteGang(gangId, guildId) {
-  const c = await guildCol('gangs', guildId);
-  await c.deleteOne({ _id: gangId });
+async function savePoliceRecord(userId, data) {
+  _police[userId] = data;
+  try { const c = await col('police'); await c.replaceOne({ _id: userId }, { _id: userId, ...data }, { upsert: true }); }
+  catch(e) { console.error('savePoliceRecord error:', e.message); }
 }
 
-// ── POLICE (PER-SERVER) ───────────────────────────────────────
+// ── WARS ──────────────────────────────────────────────────
+function getWar(warId)  { return _wars[warId] || null; }
 
-async function getPoliceRecord(userId, guildId) {
-  const c   = await guildCol('police', guildId);
-  const doc = await c.findOne({ _id: userId });
-  return doc || { userId, heat: 0, arrests: 0, jailUntil: null, offenses: [] };
+async function saveWar(warId, data) {
+  _wars[warId] = data;
+  try { const c = await col('gangWars'); await c.replaceOne({ _id: warId }, { _id: warId, ...data }, { upsert: true }); }
+  catch(e) { console.error('saveWar error:', e.message); }
 }
 
-async function savePoliceRecord(userId, data, guildId) {
-  const c = await guildCol('police', guildId);
-  const { _id, ...rest } = data;
-  await c.updateOne({ _id: userId }, { $set: rest }, { upsert: true });
+async function deleteWar(warId) {
+  delete _wars[warId];
+  try { const c = await col('gangWars'); await c.deleteOne({ _id: warId }); }
+  catch(e) { console.error('deleteWar error:', e.message); }
 }
 
-// ── GANG WARS (PER-SERVER) ────────────────────────────────────
-
-async function getWar(warId, guildId) {
-  const c = await guildCol('gangWars', guildId);
-  return await c.findOne({ _id: warId }) || null;
+// ── HELPERS ───────────────────────────────────────────────
+function isJailed(userId) {
+  const r = getPoliceRecord(userId);
+  if (!r.jailUntil) return false;
+  if (Date.now() > r.jailUntil) { r.jailUntil = null; savePoliceRecord(userId, r); return false; }
+  return true;
 }
 
-async function getAllWars(guildId) {
-  const c    = await guildCol('gangWars', guildId);
-  const docs = await c.find({}).toArray();
-  return Object.fromEntries(docs.map(d => [d._id, d]));
+function getJailTimeLeft(userId) {
+  const r = getPoliceRecord(userId);
+  if (!r.jailUntil) return 0;
+  return Math.max(0, Math.ceil((r.jailUntil - Date.now()) / 60000));
 }
 
-async function saveWar(warId, data, guildId) {
-  const c = await guildCol('gangWars', guildId);
-  const { _id, ...rest } = data;
-  await c.updateOne({ _id: warId }, { $set: rest }, { upsert: true });
+async function addHeat(userId, amount, reason) {
+  const r  = getPoliceRecord(userId);
+  r.heat   = Math.min(100, (r.heat || 0) + amount);
+  r.offenses = r.offenses || [];
+  r.offenses.push({ reason, amount, at: Date.now() });
+  await savePoliceRecord(userId, r);
+  return r.heat;
 }
 
-async function deleteWar(warId, guildId) {
-  const c = await guildCol('gangWars', guildId);
-  await c.deleteOne({ _id: warId });
+async function checkPoliceRaid(userId, client, channelId) {
+  const r = getPoliceRecord(userId);
+  if ((r.heat || 0) < 60) return null;
+  const raidChance = (r.heat - 60) / 200;
+  if (Math.random() > raidChance) return null;
+  const { getOrCreateUser, saveUser } = require('./db');
+  const user    = getOrCreateUser(userId);
+  const fine    = Math.floor(user.wallet * 0.25);
+  user.wallet   = Math.max(0, user.wallet - fine);
+  r.jailUntil   = Date.now() + 10 * 60 * 1000;
+  r.arrests     = (r.arrests || 0) + 1;
+  r.heat        = Math.max(0, r.heat - 30);
+  saveUser(userId, user);
+  await savePoliceRecord(userId, r);
+  return { fine, jailMinutes: 10 };
 }
 
-// ── RANKS ─────────────────────────────────────────────────────
-
+// ── GANG RANKS ────────────────────────────────────────────
 const GANG_RANKS = [
   { name: 'Prospect',    minRep: 0    },
   { name: 'Soldier',     minRep: 100  },
@@ -88,8 +118,10 @@ function getMemberRank(rep) {
 }
 
 module.exports = {
+  preloadGangCache,
   getGang, getGangByMember, getAllGangs, saveGang, deleteGang,
   getPoliceRecord, savePoliceRecord,
   getWar, getAllWars, saveWar, deleteWar,
+  addHeat, checkPoliceRaid, isJailed, getJailTimeLeft,
   GANG_RANKS, getMemberRank,
 };

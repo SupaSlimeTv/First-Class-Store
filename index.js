@@ -66,6 +66,14 @@ client.once('ready', async () => {
   await preloadBizCache();
   console.log('📦 Business cache loaded');
 
+  // Load gang cache from MongoDB
+  const { preloadGangCache } = require('./utils/gangDb');
+  await preloadGangCache();
+
+  // Load gun cache from MongoDB
+  const { preloadGunCache } = require('./utils/gunDb');
+  await preloadGunCache();
+
   // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');
@@ -1422,10 +1430,10 @@ setInterval(async () => {
       const winner    = gang1Wins ? gang1 : gang2;
       const loser     = gang1Wins ? gang2 : gang1;
 
-      if (winner) { winner.wins = (winner.wins||0)+1; winner.rep = (winner.rep||0)+50; if (war.bet>0) winner.bank=(winner.bank||0)+war.bet*2; saveGang(winner.id, winner); }
-      if (loser)  { loser.losses=(loser.losses||0)+1; if(war.bet>0&&loser.bank>=war.bet){loser.bank-=war.bet;}  saveGang(loser.id,  loser);  }
+      if (winner) { winner.wins = (winner.wins||0)+1; winner.rep = (winner.rep||0)+50; if (war.bet>0) winner.bank=(winner.bank||0)+war.bet*2; await saveGang(winner.id, winner); }
+      if (loser)  { loser.losses=(loser.losses||0)+1; if(war.bet>0&&loser.bank>=war.bet){loser.bank-=war.bet;}  await saveGang(loser.id,  loser);  }
 
-      deleteWar(warId);
+      await deleteWar(warId);
 
       if (cfg.purgeChannelId) {
         const channel = await client.channels.fetch(cfg.purgeChannelId).catch(()=>null);

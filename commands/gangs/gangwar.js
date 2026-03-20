@@ -91,7 +91,7 @@ module.exports = {
           endsAt:      Date.now() + 30 * 60 * 1000,
           attacks:     [],
         };
-        saveWar(warId, war);
+        await saveWar(warId, war);
 
         // War GIFs — roleplay
         const WAR_GIFS = [
@@ -157,9 +157,9 @@ module.exports = {
 
       myWar.attacks = myWar.attacks || [];
       myWar.attacks.push({ userId, gangId: myGang.id, points, time: Date.now() });
-      saveWar(myWar.id, myWar);
+      await saveWar(myWar.id, myWar);
 
-      if (heatAdded > 0) addHeat(userId, heatAdded, 'gang_attack');
+      if (heatAdded > 0) await addHeat(userId, heatAdded, 'gang_attack');
 
       const config  = require('../../utils/db').getConfig(interaction.guildId);
       const raid    = isPurgeActive(interaction.guildId) ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
@@ -212,13 +212,13 @@ module.exports = {
       const enemyGangId   = myWar.gang1Id === myGang.id ? myWar.gang2Id : myWar.gang1Id;
       const enemyGang     = require('../../utils/gangDb').getGang(enemyGangId);
       myGang.losses       = (myGang.losses || 0) + 1;
-      if (enemyGang) { enemyGang.wins = (enemyGang.wins || 0) + 1; saveGang(enemyGangId, enemyGang); }
+      if (enemyGang) { enemyGang.wins = (enemyGang.wins || 0) + 1; await saveGang(enemyGangId, enemyGang); }
       if (myWar.bet > 0 && myGang.bank >= myWar.bet) {
         myGang.bank -= myWar.bet;
-        if (enemyGang) { enemyGang.bank = (enemyGang.bank || 0) + myWar.bet; saveGang(enemyGangId, enemyGang); }
+        if (enemyGang) { enemyGang.bank = (enemyGang.bank || 0) + myWar.bet; await saveGang(enemyGangId, enemyGang); }
       }
-      saveGang(myGang.id, myGang);
-      deleteWar(myWar.id);
+      await saveGang(myGang.id, myGang);
+      await deleteWar(myWar.id);
 
       return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏳️ Surrendered').setDescription(`**${myGang.name}** has surrendered to **${myWar.gang1Id === myGang.id ? myWar.gang2Name : myWar.gang1Name}**.`)] });
     }

@@ -1209,7 +1209,13 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="modal-body">
       <div class="grid2">
         <div class="fg"><label class="flabel">Weapon Name *</label><input class="finput" id="gun-m-name" placeholder="e.g. Glock 19"></div>
-        <div class="fg"><label class="flabel">Emoji</label><input class="finput" id="gun-m-emoji" placeholder="🔫" maxlength="4"></div>
+        <div class="fg"><label class="flabel">Emoji</label>
+          <div style="display:flex;gap:6px;position:relative">
+            <input class="finput" id="gun-m-emoji" placeholder="🔫" maxlength="4" style="flex:1">
+            <button type="button" onclick="openGunEmojiPicker()" class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:18px;padding:6px 12px" title="Pick emoji">🎨</button>
+            <div id="gun-emoji-picker" style="display:none;position:absolute;top:100%;right:0;z-index:999;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px;width:280px;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+          </div>
+        </div>
       </div>
       <div class="grid2">
         <div class="fg">
@@ -2877,6 +2883,34 @@ function pickSpellEmoji(emoji) {
   const el = document.getElementById('m-magic-emoji');
   if (el) el.value = emoji;
   const picker = document.getElementById('spell-emoji-picker');
+  if (picker) picker.style.display = 'none';
+}
+
+// Gun emoji picker — same categories
+const GUN_EMOJIS = [
+  '🔫','🔧','🗡️','💣','🚀','🔥','💥','⚡','🌀','💨',
+  '🎯','🪖','🦅','🔭','🛡️','⚔️','🪃','🏹','🔩','🔨',
+  '💀','☠️','🩸','👊','🤛','💪','🦾','👾','🤖','🎖️',
+];
+
+function openGunEmojiPicker() {
+  const picker = document.getElementById('gun-emoji-picker');
+  if (!picker) return;
+  if (picker.style.display === 'block') { picker.style.display='none'; return; }
+  if (!picker.innerHTML) {
+    picker.innerHTML = `<div style="margin-bottom:6px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Weapon Emojis</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        ${GUN_EMOJIS.map(e=>`<button type="button" onclick="pickGunEmoji('${e}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:16px;cursor:pointer">${e}</button>`).join('')}
+      </div>`;
+  }
+  picker.style.display = 'block';
+  setTimeout(()=>document.addEventListener('click', function h(e){ if(!picker.contains(e.target)){picker.style.display='none';document.removeEventListener('click',h);} }), 50);
+}
+
+function pickGunEmoji(emoji) {
+  const el = document.getElementById('gun-m-emoji');
+  if (el) el.value = emoji;
+  const picker = document.getElementById('gun-emoji-picker');
   if (picker) picker.style.display = 'none';
 }
 

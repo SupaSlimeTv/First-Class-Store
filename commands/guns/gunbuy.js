@@ -41,7 +41,7 @@ module.exports = {
     user.wallet -= gun.price;
     const inv   = getGunInventory(interaction.user.id);
     inv.push({ gunId, boughtAt: Date.now(), ammo: gun.capacity * 3 });
-    saveGunInventory(interaction.user.id, inv);
+    await saveGunInventory(interaction.user.id, inv);
     saveUser(interaction.user.id, user);
 
     return interaction.reply({ embeds: [new EmbedBuilder()

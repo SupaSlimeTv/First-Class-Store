@@ -63,7 +63,7 @@ module.exports = {
       if (!freshGang) return btn.update({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("The gang no longer exists.")], components: [] });
 
       freshGang.members.push({ userId: target.id, role: 'Member', rep: 0, joinedAt: Date.now() });
-      saveGang(freshGang.id, freshGang);
+      await saveGang(freshGang.id, freshGang);
 
       // DM new member about gun shop access
       try {

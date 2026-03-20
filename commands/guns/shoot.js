@@ -78,7 +78,7 @@ module.exports = {
     // ── AMMO — switch fires 3 rounds ──
     const burstCount  = gun.hasSwitch ? 3 : 1;
     gunEntry.ammo     = Math.max(0, (gunEntry.ammo||0) - burstCount);
-    saveGunInventory(userId, inv);
+    await saveGunInventory(userId, inv);
 
     // ── HIT CALCULATION ──
     // Switch gives +10% accuracy (realistic — more rounds, similar chance)
@@ -187,7 +187,7 @@ module.exports = {
     }
 
     const heatAdded = purge ? 0 : (damage > 0 ? (damage > 50 ? 20 : 8) : 3);
-    if (heatAdded > 0) addHeat(userId, heatAdded, 'shooting');
+    if (heatAdded > 0) await addHeat(userId, heatAdded, 'shooting');
 
     // ── BUILD EMBED ──
     const outcomeMsg = OUTCOME_MSGS[outcomeType]?.[Math.floor(Math.random()*OUTCOME_MSGS[outcomeType].length)] || '';
