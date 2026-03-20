@@ -26,7 +26,9 @@ module.exports = {
 
     if (sub === 'start') {
       const existing = getBusiness(userId);
-      if (existing) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setTitle('❌ Already Owns a Business').setDescription(`You already own **${existing.name}**!\nSell it first with \`/business close\` before starting another.`)], ephemeral: true });
+      if (existing && existing.name && existing.type) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setTitle('❌ Already Owns a Business').setDescription(`You already own **${existing.name}**!\nSell it first with \`/business close\` before starting another.`)], ephemeral: true });
+      // Clean up corrupt/undefined entry if present
+      if (existing && (!existing.name || !existing.type)) deleteBusiness(userId);
 
       const type     = interaction.options.getString('type');
       const bizName  = interaction.options.getString('name').slice(0, 50);
