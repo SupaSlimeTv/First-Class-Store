@@ -61,19 +61,22 @@ client.once('ready', async () => {
   const { preloadCache } = require('./utils/db');
   await preloadCache();
 
-  // ── Clean up corrupt business records (undefined name/type) ──
+  // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');
     const all   = bizDb.getAllBusinesses();
     let cleaned = 0;
     for (const [ownerId, biz] of Object.entries(all)) {
-      if (!biz.name || !biz.type || biz.type === 'undefined' || biz.name === 'undefined') {
+      const hasValidType = biz.type && biz.type !== 'undefined' && bizDb.BIZ_TYPES[biz.type];
+      const hasValidName = biz.name && biz.name !== 'undefined';
+      if (!hasValidType || !hasValidName) {
         bizDb.deleteBusiness(ownerId);
         cleaned++;
-        console.log(`🧹 Removed corrupt business for user ${ownerId}`);
+        console.log(`🧹 Removed corrupt business for user ${ownerId} (type: ${biz.type}, name: ${biz.name})`);
       }
     }
     if (cleaned) console.log(`🧹 Cleaned ${cleaned} corrupt business record(s)`);
+    else console.log('✅ Business records OK');
   } catch(e) { console.error('Business cleanup error:', e.message); }
 });
 

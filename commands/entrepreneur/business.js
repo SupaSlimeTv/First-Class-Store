@@ -144,10 +144,13 @@ module.exports = {
     }
 
     if (sub === 'upgrade') {
-      const biz     = getBusiness(userId);
-      if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business.")], ephemeral: true });
+      let biz = getBusiness(userId);
+      // Nuclear: if no biz or corrupt type, wipe it and tell them to start fresh
+      if (!biz || !biz.type || !BIZ_TYPES[biz.type]) {
+        if (biz) deleteBusiness(userId);
+        return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x2ecc71).setTitle('✅ Ready to Start').setDescription('No valid business found — any old record has been cleared.\n\nRun `/business start` to open your business!')], ephemeral: true });
+      }
       const bizType = BIZ_TYPES[biz.type];
-      if (!bizType) { deleteBusiness(userId); return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Stale Record Cleared').setDescription('Your old business record was invalid and has been automatically removed.\n\nYou can now use `/business start` to open a new one!')], ephemeral: true }); }
       if (biz.level >= bizType.maxLevel) return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription('Your business is already at **MAX LEVEL**!')], ephemeral: true });
 
       const cost = bizType.upgradeCost * biz.level;
