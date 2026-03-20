@@ -1159,7 +1159,13 @@ tr:hover td{background:rgba(255,255,255,.015)}
                 <code>{"type":"heat","amount":20}</code> — add police heat<br>
                 <code>{"type":"buff","buffType":"lucky","strength":25,"minutes":15}</code> — apply consume buff<br>
                 <code>{"type":"xp","amount":50}</code> — give pet XP<br>
-                <code>{"type":"msg","text":"Custom message"}</code> — flavor text only
+                <code>{"type":"msg","text":"Custom message"}</code> — flavor text only<br>
+                <strong>🤖 AI Control:</strong><br>
+                <code>{"type":"ai_loyalty","value":0}</code> — set target's AI loyalty (0–100). 0 = goes rogue<br>
+                <code>{"type":"ai_mood","mood":"rogue"}</code> — force mood: loyal / happy / passive / rogue<br>
+                <code>{"type":"ai_ability","ability":"steal_data","enable":false}</code> — toggle a specific ability on/off<br>
+                <code>{"type":"ai_takeover","duration":10}</code> — force all target AIs rogue for X minutes<br>
+                <code>{"type":"ai_wipe"}</code> — wipe all memory, reset to factory defaults
               </div>
             </div>
           </div>
