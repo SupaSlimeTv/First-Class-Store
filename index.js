@@ -53,10 +53,14 @@ for (const folder of folders) {
 }
 
 // ---- READY EVENT ----
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`\n🤖 Logged in as ${client.user.tag}`);
   console.log(`📦 Loaded ${client.commands.size} slash commands\n`);
   client.user.setActivity('/help for commands', { type: 3 });
+  // Pre-load all users and config into memory cache
+  // so sync callers (tick engines, prefix commands) work without await
+  const { preloadCache } = require('./utils/db');
+  await preloadCache();
 });
 
 // ---- NEW MEMBER JOIN — notify them to open an account ----
@@ -442,7 +446,7 @@ client.on('messageCreate', async (message) => {
         { name:'📈 Market',       value:[`${p}market`,`${p}invest <coin> <amt>`,`${p}cashout <coin>`,`${p}portfolio`].join(' · '), inline:false },
         { name:'🏢 Entrepreneur', value:[`${p}biz`,`${p}bizcollect`,`${p}bizupgrade`,`${p}hire @user`,`${p}fire @user`,`${p}myjobs`,`${p}businesses`].join(' · '), inline:false },
         { name:'🏴 Gangs',        value:[`${p}gang`,`${p}ganginfo`,`${p}gangs`,`${p}gangwar`,`${p}crime`,`${p}gu`,`${p}wl`].join(' · '), inline:false },
-        { name:'🐾 Pets',         value:[`${p}petshop`,`${p}pet`,`${p}petfeed`,`${p}petmission`,`${p}petupgrade`,`${p}petguard`,`${p}petheal <amt>`,`${p}pa @user`,`${p}pets`].join(' · '), inline:false },
+        { name:'🐾 Pets',         value:[`${p}petshop`,`${p}pet`,`${p}petfeed`,`${p}petplay`,`${p}petheal <amt>`,`${p}pa @user`,`${p}pets`].join(' · '), inline:false },
         { name:'🤖 AI',           value:[`${p}myai`,`${p}talk`].join(' · '), inline:false },
         { name:'📊 Status',       value:[`${p}status`,`${p}wl`].join(' · '), inline:false },
         { name:'🔫 Guns (Gang Only)', value:[`${p}gunshop`,`${p}gunbuy <id>`,`${p}guns`,`${p}shoot @user`,`${p}health`,`${p}medkit <amt>`].join(' · '), inline:false },
@@ -754,198 +758,51 @@ client.on('messageCreate', async (message) => {
     if (!pet) return message.reply(`You don't have a pet! Use \`${prefix}petshop\` to browse.`);
     const stats  = calcPetStats(pet);
     const xpNext = xpForLevel(pet.level);
-    const guardStatus = pet.guardMode ? '🛡️ **GUARD MODE ON**' : '😴 Off duty';
     return message.reply({ embeds: [new EmbedBuilder()
       .setColor(0xff6b35)
       .setTitle(`${pet.emoji} ${pet.name}`)
       .addFields(
-        { name:'❤️ HP',          value:`${pet.hp||stats.hp}/${stats.hp}`,              inline:true },
-        { name:'🍖 Hunger',      value:`${pet.hunger||100}/100`,                        inline:true },
-        { name:'🔗 Bond',        value:`${pet.bond||0}/100`,                            inline:true },
-        { name:'⭐ Level',       value:`${pet.level} · XP: ${pet.xp||0}/${xpNext}`,    inline:true },
-        { name:'⚔️ Power',       value:`${stats.power} (+${pet.upgrades?.power||0})`,  inline:true },
-        { name:'🛡️ Defense',    value:`${stats.defense} (+${pet.upgrades?.defense||0})`, inline:true },
-        { name:'🧠 Intelligence',value:`${stats.intelligence||1} (+${pet.upgrades?.intelligence||0})`, inline:true },
-        { name:'🪙 Pet Tokens',  value:(pet.tokens||0).toString(),                     inline:true },
-        { name:'🛡️ Guard',      value:guardStatus,                                     inline:true },
-        { name:'🏆 Record',      value:`${pet.wins||0}W/${pet.losses||0}L`,            inline:true },
+        { name:'❤️ HP',       value:`${pet.hp||stats.hp}/${stats.hp}`,       inline:true },
+        { name:'🍖 Hunger',   value:`${pet.hunger||100}/100`,                  inline:true },
+        { name:'💕 Happiness',value:`${pet.happiness||100}/100`,               inline:true },
+        { name:'🔗 Bond',     value:`${pet.bond||0}/100`,                      inline:true },
+        { name:'⭐ Level',    value:`${pet.level} · XP: ${pet.xp||0}/${xpNext}`, inline:true },
+        { name:'⚔️ Power',   value:stats.power.toString(),                     inline:true },
+        { name:'🏆 Record',  value:`${pet.wins||0}W/${pet.losses||0}L`,        inline:true },
       )
-      .setFooter({ text:`${prefix}petfeed · ${prefix}petmission · ${prefix}petupgrade · ${prefix}petguard · ${prefix}petheal <amt>` })
+      .setFooter({ text:`Use ${prefix}petfeed · ${prefix}petplay · ${prefix}petheal <amt>` })
     ]});
   }
 
   // ---- petfeed ----
   if (commandName === 'petfeed' || commandName === 'feed') {
     if (needsAccount()) return;
-    const { getPet, savePet } = require('./utils/petDb');
+    const { getPet, savePet, xpForLevel } = require('./utils/petDb');
     const pet = getPet(message.author.id);
     if (!pet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
-
-    // Require a pet food item from the store
-    const user = getOrCreateUser(message.author.id);
-    const inv  = user.inventory || [];
-    const foodItem = getStore().items?.find(i => i.type === 'pet_item' && i.petItemType === 'food');
-    if (!foodItem) return message.reply(`🍖 No pet food is set up in the store yet! Ask the owner to add one.`);
-    const foodIdx = inv.indexOf(foodItem.id);
-    if (foodIdx === -1) return message.reply(`🍖 You don't have any **${foodItem.name}**! Buy some from the store with \`${prefix}shop\`.`);
-
     const now = Date.now(), FEED_CD = 30*60*1000;
     if (now - (pet.lastFed||0) < FEED_CD) return message.reply(`${pet.emoji} **${pet.name}** is still full! Wait **${Math.ceil((FEED_CD-(now-(pet.lastFed||0)))/60000)} minutes**.`);
-
-    // Consume the food item
-    inv.splice(foodIdx, 1);
-    user.inventory = inv;
-    saveUser(message.author.id, user);
-
-    pet.hunger = Math.min(100, (pet.hunger||0)+40);
-    pet.bond   = Math.min(100, (pet.bond||0)+2);
+    pet.hunger = Math.min(100, (pet.hunger||100)+30);
+    pet.happiness = Math.min(100, (pet.happiness||100)+5);
     pet.lastFed = now; pet.xp = (pet.xp||0)+10;
-    savePet(message.author.id, pet);
-    return message.reply(`${pet.emoji} **${pet.name}** devoured **${foodItem.name}**! 🍖 Hunger: ${pet.hunger}/100 · +10 XP · 🪙 Bond: ${pet.bond}/100`);
+    require('./utils/petDb').savePet(message.author.id, pet);
+    return message.reply(`${pet.emoji} **${pet.name}** ate happily! 🍖 Hunger: ${pet.hunger}/100 · +10 XP`);
   }
 
-  // ---- petmission (replaces petplay) ----
-  if (commandName === 'petmission' || commandName === 'mission') {
+  // ---- petplay ----
+  if (commandName === 'petplay' || commandName === 'play') {
     if (needsAccount()) return;
-    const { getPet, savePet, calcPetStats, xpForLevel, PET_TYPES } = require('./utils/petDb');
+    const { getPet, savePet, xpForLevel } = require('./utils/petDb');
     const pet = getPet(message.author.id);
     if (!pet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
-    if ((pet.hunger||100) < 20) return message.reply(`${pet.emoji} **${pet.name}** is too hungry to go on a mission! Use \`${prefix}petfeed\` first.`);
-
-    const MISSION_CD = 2 * 60 * 60 * 1000; // 2-hour cooldown
-    const now = Date.now();
-    if (now - (pet.lastMission||0) < MISSION_CD) {
-      const left = Math.ceil((MISSION_CD - (now - (pet.lastMission||0))) / 60000);
-      return message.reply(`${pet.emoji} **${pet.name}** is resting after the last mission. Ready in **${left} min**.`);
-    }
-
-    const stats = calcPetStats(pet);
-    const intel = stats.intelligence || 1;
-    const pType = PET_TYPES[pet.type] || {};
-
-    // Missions scale with level + intelligence
-    const MISSIONS = [
-      { name:'🌲 Scout the Forest',    minLvl:1,  xp:30,  tokenMin:2, tokenMax:4  },
-      { name:'🏙️ Patrol the Streets',  minLvl:3,  xp:50,  tokenMin:3, tokenMax:6  },
-      { name:'🏦 Bank Recon',          minLvl:5,  xp:80,  tokenMin:5, tokenMax:9  },
-      { name:'🌉 Cross the Bridge',    minLvl:8,  xp:120, tokenMin:7, tokenMax:12 },
-      { name:'🗡️ Gang Turf Raid',     minLvl:12, xp:180, tokenMin:10, tokenMax:18 },
-      { name:'🔥 Boss Encounter',      minLvl:18, xp:260, tokenMin:15, tokenMax:25 },
-    ];
-    const available = MISSIONS.filter(m => pet.level >= m.minLvl);
-    const mission   = available[available.length - 1]; // best available
-
-    // Success chance scales with intelligence (50% base + 5% per intel above 1)
-    const successChance = Math.min(0.95, 0.50 + (intel - 1) * 0.05);
-    const success = Math.random() < successChance;
-
-    if (!success) {
-      // Mission failed — small XP, no tokens
-      const failXp = Math.floor(mission.xp * 0.15);
-      pet.xp = (pet.xp||0) + failXp;
-      pet.hunger = Math.max(0, (pet.hunger||100) - 20);
-      pet.lastMission = now;
-      if (pet.xp >= xpForLevel(pet.level)) { pet.xp -= xpForLevel(pet.level); pet.level++; }
-      savePet(message.author.id, pet);
-      return message.reply({ embeds: [new EmbedBuilder()
-        .setColor(0x888888)
-        .setTitle(`${pet.emoji} Mission Failed`)
-        .setDescription(`**${pet.name}** attempted **${mission.name}** but was driven back.`)
-        .addFields({ name:'XP Gained', value:`+${failXp} XP`, inline:true },{ name:'⭐ Level', value:`Lv${pet.level}`, inline:true })
-        .setFooter({ text:'Better luck next time. Try again in 2 hours.' })
-      ]});
-    }
-
-    // Success — award XP and tokens (tokens scale with intelligence)
-    const tokenBase    = mission.tokenMin + Math.floor(Math.random() * (mission.tokenMax - mission.tokenMin + 1));
-    const tokenEarned  = Math.floor(tokenBase * (1 + (intel - 1) * 0.2));
-    pet.tokens    = (pet.tokens||0) + tokenEarned;
-    pet.xp        = (pet.xp||0) + mission.xp;
-    pet.hunger    = Math.max(0, (pet.hunger||100) - 15);
-    pet.bond      = Math.min(100, (pet.bond||0) + 3);
-    pet.wins      = (pet.wins||0) + 1;
-    pet.lastMission = now;
-    let leveledUp = false;
-    if (pet.xp >= xpForLevel(pet.level)) { pet.xp -= xpForLevel(pet.level); pet.level++; leveledUp = true; }
-    savePet(message.author.id, pet);
-
-    const flavor = (pType.attackFlavor||['completed the mission'])[Math.floor(Math.random()*(pType.attackFlavor?.length||1))];
-    return message.reply({ embeds: [new EmbedBuilder()
-      .setColor(0xff6b35)
-      .setTitle(`${pet.emoji} Mission Complete!`)
-      .setDescription(`**${pet.name}** ${flavor} on **${mission.name}**!`)
-      .addFields(
-        { name:'🪙 Tokens Earned', value:`+${tokenEarned} (Total: ${pet.tokens})`, inline:true },
-        { name:'✨ XP',            value:`+${mission.xp} XP`,                      inline:true },
-        { name:'⭐ Level',         value:leveledUp ? `**LEVEL UP → ${pet.level}!** 🎉` : `Lv${pet.level}`, inline:true },
-      )
-      .setFooter({ text:`🧠 Intelligence Lv${intel} boosted your token payout!` })
-    ]});
-  }
-
-  // ---- petupgrade ----
-  if (commandName === 'petupgrade' || commandName === 'pu') {
-    if (needsAccount()) return;
-    const { getPet, savePet, calcPetStats } = require('./utils/petDb');
-    const pet  = getPet(message.author.id);
-    if (!pet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
-
-    const stat = args[0]?.toLowerCase();
-    const UPGRADE_COSTS = { health: 5, defense: 8, intelligence: 10 };
-    const STAT_MAP      = { health: 'power', defense: 'defense', intelligence: 'intelligence' };
-
-    if (!stat || !UPGRADE_COSTS[stat]) {
-      const stats = calcPetStats(pet);
-      const upgrades = pet.upgrades || {};
-      return message.reply({ embeds: [new EmbedBuilder()
-        .setColor(0xf5c518)
-        .setTitle(`🛠️ ${pet.emoji} ${pet.name} — Upgrades`)
-        .setDescription(`You have **${pet.tokens||0} 🪙 Pet Tokens**.\nEarn more by sending your pet on missions with \`${prefix}petmission\`.`)
-        .addFields(
-          { name:'❤️ Health (power)', value:`+${upgrades.power||0} pts · **5 tokens/upgrade**`, inline:true },
-          { name:'🛡️ Defense',       value:`+${upgrades.defense||0} pts · **8 tokens/upgrade**`, inline:true },
-          { name:'🧠 Intelligence',   value:`+${upgrades.intelligence||0} pts · **10 tokens/upgrade**`, inline:true },
-        )
-        .setFooter({ text:`Usage: ${prefix}petupgrade <health|defense|intelligence>` })
-      ]});
-    }
-
-    const cost = UPGRADE_COSTS[stat];
-    if ((pet.tokens||0) < cost) return message.reply(`❌ Need **${cost} 🪙 tokens** for this upgrade. You have **${pet.tokens||0}**.`);
-
-    pet.tokens = (pet.tokens||0) - cost;
-    if (!pet.upgrades) pet.upgrades = {};
-    pet.upgrades[stat === 'health' ? 'power' : stat] = (pet.upgrades[stat === 'health' ? 'power' : stat] || 0) + 1;
-    savePet(message.author.id, pet);
-
-    const stats = calcPetStats(pet);
-    const statDisplay = { health:`❤️ Power now ${stats.power}`, defense:`🛡️ Defense now ${stats.defense}`, intelligence:`🧠 Intelligence now ${stats.intelligence||1}` };
-    return message.reply(`✅ **${pet.name}** upgraded **${stat}**! ${statDisplay[stat]} · 🪙 ${pet.tokens} tokens left.`);
-  }
-
-  // ---- petguard (toggle guard mode) ----
-  if (commandName === 'petguard' || commandName === 'guard') {
-    if (needsAccount()) return;
-    const { getPet, savePet, calcPetStats } = require('./utils/petDb');
-    const pet = getPet(message.author.id);
-    if (!pet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
-    pet.guardMode = !pet.guardMode;
-    savePet(message.author.id, pet);
-    if (pet.guardMode) {
-      const stats = calcPetStats(pet);
-      return message.reply({ embeds: [new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`🛡️ ${pet.emoji} ${pet.name} — Guard Mode ON`)
-        .setDescription(`**${pet.name}** is now protecting you.\nWhen someone tries to drain, silence, or rob you, your pet will fight back automatically!`)
-        .addFields(
-          { name:'⚔️ Counter-Attack Power', value:stats.power.toString(), inline:true },
-          { name:'🛡️ Defense Rating',       value:stats.defense.toString(), inline:true },
-        )
-        .setFooter({ text:`Use ${prefix}petguard again to turn guard mode off` })
-      ]});
-    } else {
-      return message.reply(`😴 **${pet.name}** has stood down from guard duty.`);
-    }
+    const now = Date.now(), PLAY_CD = 60*60*1000;
+    if (now - (pet.lastPlayed||0) < PLAY_CD) return message.reply(`${pet.emoji} **${pet.name}** is tired! Wait **${Math.ceil((PLAY_CD-(now-(pet.lastPlayed||0)))/60000)} minutes**.`);
+    const bondGain = 2 + Math.floor(Math.random()*4);
+    pet.happiness = Math.min(100,(pet.happiness||100)+20);
+    pet.bond = Math.min(100,(pet.bond||0)+bondGain);
+    pet.lastPlayed = now; pet.xp=(pet.xp||0)+15;
+    require('./utils/petDb').savePet(message.author.id, pet);
+    return message.reply(`${pet.emoji} **${pet.name}** had a blast! 💕 Happiness: ${pet.happiness}/100 · Bond: ${pet.bond}/100 · +15 XP`);
   }
 
   // ---- petheal ----
@@ -993,36 +850,29 @@ client.on('messageCreate', async (message) => {
     const { getPet, savePet, calcPetStats, xpForLevel } = require('./utils/petDb');
     const myPet = getPet(message.author.id);
     if (!myPet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
-    if ((myPet.hunger||100) < 20) return message.reply(`${myPet.emoji} **${myPet.name}** is too hungry to fight! Use \`${prefix}petfeed\` first.`);
+    if ((myPet.hunger||100) < 20 || (myPet.happiness||100) < 20) return message.reply(`${myPet.emoji} **${myPet.name}** is too hungry or unhappy to fight! Feed and play with it first.`);
     const myStats  = calcPetStats(myPet);
     const { PET_TYPES } = require('./utils/petDb');
     const pType    = PET_TYPES[myPet.type] || {};
     const victim   = getOrCreateUser(target.id);
     const defPet   = getPet(target.id);
     const defStats = defPet ? calcPetStats(defPet) : null;
-
-    // Guard mode counter-attack: target's pet fights back if guard is on
-    if (defPet && defPet.guardMode && (defPet.hp||defStats.hp) > 0 && defStats) {
-      const defWins = Math.random() < (defStats.defense / (defStats.defense + myStats.power));
-      const dmg     = Math.floor(defStats.power * (0.25 + Math.random() * 0.25));
-      myPet.hp      = Math.max(0,(myPet.hp||myStats.hp) - dmg);
-      savePet(message.author.id, myPet);
-      if (defWins) {
-        return message.reply({ embeds: [new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle(`🛡️ ${defPet.emoji} Guard Dog Activated!`)
-          .setDescription(`${defPet.emoji} **${defPet.name}** defended <@${target.id}> and struck back for **${dmg} damage**!\n${myPet.emoji} ${myPet.name}: ${myPet.hp}/${myStats.hp} HP`)
-          .setFooter({ text:'Attack repelled — target was unharmed.' })
-        ]});
+    // Defense check
+    if (defPet && (defPet.hp||defStats.hp) > 0 && defStats) {
+      if (Math.random() * (defStats.defense + myStats.power) > Math.random() * myStats.power * 1.5) {
+        const dmg = Math.floor(defStats.power * 0.3);
+        myPet.hp  = Math.max(0,(myPet.hp||myStats.hp)-dmg);
+        savePet(message.author.id, myPet);
+        return message.reply(`${defPet.emoji} **${defPet.name}** blocked the attack and hit back for **${dmg} damage**! ${myPet.emoji} ${myPet.name}: ${myPet.hp}/${myStats.hp} HP`);
       }
     }
-
     const stolen = Math.floor(victim.wallet * Math.min(0.3, 0.05 + myStats.power/1000));
     if (stolen < 1) return message.reply(`${myPet.emoji} **${myPet.name}** attacked but <@${target.id}> had nothing to steal.`);
     victim.wallet -= stolen;
     const owner    = getOrCreateUser(message.author.id);
     owner.wallet  += stolen;
     myPet.hunger   = Math.max(0,(myPet.hunger||100)-15);
+    myPet.happiness= Math.max(0,(myPet.happiness||100)-10);
     myPet.xp       = (myPet.xp||0)+25; myPet.wins=(myPet.wins||0)+1;
     if (myPet.xp >= xpForLevel(myPet.level)) { myPet.xp -= xpForLevel(myPet.level); myPet.level++; }
     saveUser(target.id, victim); saveUser(message.author.id, owner); savePet(message.author.id, myPet);
@@ -1219,63 +1069,21 @@ client.on('messageCreate', async (message) => {
     const gun = getGunById(gunEntry.gunId);
     if (!gun) return message.reply('❌ Your weapon is invalid.');
     if ((gunEntry.ammo||0) <= 0) return message.reply(`📭 **${gun.name}** is out of ammo! Buy more guns from \`${prefix}gunshop\`.`);
-
-    // ── Auto-switch burst: fire 3 rounds, pick best hit ──
-    const hasSwitch = gunEntry.hasAutoSwitch === true || gun.hasAutoSwitch === true;
-    const shots     = hasSwitch ? 3 : 1;
-    let ammoUsed = 0, bestDamage = 0, bestOutcome = 'miss', hitOccurred = false;
-
-    for (let s = 0; s < shots; s++) {
-      if ((gunEntry.ammo - ammoUsed) <= 0) break;
-      ammoUsed++;
-      const hitRoll = Math.random() < (hasSwitch ? gun.accuracy * 0.85 : gun.accuracy); // slight accuracy penalty on full-auto
-      if (!hitRoll) continue;
-      const critRoll = Math.random() < (hasSwitch ? 0.12 : 0.20);
-      let dmg = gun.damage[0] + Math.floor(Math.random() * (gun.damage[1] - gun.damage[0]));
-      if (critRoll) dmg = Math.floor(dmg * 1.75);
-      if (dmg > bestDamage) {
-        bestDamage  = dmg;
-        hitOccurred = true;
-        bestOutcome = dmg < 15 ? 'graze' : critRoll ? 'critical' : 'hit';
-      }
-    }
-    // On auto-switch burst with no hit, fire extra — still possible to miss all 3
-    const damage     = bestDamage;
-    const outcomeType_pre = hitOccurred ? bestOutcome : 'miss';
-
-    gunEntry.ammo = Math.max(0, gunEntry.ammo - ammoUsed);
+    gunEntry.ammo--;
     saveGunInventory(message.author.id, inv);
 
-    // ── Guard dog interception ──
-    const { getPet, savePet, calcPetStats } = require('./utils/petDb');
-    const defPet   = getPet(target.id);
-    const defStats = defPet ? calcPetStats(defPet) : null;
-    let guardBlocked = false;
-    if (defPet && defPet.guardMode && (defPet.hp||defStats.hp) > 0 && hitOccurred) {
-      // Pet absorbs a portion of the shot based on defense stat
-      const absorbChance = Math.min(0.75, defStats.defense / (defStats.defense + 50));
-      if (Math.random() < absorbChance) {
-        guardBlocked = true;
-        const petDmg = Math.floor(damage * 0.6);
-        defPet.hp    = Math.max(0, (defPet.hp || defStats.hp) - petDmg);
-        savePet(target.id, defPet);
-        const hpBarPet = '█'.repeat(Math.floor(defPet.hp/10))+'░'.repeat(10-Math.floor(defPet.hp/10));
-        return message.reply({ embeds: [new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle(`🛡️ ${defPet.emoji} Guard Dog Blocked the Shot!`)
-          .setDescription(`${defPet.emoji} **${defPet.name}** jumped in front of <@${target.id}> and took the hit!\n📦 ${ammoUsed} round(s) fired.`)
-          .addFields(
-            { name:'Pet HP',      value:`[${hpBarPet}] ${defPet.hp}/${defStats.hp}`, inline:true },
-            { name:'📦 Your Ammo', value:`${gunEntry.ammo} rounds`, inline:true },
-          )
-        ]});
-      }
+    const hit  = Math.random() < gun.accuracy;
+    const crit = hit && Math.random() < 0.20;
+    let damage = 0, outcomeType = 'miss';
+    if (hit) {
+      damage = gun.damage[0] + Math.floor(Math.random()*(gun.damage[1]-gun.damage[0]));
+      if (crit) damage = Math.floor(damage*1.75);
+      outcomeType = damage < 15 ? 'graze' : crit ? 'critical' : 'hit';
     }
 
-    // ── Resolve damage ──
     const targetHealth = getHealth(target.id);
     let newHp = Math.max(0, (targetHealth.hp||MAX_HP) - damage);
-    let died  = false, outcomeType = outcomeType_pre;
+    let died  = false;
     if (damage > 0 && newHp <= 0) { died=true; outcomeType='kill'; newHp=0; targetHealth.deathCount=(targetHealth.deathCount||0)+1; targetHealth.hospitalUntil=Date.now()+15*60*1000; }
     targetHealth.hp=newHp; targetHealth.status=died?'dead':newHp<=20?'critical':newHp<=50?'injured':'alive';
     saveHealth(target.id, targetHealth);
@@ -1283,44 +1091,25 @@ client.on('messageCreate', async (message) => {
     const { addHeat: ah } = require('./utils/police');
     if (!isPurgeActive()) ah(message.author.id, died?40:damage>30?20:8, 'shooting');
 
-    // ── Money loss on hit: scales with damage dealt ──
-    let moneyLost = 0, stolen = 0;
-    if (damage > 0) {
-      const victim = getOrCreateUser(target.id);
-      if (died) {
-        // Kill: loot 25% wallet (existing behaviour)
-        stolen = Math.floor(victim.wallet * 0.25);
-        victim.wallet = Math.max(0, victim.wallet - stolen);
-        const shooter = getOrCreateUser(message.author.id);
-        shooter.wallet += stolen;
-        saveUser(message.author.id, shooter);
-      } else {
-        // Hit but alive: lose money proportional to damage (1% of total balance per 10 damage)
-        const total = (victim.wallet||0) + (victim.bank||0);
-        moneyLost   = Math.max(1, Math.floor(total * (damage / 1000)));  // ~1% per 10 dmg at MAX_HP=100
-        victim.wallet = Math.max(0, victim.wallet - moneyLost);
-      }
-      saveUser(target.id, victim);
+    let stolen=0;
+    if (died) {
+      const victim=getOrCreateUser(target.id); stolen=Math.floor(victim.wallet*0.25); victim.wallet=Math.max(0,victim.wallet-stolen);
+      const shooter=getOrCreateUser(message.author.id); shooter.wallet+=stolen;
+      saveUser(target.id,victim); saveUser(message.author.id,shooter);
     }
 
     const status  = getStatus(newHp);
     const hpBar   = '█'.repeat(Math.floor(newHp/10))+'░'.repeat(10-Math.floor(newHp/10));
     const msgs    = { miss:['Miss!','Went wide.'], graze:['Graze!','Barely caught them.'], hit:['Hit!','Clean shot.'], critical:['CRITICAL HIT!','Devastating!'], kill:['💀 ELIMINATED!','They\'re down.'] };
     const outcomeMsg = msgs[outcomeType]?.[Math.floor(Math.random()*2)]||'';
-    const switchLabel = hasSwitch ? ` *(Auto-burst · ${ammoUsed} rds)*` : '';
 
     const embed = new EmbedBuilder()
-      .setColor(died?0x111111:!hitOccurred?0x444444:0xff6600)
-      .setTitle(`${gun.emoji} ${outcomeMsg}${switchLabel}`)
-      .setDescription(!hitOccurred
-        ? `**${gun.name}** fired at <@${target.id}> — missed!`
-        : `**${gun.name}** hit <@${target.id}> for **${damage} damage**!`)
-      .addFields(
-        { name:`<@${target.id}> HP`, value:`[${hpBar}] ${newHp}/${MAX_HP} — ${status.label}`, inline:true },
-        { name:'📦 Ammo',            value:`${gunEntry.ammo} rounds`, inline:true },
-      );
-    if (moneyLost > 0) embed.addFields({ name:'💸 Money Lost', value:`-$${moneyLost.toLocaleString()}`, inline:true });
-    if (died && stolen > 0) embed.addFields({ name:'💰 Looted', value:`$${stolen.toLocaleString()}`, inline:true });
+      .setColor(died?0x111111:!hit?0x444444:0xff6600)
+      .setTitle(`${gun.emoji} ${outcomeMsg}`)
+      .setDescription(!hit ? `**${gun.name}** fired at <@${target.id}> — missed!` : `**${gun.name}** hit <@${target.id}> for **${damage} damage**!`)
+      .addFields({ name:`<@${target.id}> HP`, value:`[${hpBar}] ${newHp}/${MAX_HP} — ${status.label}`, inline:true },
+                 { name:'📦 Ammo', value:`${gunEntry.ammo} rounds`, inline:true });
+    if (died && stolen>0) embed.addFields({ name:'💰 Looted', value:`$${stolen.toLocaleString()}`, inline:true });
     return message.reply({ embeds:[embed] });
   }
 
@@ -1421,10 +1210,7 @@ function tickStockPrices() {
   stockFs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
 }
 
-// Safe default initializers — create files with valid JSON if missing
-if (!stockFs.existsSync(PRICES_FILE))  stockFs.writeFileSync(PRICES_FILE,  JSON.stringify({}), 'utf8');
-if (!stockFs.existsSync(HISTORY_FILE)) stockFs.writeFileSync(HISTORY_FILE, JSON.stringify({}), 'utf8');
-tickStockPrices();
+if (!stockFs.existsSync(PRICES_FILE)) tickStockPrices();
 setInterval(tickStockPrices, 10_000);
 
 // ---- LOTTERY TICK ENGINE ----

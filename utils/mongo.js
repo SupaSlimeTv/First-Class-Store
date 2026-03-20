@@ -31,10 +31,12 @@ async function col(name) {
 }
 
 // Per-server collection (scoped to a guild)
+// Falls back to GUILD_ID env var so tick engines don't need to pass it
 async function guildCol(name, guildId) {
-  if (!guildId) throw new Error(`guildCol called without guildId for collection: ${name}`);
+  const id = guildId || process.env.GUILD_ID;
+  if (!id) throw new Error(`guildCol called without guildId for collection: ${name}`);
   const database = await connect();
-  return database.collection(`${name}_${guildId}`);
+  return database.collection(`${name}_${id}`);
 }
 
 module.exports = { connect, col, guildCol };
