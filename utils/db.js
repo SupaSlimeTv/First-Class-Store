@@ -1,13 +1,39 @@
 // ============================================================
-// utils/db.js — Multi-Server MongoDB Edition
-// Users, wallet, bank, inventory = GLOBAL (no guildId)
-// Config, store = per-server for config, GLOBAL for store
+// utils/db.js — JSON "Database" Manager
+// All economy data is stored in data/users.json
+// All server config (purge state, mod roles) in data/config.json
+// Item store data in data/store.json
 //
-// IMPORTANT: Every async function has a sync cache-backed
-// wrapper so existing commands work without await.
+// TEACHES: fs module, JSON.parse/stringify, error handling,
+//          default values, object destructuring
 // ============================================================
 
-const { col, guildCol } = require('./mongo');
+const fs = require('fs');
+const path = require('path');
+
+const USERS_FILE  = path.join(__dirname, '../data/users.json');
+const CONFIG_FILE = path.join(__dirname, '../data/config.json');
+const STORE_FILE  = path.join(__dirname, '../data/store.json');
+
+// ---- HELPERS: Read & Write JSON files ----
+
+function readJSON(filePath, defaultValue = {}) {
+  try {
+    // If file doesn't exist yet, return the default
+    if (!fs.existsSync(filePath)) return defaultValue;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return defaultValue;
+  }
+}
+
+function writeJSON(filePath, data) {
+  // null, 2 = pretty-print with 2-space indentation (readable JSON)
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+// ---- USER DATA ----
 
 const DEFAULT_USER = {
   wallet: 500,
@@ -17,8 +43,84 @@ const DEFAULT_USER = {
   bannedUntil: null,
   hitmanCount: 0,
   roleIncomeCooldowns: {},
-  accountOpen: true,
+  accountOpen: true, // false = user hasn't opened an account yet
 };
+
+/**
+ * Get a user's data — returns null if they haven't opened an account yet.
+ * @param {string} userId - Discord user ID
+ */
+function getUser(userId) {
+  const users = readJSON(USERS_FILE);
+  if (!users[userId]) return null;
+  // Backfill accountOpen for existing users
+  if (users[userId].accountOpen === undefined) {
+    users[userId].accountOpen = true;
+    writeJSON(USERS_FILE, users);
+  }
+  return users[userId];
+}
+
+/**
+ * Get or create a user — used internally where we always need a user object.
+ * Only call this after confirming the user has an account.
+ */
+function getOrCreateUser(userId) {
+  const users = readJSON(USERS_FILE);
+  if (!users[userId]) {
+    users[userId] = { ...DEFAULT_USER };
+    writeJSON(USERS_FILE, users);
+  }
+  if (users[userId].accountOpen === undefined) {
+    users[userId].accountOpen = true;
+    writeJSON(USERS_FILE, users);
+  }
+  return users[userId];
+}
+
+/**
+ * Open a new account for a user — called when they type "open account"
+ */
+function openAccount(userId) {
+  const users = readJSON(USERS_FILE);
+  if (users[userId]) return false; // already exists
+  users[userId] = { ...DEFAULT_USER, accountOpen: true };
+  writeJSON(USERS_FILE, users);
+  return true;
+}
+
+/**
+ * Check if a user has an account
+ */
+function hasAccount(userId) {
+  const users = readJSON(USERS_FILE);
+  return !!users[userId];
+}
+
+/**
+ * Save updated data for a single user
+ */
+function saveUser(userId, data) {
+  const users = readJSON(USERS_FILE);
+  users[userId] = data;
+  writeJSON(USERS_FILE, users);
+}
+
+/**
+ * Get ALL users (used for purge — need to loop everyone)
+ */
+function getAllUsers() {
+  return readJSON(USERS_FILE);
+}
+
+/**
+ * Save ALL users at once (used for bulk purge operation)
+ */
+function saveAllUsers(data) {
+  writeJSON(USERS_FILE, data);
+}
+
+// ---- SERVER CONFIG ----
 
 const DEFAULT_CONFIG = {
   purgeActive: false,
@@ -30,250 +132,175 @@ const DEFAULT_CONFIG = {
   robCooldownMinutes: 5,
   protectedRoles: [],
   purgeChannelId: null,
-  lottery: { active: true, ticketPrice: 100, intervalHours: 24 },
+  lottery: {
+    active:        true,
+    ticketPrice:   100,
+    intervalHours: 24,
+  },
 };
 
-// ── IN-MEMORY CACHE ───────────────────────────────────────────
-// Keeps a hot copy of users and config so sync callers work.
-// Writes go to both cache and Mongo immediately.
-
-const _userCache   = new Map(); // userId  → user object
-const _configCache = new Map(); // guildId → config object
-let   _storeCache  = null;
-
-// Seed the config cache on startup using GUILD_ID
-const DEFAULT_GUILD = process.env.GUILD_ID;
-
-// ── ASYNC INIT (call once at startup) ─────────────────────────
-async function init() {
-  try {
-    if (DEFAULT_GUILD) {
-      const c   = await guildCol('config', DEFAULT_GUILD);
-      const doc = await c.findOne({ _id: 'config' });
-      _configCache.set(DEFAULT_GUILD, { ...DEFAULT_CONFIG, ...(doc || {}), guildId: DEFAULT_GUILD });
-    }
-    const sc   = await col('store');
-    const sdoc = await sc.findOne({ _id: 'store' });
-    _storeCache = sdoc || { _id: 'store', items: [] };
-    console.log('✅ db cache seeded');
-  } catch(e) {
-    console.error('db init error (non-fatal):', e.message);
-  }
+function getConfigFile(guildId) {
+  const id = guildId || process.env.GUILD_ID || 'default';
+  return path.join(__dirname, `../data/config_${id}.json`);
 }
 
-// ── USERS (GLOBAL) ────────────────────────────────────────────
-
-// SYNC — returns cached user or a default (used by prefix commands and tick engines)
-function getUser(userId) {
-  return _userCache.get(userId) || null;
-}
-
-// SYNC — returns cached user or creates a default in cache (does NOT await Mongo write)
-function getOrCreateUser(userId) {
-  if (_userCache.has(userId)) return _userCache.get(userId);
-  const newUser = { _id: userId, ...DEFAULT_USER };
-  _userCache.set(userId, newUser);
-  // Fire-and-forget persist
-  col('users').then(c => c.updateOne({ _id: userId }, { $setOnInsert: newUser }, { upsert: true })).catch(() => {});
-  return newUser;
-}
-
-// SYNC — saves to cache and fires async persist
-function saveUser(userId, data) {
-  _userCache.set(userId, { ...data, _id: userId });
-  col('users').then(c => {
-    const { _id, ...rest } = data;
-    return c.updateOne({ _id: userId }, { $set: rest }, { upsert: true });
-  }).catch(() => {});
-}
-
-// SYNC — returns all cached users (may not have ALL users if cache hasn't loaded them)
-function getAllUsers() {
-  return Object.fromEntries(_userCache.entries());
-}
-
-// ASYNC — loads a user from Mongo into cache, then returns it
-async function loadUser(userId) {
-  const c    = await col('users');
-  const doc  = await c.findOne({ _id: userId });
-  const user = doc || { _id: userId, ...DEFAULT_USER };
-  _userCache.set(userId, user);
-  return user;
-}
-
-// ASYNC — loads ALL users from Mongo into cache
-async function loadAllUsers() {
-  const c    = await col('users');
-  const docs = await c.find({}).toArray();
-  for (const d of docs) _userCache.set(d._id, d);
-  return Object.fromEntries(_userCache.entries());
-}
-
-// SYNC — open account
-function openAccount(userId) {
-  if (_userCache.has(userId)) return false;
-  const newUser = { _id: userId, ...DEFAULT_USER, accountOpen: true };
-  _userCache.set(userId, newUser);
-  col('users').then(c => c.insertOne(newUser)).catch(() => {});
-  return true;
-}
-
-// SYNC — check if account exists in cache
-function hasAccount(userId) {
-  return _userCache.has(userId);
-}
-
-// ── CONFIG (PER-SERVER) ───────────────────────────────────────
-
-// SYNC — returns cached config (falls back to DEFAULT_CONFIG)
 function getConfig(guildId) {
-  const id = guildId || DEFAULT_GUILD;
-  if (_configCache.has(id)) return _configCache.get(id);
-  // Not in cache yet — return default and trigger async load
-  const def = { ...DEFAULT_CONFIG, guildId: id };
-  _configCache.set(id, def);
-  if (id) {
-    guildCol('config', id).then(c => c.findOne({ _id: 'config' })).then(doc => {
-      if (doc) _configCache.set(id, { ...DEFAULT_CONFIG, ...doc, guildId: id });
-    }).catch(() => {});
+  // Try guild-specific file first
+  const guildFile = getConfigFile(guildId);
+  if (fs.existsSync(guildFile)) {
+    const config = readJSON(guildFile);
+    return { ...DEFAULT_CONFIG, ...config };
   }
-  return def;
+  // Fall back to legacy config.json (migrates old data automatically)
+  const legacy = readJSON(CONFIG_FILE);
+  if (Object.keys(legacy).length && guildId) {
+    // Migrate legacy config to guild-specific file on first read
+    writeJSON(guildFile, legacy);
+  }
+  return { ...DEFAULT_CONFIG, ...legacy };
 }
 
-// SYNC — saves config to cache and fires async persist
 function saveConfig(guildId, data) {
-  const id = guildId || DEFAULT_GUILD;
-  _configCache.set(id, { ...data, guildId: id });
-  guildCol('config', id).then(c => {
-    const { _id, guildId: _gid, ...rest } = data;
-    return c.updateOne({ _id: 'config' }, { $set: rest }, { upsert: true });
-  }).catch(() => {});
+  // Support both saveConfig(guildId, data) and old saveConfig(data)
+  if (typeof guildId === 'object') { data = guildId; guildId = null; }
+  writeJSON(getConfigFile(guildId), data);
+  // Also keep legacy file in sync for backwards compat
+  if (!guildId || guildId === process.env.GUILD_ID) writeJSON(CONFIG_FILE, data);
 }
 
-// ASYNC versions (for slash commands that can await)
-async function getConfigAsync(guildId) {
-  const id  = guildId || DEFAULT_GUILD;
-  const c   = await guildCol('config', id);
-  const doc = await c.findOne({ _id: 'config' });
-  const cfg = { ...DEFAULT_CONFIG, ...(doc || {}), guildId: id };
-  _configCache.set(id, cfg);
-  return cfg;
-}
+// ---- ECONOMY HELPERS ----
 
-async function saveConfigAsync(guildId, data) {
-  const id = guildId || DEFAULT_GUILD;
-  _configCache.set(id, { ...data, guildId: id });
-  const c = await guildCol('config', id);
-  const { _id, guildId: _gid, ...rest } = data;
-  await c.updateOne({ _id: 'config' }, { $set: rest }, { upsert: true });
-}
-
-// ── STORE (GLOBAL) ────────────────────────────────────────────
-
-// SYNC — returns cached store
-function getStore() {
-  if (_storeCache) return _storeCache;
-  const def = { _id: 'store', items: [] };
-  _storeCache = def;
-  col('store').then(c => c.findOne({ _id: 'store' })).then(doc => {
-    if (doc) _storeCache = doc;
-  }).catch(() => {});
-  return def;
-}
-
-// SYNC — saves store to cache and fires async persist
-function saveStore(data) {
-  _storeCache = data;
-  col('store').then(c => {
-    const { _id, ...rest } = data;
-    return c.updateOne({ _id: 'store' }, { $set: rest }, { upsert: true });
-  }).catch(() => {});
-}
-
-// ── ECONOMY HELPERS ───────────────────────────────────────────
-
+/**
+ * Add money to a user's wallet
+ */
 function addToWallet(userId, amount) {
-  const user = getOrCreateUser(userId);
+  const user = getUser(userId);
   user.wallet += amount;
   saveUser(userId, user);
   return user;
 }
 
+/**
+ * Transfer money from wallet to bank
+ */
 function deposit(userId, amount) {
-  const user = getOrCreateUser(userId);
+  const user = getUser(userId);
   if (amount > user.wallet) throw new Error('Not enough money in wallet.');
   user.wallet -= amount;
-  user.bank   += amount;
+  user.bank += amount;
   saveUser(userId, user);
   return user;
 }
 
+/**
+ * Transfer money from bank to wallet
+ */
 function withdraw(userId, amount) {
-  const user = getOrCreateUser(userId);
+  const user = getUser(userId);
   if (amount > user.bank) throw new Error('Not enough money in bank.');
-  user.bank   -= amount;
+  user.bank -= amount;
   user.wallet += amount;
   saveUser(userId, user);
   return user;
 }
 
+/**
+ * Check if purge is currently active
+ */
 function isPurgeActive(guildId) {
-  return getConfig(guildId).purgeActive;
+  return !!getConfig(guildId).purgeActive;
 }
 
-// ── INVENTORY (GLOBAL) ────────────────────────────────────────
+// ---- ITEM STORE ----
 
+const DEFAULT_STORE = {
+  items: [
+    {
+      id: 'hitman',
+      name: '🔫 Hitman',
+      description: 'Deploy against a user — rob 50% of their balance OR silence them for 24h. Fails = you lose 50% as karma.',
+      price: 2500,
+      type: 'useable',
+      reusable: false,
+      roleReward: null,
+      effect: {
+        type: 'hitman',
+        action: 'rob', // 'rob' or 'silence' — set per item
+      },
+      requirements: null,
+      enabled: true,
+    },
+  ],
+};
+
+function getStore() {
+  const store = readJSON(STORE_FILE);
+  if (!store.items) return DEFAULT_STORE;
+  return store;
+}
+
+function saveStore(data) {
+  writeJSON(STORE_FILE, data);
+}
+
+// ---- INVENTORY HELPERS ----
+
+/**
+ * Add an item to a user's inventory
+ */
 function giveItem(userId, itemId) {
-  const user = getOrCreateUser(userId);
+  const user = getUser(userId);
   if (!user.inventory) user.inventory = [];
   user.inventory.push(itemId);
   saveUser(userId, user);
-  col('users').then(c => c.updateOne({ _id: userId }, { $push: { inventory: itemId } }, { upsert: true })).catch(() => {});
+  return user;
 }
 
+/**
+ * Remove one instance of an item from inventory (returns false if not found)
+ */
 function removeItem(userId, itemId) {
   const user = getUser(userId);
-  if (!user?.inventory) return false;
+  if (!user.inventory) return false;
   const idx = user.inventory.indexOf(itemId);
   if (idx === -1) return false;
-  user.inventory.splice(idx, 1);
+  user.inventory.splice(idx, 1); // splice(index, deleteCount) — removes 1 item at idx
   saveUser(userId, user);
   return true;
 }
 
+/**
+ * Check if a user is currently bot-banned by hitman
+ */
 function isBotBanned(userId) {
   const user = getUser(userId);
-  if (!user?.bannedUntil) return false;
+  if (!user.bannedUntil) return false;
   if (Date.now() > user.bannedUntil) {
-    saveUser(userId, { ...user, bannedUntil: null });
+    // Ban expired — clear it
+    user.bannedUntil = null;
+    saveUser(userId, user);
     return false;
   }
   return true;
 }
 
-// ── STARTUP: pre-load all users + config into cache ──────────
-// Called from index.js after client is ready
-async function preloadCache() {
-  try {
-    await loadAllUsers();
-    if (DEFAULT_GUILD) await getConfigAsync(DEFAULT_GUILD);
-    const sc   = await col('store');
-    const sdoc = await sc.findOne({ _id: 'store' });
-    if (sdoc) _storeCache = sdoc;
-    console.log(`✅ Cache loaded: ${_userCache.size} users`);
-  } catch(e) {
-    console.error('preloadCache error:', e.message);
-  }
-}
-
 module.exports = {
-  // Sync (used by existing commands + tick engines)
-  getUser, getOrCreateUser, openAccount, hasAccount, saveUser,
-  getAllUsers, getConfig, saveConfig, getStore, saveStore,
-  addToWallet, deposit, withdraw, isPurgeActive,
-  giveItem, removeItem, isBotBanned,
-  // Async (for slash commands that can await)
-  loadUser, loadAllUsers, getConfigAsync, saveConfigAsync,
-  // Startup
-  preloadCache, init,
+  getUser,
+  getOrCreateUser,
+  openAccount,
+  hasAccount,
+  saveUser,
+  getAllUsers,
+  saveAllUsers,
+  getConfig,
+  saveConfig,
+  addToWallet,
+  deposit,
+  withdraw,
+  isPurgeActive,
+  getStore,
+  saveStore,
+  giveItem,
+  removeItem,
+  isBotBanned,
 };

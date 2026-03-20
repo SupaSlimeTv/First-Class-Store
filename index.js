@@ -58,9 +58,23 @@ client.once('ready', async () => {
   console.log(`📦 Loaded ${client.commands.size} slash commands\n`);
   client.user.setActivity('/help for commands', { type: 3 });
   // Pre-load all users and config into memory cache
-  // so sync callers (tick engines, prefix commands) work without await
   const { preloadCache } = require('./utils/db');
   await preloadCache();
+
+  // ── Clean up corrupt business records (undefined name/type) ──
+  try {
+    const bizDb = require('./utils/bizDb');
+    const all   = bizDb.getAllBusinesses();
+    let cleaned = 0;
+    for (const [ownerId, biz] of Object.entries(all)) {
+      if (!biz.name || !biz.type || biz.type === 'undefined' || biz.name === 'undefined') {
+        bizDb.deleteBusiness(ownerId);
+        cleaned++;
+        console.log(`🧹 Removed corrupt business for user ${ownerId}`);
+      }
+    }
+    if (cleaned) console.log(`🧹 Cleaned ${cleaned} corrupt business record(s)`);
+  } catch(e) { console.error('Business cleanup error:', e.message); }
 });
 
 // ---- NEW MEMBER JOIN — notify them to open an account ----
@@ -1166,43 +1180,43 @@ client.on('messageCreate', async (message) => {
 });
 
 // ---- PURGE WATCHER ----
-// Checks every 5 seconds if purge state changed via dashboard
-// and sends @everyone announcement when it does
-let lastPurgeState = null;
+// Checks every 5 seconds if purge state changed for ANY guild
+// and sends @everyone announcement in that guild's channel
+const lastPurgeStates = new Map(); // guildId -> last known purge state
+
 setInterval(async () => {
   try {
     const { getConfig } = require('./utils/db');
-    const config = getConfig();
-    const currentState = config.purgeActive;
-
-    // Only act on a change
-    if (lastPurgeState === null) { lastPurgeState = currentState; return; }
-    if (currentState === lastPurgeState) return;
-    lastPurgeState = currentState;
-
-    // Find announcement channel
-    const channelId = config.purgeChannelId;
-    if (!channelId) return;
-    const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (!channel) return;
-
     const { purgeEmbed } = require('./utils/embeds');
-    if (currentState) {
-      // Purge started from dashboard
+
+    // Iterate every guild the bot is in
+    for (const [guildId] of client.guilds.cache) {
+      const config       = getConfig(guildId);
+      const currentState = !!config.purgeActive;
+      const lastState    = lastPurgeStates.get(guildId);
+
+      // First tick — just record state, don't announce
+      if (lastState === undefined) { lastPurgeStates.set(guildId, currentState); continue; }
+
+      // No change
+      if (currentState === lastState) continue;
+
+      // State changed — update and announce
+      lastPurgeStates.set(guildId, currentState);
+
+      const channelId = config.purgeChannelId;
+      if (!channelId) continue;
+
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (!channel) continue;
+
       await channel.send({
         content: '@everyone',
-        embeds: [purgeEmbed(true)],
-        allowedMentions: { parse: ['everyone'] },
-      });
-    } else {
-      // Purge ended from dashboard
-      await channel.send({
-        content: '@everyone',
-        embeds: [purgeEmbed(false)],
+        embeds: [purgeEmbed(currentState)],
         allowedMentions: { parse: ['everyone'] },
       });
     }
-  } catch { /* silent */ }
+  } catch(e) { console.error('Purge watcher error:', e.message); }
 }, 5000);
 
 // ---- PASSIVE INCOME TICK ENGINE ----

@@ -1145,7 +1145,11 @@ tr:hover td{background:rgba(255,255,255,.015)}
               </div>
               <div class="fg">
                 <label class="flabel">Spell Emoji</label>
-                <input class="finput" id="m-magic-emoji" placeholder="✨ 🔮 💀 🌟 ❄️ 🔥">
+                <div style="display:flex;gap:6px;position:relative">
+                  <input class="finput" id="m-magic-emoji" placeholder="✨" maxlength="4" style="flex:1">
+                  <button type="button" onclick="openEmojiPicker()" class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:18px;padding:6px 12px" title="Pick emoji">🎨</button>
+                  <div id="spell-emoji-picker" style="display:none;position:absolute;top:100%;right:0;z-index:999;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px;width:280px;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+                </div>
               </div>
             </div>
             <div class="fg">
@@ -1154,11 +1158,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
             </div>
             <div class="fg">
               <label class="flabel">Target</label>
-              <select class="fselect" id="m-magic-target">
-                <option value="self">🙋 Self — affects the user</option>
+              <select class="fselect" id="m-magic-target" onchange="onMagicTargetChange()">
+                <option value="self">🙋 Self — affects the user who uses the item</option>
                 <option value="target">🎯 Target — affects @mentioned user</option>
                 <option value="random">🎲 Random — picks a random player</option>
+                <option value="ai_entity">🤖 AI Entity — user picks which AI to target</option>
               </select>
+            </div>
+            <div id="magic-target-ai-hint" style="display:none;background:rgba(88,101,242,.1);border:1px solid rgba(88,101,242,.3);border-radius:6px;padding:10px 14px;font-size:12px;color:#a0a8ff;margin-top:-4px">
+              🤖 When used, the player will be prompted to pick one of their target's AI entities. All AI control actions in the chain will apply to that entity.
             </div>
 
             <!-- ACTION CHAIN BUILDER -->
@@ -2785,112 +2793,68 @@ async function saveGun() {
 // ════════════════════════════════════════════════
 let magicActions = [];
 
-const MAGIC_ACTION_DEFS = {
-  drain:        { label:'💸 Drain Money',          emoji:'💸', fields:['pct','from_wallet'] },
-  give:         { label:'💰 Give Money',            emoji:'💰', fields:['amount','to_wallet'] },
-  silence:      { label:'🔇 Silence',               emoji:'🔇', fields:['minutes'] },
-  heat:         { label:'🌡️ Add Police Heat',       emoji:'🌡️', fields:['amount'] },
-  buff:         { label:'✨ Apply Buff',             emoji:'✨', fields:['buffType','strength','minutes'] },
-  xp:           { label:'🐾 Give Pet XP',           emoji:'🐾', fields:['amount'] },
-  msg:          { label:'💬 Flavor Message',         emoji:'💬', fields:['text'] },
-  ai_loyalty:   { label:'🤖 Set AI Loyalty',        emoji:'🤖', fields:['ai_loyalty_val'] },
-  ai_mood:      { label:'😡 Force AI Mood',         emoji:'😡', fields:['ai_mood_val'] },
-  ai_ability:   { label:'⚙️ Toggle AI Ability',     emoji:'⚙️', fields:['ai_ability_name','ai_ability_enable'] },
-  ai_takeover:  { label:'💻 AI Takeover',           emoji:'💻', fields:['minutes'] },
-  ai_wipe:      { label:'🗑️ Wipe AI Memory',        emoji:'🗑️', fields:[] },
-};
+// All available emojis for spell picker
+const SPELL_EMOJIS = ['✨','🔮','💀','🌟','❄️','🔥','⚡','🌊','🍄','💫','🎭','🎪','🗡️','🛡️','💣','🧪','🧿','🎯','🌀','👁️','💀','☠️','🔴','🟣','🟠','🟡','💜','🖤','❤️','🤍','💀','🧠','👾','🤖','📱','🚁','💬','🔩','💻','📡','🕷️','🦂','🐍','🦅','🐉','🌙','🌞','⭐','🌈','🌪️','🌊'];
 
-const MAGIC_FIELD_RENDERERS = {
-  pct:              (i) => `<div class="fg"><label class="flabel">Drain %</label><input class="finput" id="ma-${i}-pct" type="number" min="1" max="100" placeholder="20" value="20"></div>`,
-  from_wallet:      (i) => `<div class="fg"><label class="flabel">Drain From</label><select class="fselect" id="ma-${i}-from"><option value="wallet">💵 Wallet</option><option value="bank">🏦 Bank</option><option value="both">💀 Both</option></select></div>`,
-  amount:           (i) => `<div class="fg"><label class="flabel">Amount</label><input class="finput" id="ma-${i}-amount" type="number" min="1" placeholder="500" value="100"></div>`,
-  to_wallet:        (i) => `<div class="fg"><label class="flabel">Give To</label><select class="fselect" id="ma-${i}-to"><option value="wallet">💵 Wallet</option><option value="bank">🏦 Bank</option></select></div>`,
-  minutes:          (i) => `<div class="fg"><label class="flabel">Minutes</label><input class="finput" id="ma-${i}-minutes" type="number" min="1" placeholder="5" value="5"></div>`,
-  text:             (i) => `<div class="fg"><label class="flabel">Message Text</label><input class="finput" id="ma-${i}-text" placeholder="The curse takes hold..."></div>`,
-  strength:         (i) => `<div class="fg"><label class="flabel">Strength %</label><input class="finput" id="ma-${i}-strength" type="number" min="1" max="200" placeholder="25" value="25"></div>`,
-  buffType:         (i) => `<div class="fg"><label class="flabel">Buff Type</label><select class="fselect" id="ma-${i}-buffType"><option value="work_boost">💼 Work Boost</option><option value="lucky">🍀 Lucky</option><option value="rob_boost">🔫 Rob Boost</option><option value="crime_boost">🌡️ Crime Boost</option><option value="passive_boost">💰 Passive Boost</option><option value="speed">⚡ Speed</option><option value="focused">🎯 Focused</option><option value="shield">🛡️ Shield</option><option value="poisoned">☠️ Poisoned</option><option value="high">😵 High</option></select></div>`,
-  ai_loyalty_val:   (i) => `<div class="fg"><label class="flabel">Loyalty Value (0–100)</label><input class="finput" id="ma-${i}-value" type="number" min="0" max="100" placeholder="0" value="0"><div class="hint">0 = goes rogue · 100 = fully loyal</div></div>`,
-  ai_mood_val:      (i) => `<div class="fg"><label class="flabel">Mood</label><select class="fselect" id="ma-${i}-mood"><option value="rogue">😡 Rogue</option><option value="loyal">😊 Loyal</option><option value="happy">😄 Happy</option><option value="passive">😐 Passive</option></select></div>`,
-  ai_ability_name:  (i) => `<div class="fg"><label class="flabel">Ability Name</label><input class="finput" id="ma-${i}-ability" placeholder="e.g. steal_data"></div>`,
-  ai_ability_enable:(i) => `<div class="fg"><label class="flabel">Enable/Disable</label><select class="fselect" id="ma-${i}-enable"><option value="true">✅ Enable</option><option value="false">❌ Disable</option></select></div>`,
-};
+const SPELL_EMOJI_CATEGORIES = [
+  { label:'Magic',   emojis:['✨','🔮','💫','🌀','🎭','🧿','👁️','🌟'] },
+  { label:'Combat',  emojis:['🗡️','🛡️','💣','🔥','❄️','⚡','🌊','🌪️'] },
+  { label:'Dark',    emojis:['💀','☠️','🕷️','🦂','🐍','🖤','🟣','🔴'] },
+  { label:'Tech/AI', emojis:['🤖','📱','🚁','💬','🔩','💻','📡','👾'] },
+  { label:'Nature',  emojis:['🌙','🌞','⭐','🌈','🍄','🐉','🦅','🐲'] },
+  { label:'Other',   emojis:['🎯','🧪','🎪','🟠','🟡','💜','❤️','🤍'] },
+];
 
-function addMagicAction() {
-  magicActions.push({ type: 'drain' });
-  renderMagicActions();
+// All AI abilities from the bot
+const AI_ABILITIES = [
+  { value:'scan_user',      label:'🔍 scan_user — scan a user\'s data' },
+  { value:'steal_data',     label:'💾 steal_data — hack and steal cash' },
+  { value:'block_commands', label:'🚫 block_commands — silence random user' },
+  { value:'self_repair',    label:'🔧 self_repair — generate income for owner' },
+  { value:'leak_info',      label:'📢 leak_info — add heat to owner' },
+  { value:'drain_wallet',   label:'💸 drain_wallet — drain a random user' },
+  { value:'snitch',         label:'🐀 snitch — add heat to owner' },
+  { value:'spy',            label:'👀 spy — gather intel on random user' },
+  { value:'emotional_drain',label:'😢 emotional_drain — silence owner' },
+  { value:'blackmail',      label:'🤐 blackmail — drain owner wallet' },
+  { value:'expose_secrets', label:'📰 expose_secrets — add heat to owner' },
+  { value:'buff_owner',     label:'⬆️ buff_owner — income boost for owner' },
+  { value:'attack_user',    label:'⚔️ attack_user — attack own owner' },
+  { value:'attack_target',  label:'🎯 attack_target — attack random target' },
+  { value:'patrol',         label:'🛡️ patrol — shield for owner' },
+  { value:'surveil',        label:'📹 surveil — surveillance on random user' },
+  { value:'passive_income', label:'💰 passive_income — earn $ for owner' },
+  { value:'info_gather',    label:'🧠 info_gather — research random user' },
+  { value:'manipulate',     label:'🎭 manipulate — drain random user wallet' },
+  { value:'work_for_owner', label:'📋 work_for_owner — task income for owner' },
+];
+
+
+function openEmojiPicker() {
+  const picker = document.getElementById('spell-emoji-picker');
+  if (!picker) return;
+  if (picker.style.display === 'block') { picker.style.display='none'; return; }
+  if (!picker.innerHTML) {
+    picker.innerHTML = SPELL_EMOJI_CATEGORIES.map(cat=>`
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${cat.label}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${cat.emojis.map(e=>`<button type="button" onclick="pickSpellEmoji('${e}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:16px;cursor:pointer">${e}</button>`).join('')}
+        </div>
+      </div>`).join('');
+  }
+  picker.style.display = 'block';
+  setTimeout(()=>document.addEventListener('click', function h(e){ if(!picker.contains(e.target)){picker.style.display='none';document.removeEventListener('click',h);} }), 50);
 }
 
-function removeMagicAction(i) {
-  magicActions.splice(i, 1);
-  renderMagicActions();
+function pickSpellEmoji(emoji) {
+  const el = document.getElementById('m-magic-emoji');
+  if (el) el.value = emoji;
+  const picker = document.getElementById('spell-emoji-picker');
+  if (picker) picker.style.display = 'none';
 }
 
-function onMagicActionTypeChange(i) {
-  magicActions[i] = { type: document.getElementById(`ma-${i}-type`).value };
-  renderMagicActions();
-}
 
-function renderMagicActions() {
-  const list  = document.getElementById('magic-actions-list');
-  const empty = document.getElementById('magic-actions-empty');
-  if (!list) return;
-  if (!magicActions.length) { list.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display = 'none';
-
-  list.innerHTML = magicActions.map((action, i) => {
-    const def    = MAGIC_ACTION_DEFS[action.type] || MAGIC_ACTION_DEFS.msg;
-    const fields = def.fields.map(f => MAGIC_FIELD_RENDERERS[f]?.(i) || '').join('');
-    return `<div style="background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:12px;position:relative">
-      <button onclick="removeMagicAction(${i})" type="button" style="position:absolute;top:8px;right:8px;background:rgba(255,59,59,.2);border:none;color:var(--accent);border-radius:3px;padding:2px 8px;cursor:pointer;font-weight:700">✕</button>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-size:16px">${def.emoji}</span>
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Action ${i+1}</div>
-      </div>
-      <div class="fg" style="margin-bottom:${def.fields.length?'10px':'0'}">
-        <label class="flabel">Action Type</label>
-        <select class="fselect" id="ma-${i}-type" onchange="onMagicActionTypeChange(${i})">
-          ${Object.entries(MAGIC_ACTION_DEFS).map(([k,v])=>`<option value="${k}" ${action.type===k?'selected':''}>${v.label}</option>`).join('')}
-        </select>
-      </div>
-      ${def.fields.length ? `<div class="grid2">${fields}</div>` : ''}
-    </div>`;
-  }).join('');
-}
-
-function getMagicActionsJSON() {
-  return magicActions.map((action, i) => {
-    const def = MAGIC_ACTION_DEFS[action.type];
-    if (!def) return null;
-    const obj = { type: action.type };
-    def.fields.forEach(f => {
-      const el = document.getElementById(`ma-${i}-${f.replace('from_wallet','from').replace('to_wallet','to').replace('ai_loyalty_val','value').replace('ai_mood_val','mood').replace('ai_ability_name','ability').replace('ai_ability_enable','enable')}`);
-      if (!el) return;
-      const key = f.replace('from_wallet','from').replace('to_wallet','to').replace('ai_loyalty_val','value').replace('ai_mood_val','mood').replace('ai_ability_name','ability').replace('ai_ability_enable','enable');
-      const val = el.value;
-      if (f === 'pct' || f === 'amount' || f === 'minutes' || f === 'strength' || f === 'ai_loyalty_val') obj[key] = parseInt(val)||0;
-      else if (f === 'ai_ability_enable') obj[key] = val === 'true';
-      else obj[key] = val;
-    });
-    return obj;
-  }).filter(Boolean);
-}
-
-function loadMagicActionsFromJSON(actions) {
-  magicActions = (actions||[]).map(a => ({ type: a.type }));
-  renderMagicActions();
-  // After render, populate saved values
-  setTimeout(() => {
-    (actions||[]).forEach((action, i) => {
-      const def = MAGIC_ACTION_DEFS[action.type];
-      if (!def) return;
-      def.fields.forEach(f => {
-        const key = f.replace('from_wallet','from').replace('to_wallet','to').replace('ai_loyalty_val','value').replace('ai_mood_val','mood').replace('ai_ability_name','ability').replace('ai_ability_enable','enable');
-        const el  = document.getElementById(`ma-${i}-${key}`);
-        if (el && action[key] !== undefined) el.value = action[key];
-      });
-    });
-  }, 50);
-}
 // ════════════════════════════════════════════════
 const COINS = [
   { id:'DOGE2',  name:'Doge 2.0',       emoji:'🐕', color:'#f5c518', desc:'Such wow. Much gains. Very moon.' },
