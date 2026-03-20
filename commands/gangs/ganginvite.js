@@ -65,6 +65,15 @@ module.exports = {
       freshGang.members.push({ userId: target.id, role: 'Member', rep: 0, joinedAt: Date.now() });
       saveGang(freshGang.id, freshGang);
 
+      // DM new member about gun shop access
+      try {
+        await target.send({ embeds: [new EmbedBuilder()
+          .setColor(0xff3b3b)
+          .setTitle(`${freshGang.color} Welcome to ${freshGang.name} ${freshGang.tag}!`)
+          .setDescription(`You're now a member of **${freshGang.name}**.\n\n🔫 **Gang Perk Unlocked: Gun Shop**\nYou now have access to the exclusive gang gun shop!\nUse \`/gunshop\` to browse weapons and \`/gunbuy\` to purchase.\nArm yourself before the next war.`)
+        ]});
+      } catch {}
+
       await btn.update({ embeds: [new EmbedBuilder()
         .setColor(COLORS.SUCCESS)
         .setTitle(`${freshGang.color} Welcome to ${freshGang.name}!`)

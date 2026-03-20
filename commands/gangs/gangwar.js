@@ -88,15 +88,26 @@ module.exports = {
           gang2Score:  0,
           bet,
           startedAt:   Date.now(),
-          endsAt:      Date.now() + 30 * 60 * 1000, // 30 min war
+          endsAt:      Date.now() + 30 * 60 * 1000,
           attacks:     [],
         };
         saveWar(warId, war);
 
+        // War GIFs — roleplay
+        const WAR_GIFS = [
+          'https://media.giphy.com/media/l0HlKrB02QY0f1mbm/giphy.gif',
+          'https://media.giphy.com/media/3ohzdYJK1wAdPWVk88/giphy.gif',
+          'https://media.giphy.com/media/26BRrSvJAFWCsyBwc/giphy.gif',
+          'https://media.giphy.com/media/l2JdZkQvMlHzLOuYg/giphy.gif',
+          'https://media.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif',
+        ];
+        const gif = WAR_GIFS[Math.floor(Math.random() * WAR_GIFS.length)];
+
         await btn.update({ embeds: [new EmbedBuilder()
           .setColor(0xff3b3b)
           .setTitle(`⚔️ WAR STARTED — ${myGang.name} vs ${targetGang.name}`)
-          .setDescription(`The war has begun! Members from both gangs can use \`/gangwar attack\` to score points.\n\nWar ends in **30 minutes**. Highest score wins.${bet > 0 ? `\n\n💰 Winner takes **$${(bet*2).toLocaleString()}**!` : ''}`)
+          .setDescription(`The war has begun! Members from both gangs can use \`/gangwar attack\` to score points.\n\nEquip a gun from \`/gunshop\` for bonus attack points!\n\nWar ends in **30 minutes**. Highest score wins.${bet > 0 ? `\n\n💰 Winner takes **$${(bet*2).toLocaleString()}**!` : ''}`)
+          .setImage(gif)
         ], components: [] });
       });
     }
@@ -114,11 +125,32 @@ module.exports = {
         return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You attacked recently. Wait **${Math.ceil((30000-(Date.now()-lastAttack.time))/1000)}s**.`)], ephemeral: true });
       }
 
-      const isGang1     = myWar.gang1Id === myGang.id;
+      const isGang1 = myWar.gang1Id === myGang.id;
+
+      // Gun bonus
+      const { getGunInventory, getGunById } = require('../../utils/gunDb');
+      const inv      = getGunInventory(userId);
+      const bestGun  = inv.length ? inv.reduce((best, i) => {
+        const g = getGunById(i.gunId);
+        if (!g) return best;
+        const avgDmg = (g.damage[0]+g.damage[1])/2;
+        if (!best || avgDmg > best.avgDmg) return { ...i, avgDmg, gun: g };
+        return best;
+      }, null) : null;
+
+      const gunBonus   = bestGun ? Math.floor((bestGun.gun.damage[0]+bestGun.gun.damage[1])/10) : 0;
       const roll        = Math.random();
-      const success     = roll > 0.35;
-      const points      = success ? Math.floor(5 + Math.random() * 15) : 0;
+      const accuracy    = bestGun ? bestGun.gun.accuracy : 0.5;
+      const success     = roll < (0.35 + accuracy * 0.3);
+      const basePoints  = success ? Math.floor(5 + Math.random() * 15) : 0;
+      const points      = basePoints + gunBonus;
       const heatAdded   = isPurgeActive() ? 0 : (success ? 8 : 3);
+
+      // Use ammo
+      if (bestGun && inv.length) {
+        const entry = inv.find(i => i.gunId === bestGun.gunId);
+        if (entry && entry.ammo > 0) { entry.ammo--; require('../../utils/gunDb').saveGunInventory(userId, inv); }
+      }
 
       if (isGang1) myWar.gang1Score += points;
       else         myWar.gang2Score += points;
@@ -132,12 +164,14 @@ module.exports = {
       const config  = require('../../utils/db').getConfig();
       const raid    = isPurgeActive() ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
 
+      const gunLine = bestGun ? `\n${bestGun.gun.emoji} Used **${bestGun.gun.name}** (+${gunBonus} bonus pts)` : '\n*(No weapon equipped — visit /gunshop)*';
+
       const embed = new EmbedBuilder()
         .setColor(success ? 0xff3b3b : 0x888888)
         .setTitle(success ? '⚔️ Attack Successful!' : '⚔️ Attack Failed!')
         .setDescription(success
-          ? `You scored **${points} points** for **${myGang.name}**!\n🌡️ Heat +${heatAdded}`
-          : `Your attack missed. No points scored.\n🌡️ Heat +${heatAdded}`)
+          ? `You scored **${points} points** for **${myGang.name}**!${gunLine}`
+          : `Your attack missed. No points scored.${gunLine}`)
         .addFields(
           { name: `${myWar.gang1Name}`, value: `${myWar.gang1Score} pts`, inline: true },
           { name: `${myWar.gang2Name}`, value: `${myWar.gang2Score} pts`, inline: true },

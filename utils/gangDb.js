@@ -1,36 +1,79 @@
 // ============================================================
-// utils/gangDb.js — Gang Database
+// utils/gangDb.js — Multi-Server Edition
+// Gangs, police, wars = PER-SERVER (guildId required)
 // ============================================================
-const fs   = require('fs');
-const path = require('path');
 
-const GANG_FILE   = path.join(__dirname, '../data/gangs.json');
-const POLICE_FILE = path.join(__dirname, '../data/police.json');
-const WAR_FILE    = path.join(__dirname, '../data/gangWars.json');
+const { guildCol } = require('./mongo');
 
-function readGangs()  { try { return fs.existsSync(GANG_FILE)   ? JSON.parse(fs.readFileSync(GANG_FILE,   'utf8')) : {}; } catch { return {}; } }
-function readPolice() { try { return fs.existsSync(POLICE_FILE) ? JSON.parse(fs.readFileSync(POLICE_FILE, 'utf8')) : {}; } catch { return {}; } }
-function readWars()   { try { return fs.existsSync(WAR_FILE)    ? JSON.parse(fs.readFileSync(WAR_FILE,    'utf8')) : {}; } catch { return {}; } }
+// ── GANGS (PER-SERVER) ────────────────────────────────────────
 
-function saveGangs(d)  { fs.writeFileSync(GANG_FILE,   JSON.stringify(d, null, 2)); }
-function savePolice(d) { fs.writeFileSync(POLICE_FILE, JSON.stringify(d, null, 2)); }
-function saveWars(d)   { fs.writeFileSync(WAR_FILE,    JSON.stringify(d, null, 2)); }
+async function getGang(gangId, guildId) {
+  const c = await guildCol('gangs', guildId);
+  return await c.findOne({ _id: gangId }) || null;
+}
 
-function getGang(gangId)          { return readGangs()[gangId]   || null; }
-function getGangByMember(userId)  { return Object.values(readGangs()).find(g => g.members.some(m => m.userId === userId)) || null; }
-function getAllGangs()             { return readGangs(); }
-function saveGang(gangId, data)   { const all = readGangs(); all[gangId] = data; saveGangs(all); }
-function deleteGang(gangId)       { const all = readGangs(); delete all[gangId]; saveGangs(all); }
+async function getGangByMember(userId, guildId) {
+  const c = await guildCol('gangs', guildId);
+  return await c.findOne({ 'members.userId': userId }) || null;
+}
 
-function getPoliceRecord(userId)  { return readPolice()[userId]  || { userId, heat: 0, arrests: 0, jailUntil: null, offenses: [] }; }
-function savePoliceRecord(userId, data) { const all = readPolice(); all[userId] = data; savePolice(all); }
+async function getAllGangs(guildId) {
+  const c    = await guildCol('gangs', guildId);
+  const docs = await c.find({}).toArray();
+  return Object.fromEntries(docs.map(d => [d._id, d]));
+}
 
-function getWar(warId)            { return readWars()[warId]     || null; }
-function getAllWars()              { return readWars(); }
-function saveWar(warId, data)     { const all = readWars(); all[warId] = data; saveWars(all); }
-function deleteWar(warId)         { const all = readWars(); delete all[warId]; saveWars(all); }
+async function saveGang(gangId, data, guildId) {
+  const c = await guildCol('gangs', guildId);
+  const { _id, ...rest } = data;
+  await c.updateOne({ _id: gangId }, { $set: rest }, { upsert: true });
+}
 
-// GANG_RANKS — progression system
+async function deleteGang(gangId, guildId) {
+  const c = await guildCol('gangs', guildId);
+  await c.deleteOne({ _id: gangId });
+}
+
+// ── POLICE (PER-SERVER) ───────────────────────────────────────
+
+async function getPoliceRecord(userId, guildId) {
+  const c   = await guildCol('police', guildId);
+  const doc = await c.findOne({ _id: userId });
+  return doc || { userId, heat: 0, arrests: 0, jailUntil: null, offenses: [] };
+}
+
+async function savePoliceRecord(userId, data, guildId) {
+  const c = await guildCol('police', guildId);
+  const { _id, ...rest } = data;
+  await c.updateOne({ _id: userId }, { $set: rest }, { upsert: true });
+}
+
+// ── GANG WARS (PER-SERVER) ────────────────────────────────────
+
+async function getWar(warId, guildId) {
+  const c = await guildCol('gangWars', guildId);
+  return await c.findOne({ _id: warId }) || null;
+}
+
+async function getAllWars(guildId) {
+  const c    = await guildCol('gangWars', guildId);
+  const docs = await c.find({}).toArray();
+  return Object.fromEntries(docs.map(d => [d._id, d]));
+}
+
+async function saveWar(warId, data, guildId) {
+  const c = await guildCol('gangWars', guildId);
+  const { _id, ...rest } = data;
+  await c.updateOne({ _id: warId }, { $set: rest }, { upsert: true });
+}
+
+async function deleteWar(warId, guildId) {
+  const c = await guildCol('gangWars', guildId);
+  await c.deleteOne({ _id: warId });
+}
+
+// ── RANKS ─────────────────────────────────────────────────────
+
 const GANG_RANKS = [
   { name: 'Prospect',    minRep: 0    },
   { name: 'Soldier',     minRep: 100  },

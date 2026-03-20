@@ -129,6 +129,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="nav('stocks')" data-s="stocks"><span class="nav-icon">📈</span>Stock Market</div>
     <div class="nav-item" onclick="nav('entrepreneur')" data-s="entrepreneur"><span class="nav-icon">🏢</span>Entrepreneur</div>
     <div class="nav-item" onclick="nav('gangs')" data-s="gangs"><span class="nav-icon">🏴</span>Gangs</div>
+    <div class="nav-item" onclick="nav('gunshop')" data-s="gunshop"><span class="nav-icon">🔫</span>Gun Shop</div>
     <div class="nav-item" onclick="nav('police')" data-s="police"><span class="nav-icon">🚔</span>Police</div>
     <div class="nav-item" onclick="nav('purge')" data-s="purge"><span class="nav-icon">⬡</span>Purge</div>
   </nav>
@@ -474,6 +475,53 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
     </div>
 
+    <!-- GUN SHOP -->
+    <div id="section-gunshop" class="section">
+      <p class="sub-txt">Configure the gang-exclusive gun shop. Only gang members can access <strong>/gunshop</strong>. Edit prices, damage, accuracy, and availability. You can also add custom weapons.</p>
+
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Total Weapons</div><div class="stat-val c-red" id="gun-count">—</div></div>
+        <div class="stat-card"><div class="stat-label">Enabled Weapons</div><div class="stat-val c-green" id="gun-enabled">—</div></div>
+        <div class="stat-card"><div class="stat-label">Players Injured/Down</div><div class="stat-val c-orange" id="gun-injured">—</div></div>
+        <div class="stat-card"><div class="stat-label">Most Expensive</div><div class="stat-val" id="gun-priciest">—</div></div>
+      </div>
+
+      <!-- WEAPON LIST -->
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head">
+          <h3>🔫 Weapon Roster</h3>
+          <button class="btn btn-gold btn-sm" onclick="openAddGun()">+ Add Weapon</button>
+        </div>
+        <table>
+          <thead><tr><th>Weapon</th><th>Type</th><th>Rarity</th><th>Damage</th><th>Accuracy</th><th>Price</th><th>Ammo Cap</th><th>🔁 Auto-Switch</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="gun-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- PLAYER HEALTH MONITOR -->
+      <div class="tbl-wrap">
+        <div class="tbl-head">
+          <h3>🩺 Player Health Monitor</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadGunShop()">⟳ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>User ID</th><th>HP</th><th>Status</th><th>Deaths</th><th>Recovery</th><th>Actions</th></tr></thead>
+          <tbody id="health-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="info-box" style="margin-top:12px">
+        <strong>Commands (gang members only):</strong><br>
+        <code>/gunshop</code> — browse weapons by type<br>
+        <code>/gunbuy &lt;gun&gt;</code> — purchase a weapon<br>
+        <code>/shoot @user</code> — shoot another player<br>
+        <code>/guns</code> — view your arsenal and HP<br>
+        <code>/health</code> — check your or another player's health<br>
+        <code>/medkit &lt;amount&gt;</code> — spend money to restore HP<br><br>
+        <strong>Health States:</strong> 🟢 Full Health → 💪 Healthy → 😐 Roughed Up → 🤕 Injured → 🩸 Critical → 💀 Dead (15min recovery)
+      </div>
+    </div>
+
     <!-- POLICE -->
     <div id="section-police" class="section">
       <p class="sub-txt">Monitor heat levels and manage arrests. High heat players are at risk of police raids. You can release players from jail or clear their record here.</p>
@@ -502,8 +550,17 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <tbody id="pets-tbody"><tr><td colspan="11" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
+      <div class="tbl-wrap" style="margin-top:20px">
+        <div class="tbl-head">
+          <h3>🛒 Pet Shop Types</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadPetTypes()">⟳ Refresh</button>
+        </div>
+        <div id="pet-types-container" style="padding:8px">
+          <div class="empty-cell">Loading...</div>
+        </div>
+      </div>
       <div class="info-box" style="margin-top:12px">
-        <strong>Commands:</strong> <code>/petshop</code> — browse & adopt · <code>/pet feed</code> · <code>/pet play</code> · <code>/pet status</code> · <code>/pet evolve</code> · <code>/petattack @user</code> · <code>/pets</code>
+        <strong>Commands:</strong> <code>/petshop</code> — browse &amp; adopt · <code>/pet feed</code> · <code>/pet play</code> · <code>/pet status</code> · <code>/pet evolve</code> · <code>/petattack @user</code> · <code>/pets</code>
       </div>
     </div>
 
@@ -568,21 +625,134 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
 <!-- GIVE/TAKE ITEM MODAL -->
 <div id="item-give-modal" class="backdrop">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-top"><h3 id="give-modal-title">Give Item</h3></div>
+  <div class="modal" style="max-width:520px">
+    <div class="modal-top"><h3 id="give-modal-title">Give / Take</h3></div>
     <div class="modal-body">
       <input type="hidden" id="give-target-id">
-      <div class="fg">
-        <label class="flabel">Select Item</label>
-        <select class="fselect" id="give-item-select">
-          <option value="">— Choose an item —</option>
-        </select>
+
+      <!-- Category tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap" id="give-tabs">
+        <button class="btn btn-primary btn-sm" onclick="setGiveTab('item')"    id="tab-item">🎒 Item</button>
+        <button class="btn btn-ghost  btn-sm" onclick="setGiveTab('pet')"     id="tab-pet">🐾 Pet</button>
+        <button class="btn btn-ghost  btn-sm" onclick="setGiveTab('gun')"     id="tab-gun">🔫 Gun</button>
+        <button class="btn btn-ghost  btn-sm" onclick="setGiveTab('gang')"    id="tab-gang">🏴 Gang</button>
+        <button class="btn btn-ghost  btn-sm" onclick="setGiveTab('business')" id="tab-business">🏢 Business</button>
+        <button class="btn btn-ghost  btn-sm" onclick="setGiveTab('money')"   id="tab-money">💵 Money</button>
+        <button class="btn btn-ghost  btn-sm" onclick="setGiveTab('level')"   id="tab-level">⭐ Level</button>
       </div>
-      <div class="hint" id="give-modal-hint">Select an item to give to this user. It will appear in their inventory immediately.</div>
+
+      <!-- Item tab -->
+      <div id="give-panel-item" class="give-panel">
+        <div class="fg">
+          <label class="flabel">Store Item</label>
+          <select class="fselect" id="give-item-select"><option value="">— Choose an item —</option></select>
+        </div>
+      </div>
+
+      <!-- Pet tab -->
+      <div id="give-panel-pet" class="give-panel" style="display:none">
+        <div class="fg">
+          <label class="flabel">Pet Type</label>
+          <select class="fselect" id="give-pet-select"><option value="">— Choose a pet type —</option></select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Pet Name</label>
+          <input class="finput" id="give-pet-name" placeholder="e.g. Rex">
+        </div>
+      </div>
+
+      <!-- Gun tab -->
+      <div id="give-panel-gun" class="give-panel" style="display:none">
+        <div class="fg">
+          <label class="flabel">Weapon</label>
+          <select class="fselect" id="give-gun-select"><option value="">— Choose a weapon —</option></select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Ammo (rounds)</label>
+          <input class="finput" id="give-gun-ammo" type="number" value="30" min="1">
+        </div>
+      </div>
+
+      <!-- Gang tab -->
+      <div id="give-panel-gang" class="give-panel" style="display:none">
+        <div class="fg">
+          <label class="flabel">Gang</label>
+          <select class="fselect" id="give-gang-select"><option value="">— Choose a gang —</option></select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Role in Gang</label>
+          <select class="fselect" id="give-gang-role">
+            <option value="Member">Member</option>
+            <option value="Officer">Officer</option>
+            <option value="Leader">Leader</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Business tab -->
+      <div id="give-panel-business" class="give-panel" style="display:none">
+        <div class="fg">
+          <label class="flabel">Business Type</label>
+          <select class="fselect" id="give-biz-type">
+            <option value="restaurant">🍕 Restaurant</option>
+            <option value="dealership">🚗 Car Dealership</option>
+            <option value="club">🎵 Night Club</option>
+            <option value="tech">💻 Tech Startup</option>
+            <option value="factory">🏭 Factory</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Business Name</label>
+          <input class="finput" id="give-biz-name" placeholder="e.g. Empire Corp">
+        </div>
+      </div>
+
+      <!-- Money tab -->
+      <div id="give-panel-money" class="give-panel" style="display:none">
+        <div class="grid2">
+          <div class="fg">
+            <label class="flabel">Amount ($)</label>
+            <input class="finput" id="give-money-amount" type="number" min="1" placeholder="1000">
+          </div>
+          <div class="fg">
+            <label class="flabel">Destination</label>
+            <select class="fselect" id="give-money-dest">
+              <option value="wallet">💵 Wallet</option>
+              <option value="bank">🏦 Bank</option>
+            </select>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="flabel">Action</label>
+          <select class="fselect" id="give-money-action">
+            <option value="give">➕ Add money</option>
+            <option value="take">➖ Remove money</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Level tab -->
+      <div id="give-panel-level" class="give-panel" style="display:none">
+        <div class="fg">
+          <label class="flabel">Adjust What</label>
+          <select class="fselect" id="give-level-type" onchange="onGiveLevelChange()">
+            <option value="pet_level">🐾 Pet Level</option>
+            <option value="pet_tokens">🪙 Pet Tokens</option>
+            <option value="gun_ammo">📦 Gun Ammo (first weapon)</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">New Value / Amount</label>
+          <input class="finput" id="give-level-value" type="number" min="0" placeholder="e.g. 5">
+        </div>
+        <div class="hint" id="give-level-hint">Set the pet&apos;s level directly, or add tokens/ammo.</div>
+      </div>
+
+      <div class="hint" id="give-modal-hint" style="margin-top:10px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeGiveTakeModal()">Cancel</button>
-      <button class="btn btn-gold" id="give-confirm-btn" onclick="confirmGiveTake()">Give Item</button>
+      <button class="btn btn-gold" id="give-confirm-btn" onclick="confirmGiveTake()">Give</button>
     </div>
   </div>
 </div>
@@ -657,6 +827,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <option value="useable">⚡ Useable (has an effect)</option>
             <option value="cosmetic">🎨 Cosmetic (display only)</option>
             <option value="role">🏅 Role Reward</option>
+            <option value="pet_item">🐾 Pet Item (consumed by !petfeed)</option>
           </select>
         </div>
         <div class="fg">
@@ -667,6 +838,18 @@ tr:hover td{background:rgba(255,255,255,.015)}
           </select>
         </div>
       </div>
+
+      <!-- PET ITEM sub-type -->
+      <div id="pet-item-zone" style="display:none;margin-bottom:12px">
+        <div class="fg">
+          <label class="flabel">Pet Item Sub-Type</label>
+          <select class="fselect" id="m-pet-item-type">
+            <option value="food">🍖 Food (consumed by !petfeed)</option>
+          </select>
+          <div class="hint">Only <strong>Food</strong> is required for feeding. More sub-types can be added later.</div>
+        </div>
+      </div>
+
       <div class="grid2">
         <div class="fg">
           <label class="flabel">Usage Type</label>
@@ -1093,7 +1276,7 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities'}[n]||n;
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop'}[n]||n;
 }
 
 async function api(m,u,b){
@@ -1116,7 +1299,9 @@ async function refresh(){
   await loadGangs();
   await loadPolice();
   await loadPets();
+  await loadPetTypes();
   await loadAIEntities();
+  await loadGunShop();
 
   // Load users separately so the list doesn't flash blank
   api('GET','/api/users').then(users => {
@@ -1384,6 +1569,8 @@ function closeModal(){document.getElementById('item-modal').classList.remove('op
 function onTypeChange(){
   const t=document.getElementById('m-type').value;
   document.getElementById('effect-builder').style.display=t==='useable'?'block':'none';
+  const piz = document.getElementById('pet-item-zone');
+  if (piz) piz.style.display = t==='pet_item'?'block':'none';
 }
 
 function onReqTypeChange(){
@@ -1976,34 +2163,85 @@ function populateRoleDropdowns() {
 // ════════════════════════════════════════════════
 let giveTakeMode = 'give';
 let giveTakeUserId = '';
+let giveCurrentTab = 'item';
+
+function setGiveTab(tab) {
+  giveCurrentTab = tab;
+  document.querySelectorAll('.give-panel').forEach(p => p.style.display = 'none');
+  document.getElementById(`give-panel-${tab}`).style.display = 'block';
+  document.querySelectorAll('#give-tabs .btn').forEach(b => b.className = 'btn btn-ghost btn-sm');
+  document.getElementById(`tab-${tab}`).className = 'btn btn-primary btn-sm';
+  const hints = {
+    item: 'Give or take a store item.',
+    pet: 'Spawn a pet directly for this user.',
+    gun: 'Give this user a weapon with ammo.',
+    gang: 'Add user to a gang with chosen role.',
+    business: 'Create a business for this user.',
+    money: 'Add or remove money from wallet/bank.',
+    level: 'Adjust pet level, tokens, or gun ammo.',
+  };
+  document.getElementById('give-modal-hint').textContent = hints[tab] || '';
+}
 
 function openGiveItem(userId, username) {
   giveTakeMode   = 'give';
   giveTakeUserId = userId;
-  document.getElementById('give-modal-title').textContent = `Give Item to ${username}`;
-  document.getElementById('give-confirm-btn').textContent = 'Give Item';
+  document.getElementById('give-modal-title').textContent = `Give to ${username}`;
+  document.getElementById('give-confirm-btn').textContent = 'Give';
   document.getElementById('give-confirm-btn').className   = 'btn btn-gold';
-  document.getElementById('give-modal-hint').textContent  = 'Select an item to give. It will appear in their inventory immediately.';
-  populateGiveSelect();
+  populateAllGiveSelects();
+  setGiveTab('item');
   document.getElementById('item-give-modal').classList.add('open');
 }
 
 function openTakeItem(userId, username) {
   giveTakeMode   = 'take';
   giveTakeUserId = userId;
-  document.getElementById('give-modal-title').textContent = `Take Item from ${username}`;
-  document.getElementById('give-confirm-btn').textContent = 'Take Item';
+  document.getElementById('give-modal-title').textContent = `Take from ${username}`;
+  document.getElementById('give-confirm-btn').textContent = 'Take';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
-  document.getElementById('give-modal-hint').textContent  = 'Select an item to remove from their inventory.';
-  populateGiveSelect();
+  populateAllGiveSelects();
+  setGiveTab('item');
   document.getElementById('item-give-modal').classList.add('open');
 }
 
-function populateGiveSelect() {
-  const sel = document.getElementById('give-item-select');
+function populateAllGiveSelects() {
+  // Items
+  const isel = document.getElementById('give-item-select');
   const items = S.store || [];
-  if (!items.length) { sel.innerHTML = '<option value="">No items in store</option>'; return; }
-  sel.innerHTML = '<option value="">— Choose an item —</option>' + items.map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
+  isel.innerHTML = '<option value="">— Choose an item —</option>' + items.map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
+
+  // Pets — load from API cached state or fetch
+  const psel = document.getElementById('give-pet-select');
+  api('GET', '/api/pets/types').then(types => {
+    psel.innerHTML = '<option value="">— Choose a pet type —</option>' +
+      Object.entries(types).map(([id, p]) => `<option value="${id}">${p.emoji} ${p.name} (${p.rarity})</option>`).join('');
+  }).catch(() => {});
+
+  // Guns
+  const gsel = document.getElementById('give-gun-select');
+  api('GET', '/api/guns/shop').then(data => {
+    const guns = (data.guns || []).filter(g => g.enabled !== false);
+    gsel.innerHTML = '<option value="">— Choose a weapon —</option>' +
+      guns.map(g => `<option value="${g.id}">${g.emoji} ${g.name}</option>`).join('');
+  }).catch(() => {});
+
+  // Gangs
+  const gangsel = document.getElementById('give-gang-select');
+  api('GET', '/api/gangs').then(data => {
+    const gangs = data.gangs || [];
+    gangsel.innerHTML = '<option value="">— Choose a gang —</option>' +
+      gangs.map(g => `<option value="${g.id}">${g.color} ${g.name}</option>`).join('');
+  }).catch(() => {});
+}
+
+function onGiveLevelChange() {
+  const hints = {
+    pet_level:  'Sets the pet level to this exact number.',
+    pet_tokens: 'Adds this many tokens to the pet.',
+    gun_ammo:   'Adds this many ammo rounds to the first weapon.',
+  };
+  document.getElementById('give-level-hint').textContent = hints[document.getElementById('give-level-type').value] || '';
 }
 
 function closeGiveTakeModal() {
@@ -2011,15 +2249,58 @@ function closeGiveTakeModal() {
 }
 
 async function confirmGiveTake() {
-  const itemId = document.getElementById('give-item-select').value;
-  if (!itemId) { toast('Select an item first', 'err'); return; }
-  const endpoint = giveTakeMode === 'give' ? 'give-item' : 'take-item';
-  const r = await api('POST', `/api/users/${giveTakeUserId}/${endpoint}`, { itemId });
-  if (r.success) {
-    toast(giveTakeMode === 'give' ? 'Item given!' : 'Item taken!', 'ok');
+  const tab  = giveCurrentTab;
+  const uid  = giveTakeUserId;
+  const mode = giveTakeMode;
+  let r;
+
+  if (tab === 'item') {
+    const itemId = document.getElementById('give-item-select').value;
+    if (!itemId) { toast('Select an item', 'err'); return; }
+    r = await api('POST', `/api/users/${uid}/${mode === 'give' ? 'give-item' : 'take-item'}`, { itemId });
+
+  } else if (tab === 'pet') {
+    const petType = document.getElementById('give-pet-select').value;
+    const petName = document.getElementById('give-pet-name').value.trim();
+    if (!petType) { toast('Select a pet type', 'err'); return; }
+    r = await api('POST', `/api/users/${uid}/give-pet`, { petType, petName });
+
+  } else if (tab === 'gun') {
+    const gunId = document.getElementById('give-gun-select').value;
+    const ammo  = parseInt(document.getElementById('give-gun-ammo').value) || 30;
+    if (!gunId) { toast('Select a weapon', 'err'); return; }
+    r = await api('POST', `/api/users/${uid}/give-gun`, { gunId, ammo });
+
+  } else if (tab === 'gang') {
+    const gangId  = document.getElementById('give-gang-select').value;
+    const role    = document.getElementById('give-gang-role').value;
+    if (!gangId) { toast('Select a gang', 'err'); return; }
+    r = await api('POST', `/api/users/${uid}/give-gang`, { gangId, role });
+
+  } else if (tab === 'business') {
+    const bizType = document.getElementById('give-biz-type').value;
+    const bizName = document.getElementById('give-biz-name').value.trim() || 'My Business';
+    r = await api('POST', `/api/users/${uid}/give-business`, { bizType, bizName });
+
+  } else if (tab === 'money') {
+    const amount = parseInt(document.getElementById('give-money-amount').value) || 0;
+    const dest   = document.getElementById('give-money-dest').value;
+    const action = document.getElementById('give-money-action').value;
+    if (!amount) { toast('Enter an amount', 'err'); return; }
+    r = await api('POST', `/api/users/${uid}/give-money`, { amount, dest, action });
+
+  } else if (tab === 'level') {
+    const lvlType = document.getElementById('give-level-type').value;
+    const val     = parseInt(document.getElementById('give-level-value').value);
+    if (isNaN(val)) { toast('Enter a value', 'err'); return; }
+    r = await api('POST', `/api/users/${uid}/adjust-level`, { type: lvlType, value: val });
+  }
+
+  if (r?.success) {
+    toast('Done!', 'ok');
     closeGiveTakeModal();
     refresh();
-  } else toast(r.error || 'Failed', 'err');
+  } else toast(r?.error || 'Failed', 'err');
 }
 
 document.getElementById('item-give-modal').addEventListener('click', function(e){ if(e.target===this) closeGiveTakeModal(); });
@@ -2318,6 +2599,208 @@ async function resetAILoyalty(id) {
   const r = await api('POST', `/api/ai-entities/${id}/reset`);
   if (r.success) { toast('Loyalty reset — no longer rogue', 'ok'); await loadAIEntities(); }
   else toast(r.error||'Failed', 'err');
+}
+
+// ════════════════════════════════════════════════
+// GUN SHOP
+// ════════════════════════════════════════════════
+const RARITY_TAG = { Common:'t-muted', Uncommon:'t-green', Rare:'t-blue', Epic:'t-purple', Legendary:'t-orange', Mythic:'t-red' };
+
+async function loadGunShop() {
+  try {
+    const [shopData, healthData] = await Promise.all([
+      api('GET', '/api/guns/shop'),
+      api('GET', '/api/guns/health'),
+    ]);
+
+    const guns   = shopData.guns || [];
+    const health = healthData || [];
+
+    // Stats
+    document.getElementById('gun-count').textContent   = guns.length;
+    document.getElementById('gun-enabled').textContent = guns.filter(g=>g.enabled!==false).length;
+    document.getElementById('gun-injured').textContent = health.length;
+    const priciest = guns.length ? guns.reduce((m,g)=>g.price>m.price?g:m, guns[0]) : null;
+    document.getElementById('gun-priciest').textContent = priciest ? `${priciest.emoji} ${priciest.name}` : '—';
+
+    // Weapons table
+    const gt = document.getElementById('gun-tbody');
+    if (!guns.length) { gt.innerHTML='<tr><td colspan="9" class="empty-cell">No weapons configured.</td></tr>'; }
+    else gt.innerHTML = guns.map(g => `<tr>
+      <td><strong>${g.emoji} ${g.name}</strong><div style="font-size:10px;color:var(--muted)">${g.desc?.slice(0,40)||''}</div></td>
+      <td><span class="tag t-muted">${g.type}</span></td>
+      <td><span class="tag ${RARITY_TAG[g.rarity]||'t-muted'}">${g.rarity}</span></td>
+      <td class="mono">${g.damage?.[0]}–${g.damage?.[1]}</td>
+      <td class="mono">${Math.round((g.accuracy||0)*100)}%</td>
+      <td><input class="iinput" id="gp-${g.id}" value="${g.price}" type="number" min="1" style="width:90px"> <button class="btn btn-ghost btn-sm" onclick="saveGunPrice('${g.id}')">💾</button></td>
+      <td class="mono">${g.capacity}</td>
+      <td>
+        <span class="tag ${g.hasAutoSwitch?'t-red':'t-muted'}">${g.hasAutoSwitch?'🔁 ON':'Off'}</span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:4px" onclick="toggleAutoSwitch('${g.id}',${!!g.hasAutoSwitch})" title="Illegal auto switch — fires 3-round burst">⚙️</button>
+      </td>
+      <td><span class="tag ${g.enabled===false?'t-red':'t-green'}">${g.enabled===false?'Off':'On'}</span></td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleGun('${g.id}',${g.enabled!==false})">Toggle</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteGun('${g.id}')">Del</button>
+      </td>
+    </tr>`).join('');
+
+    // Health table
+    const ht = document.getElementById('health-tbody');
+    if (!health.length) { ht.innerHTML='<tr><td colspan="6" class="empty-cell">All players at full health.</td></tr>'; }
+    else ht.innerHTML = health.map(h => {
+      const jailed = h.hospitalUntil && Date.now() < h.hospitalUntil;
+      const minsLeft = jailed ? Math.ceil((h.hospitalUntil-Date.now())/60000) : 0;
+      const hpBar = '█'.repeat(Math.floor((h.hp||0)/10))+'░'.repeat(10-Math.floor((h.hp||0)/10));
+      const hpColor = (h.hp||0)<=20?'var(--accent)':(h.hp||0)<=50?'#ff8800':'var(--gold)';
+      return `<tr>
+        <td class="mono" style="font-size:11px">${h.userId}</td>
+        <td><span style="color:${hpColor};font-family:monospace">[${hpBar}] ${h.hp||0}/100</span></td>
+        <td>${h.statusLabel||'—'}</td>
+        <td class="mono">${h.deathCount||0}</td>
+        <td>${jailed?`🏥 ${minsLeft}m left`:'🟢 Active'}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="revivePlayer('${h.userId}')">⚕️ Revive</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error('loadGunShop error:', e); }
+}
+
+async function saveGunPrice(gunId) {
+  const price = parseInt(document.getElementById(`gp-${gunId}`).value);
+  if (!price || price < 1) return toast('Invalid price','err');
+  const r = await api('PUT', `/api/guns/shop/${gunId}`, { price });
+  if (r.success) toast('Price updated','ok'); else toast(r.error||'Failed','err');
+}
+
+async function toggleGun(gunId, currentlyEnabled) {
+  const r = await api('PUT', `/api/guns/shop/${gunId}`, { enabled: !currentlyEnabled });
+  if (r.success) { toast(`Weapon ${currentlyEnabled?'disabled':'enabled'}`,'ok'); await loadGunShop(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function toggleAutoSwitch(gunId, currentlyOn) {
+  if (currentlyOn) {
+    if (!confirm(`Remove the illegal auto-switch from this weapon?`)) return;
+  } else {
+    if (!confirm(`Add an illegal fully-automatic switch to this weapon?
+This allows burst fire (3 rounds per shot) in-game.`)) return;
+  }
+  const r = await api('PUT', `/api/guns/shop/${gunId}`, { hasAutoSwitch: !currentlyOn });
+  if (r.success) {
+    toast(currentlyOn ? 'Auto-switch removed' : '🔁 Auto-switch enabled!', 'ok');
+    await loadGunShop();
+  } else toast(r.error||'Failed','err');
+}
+
+async function deleteGun(gunId) {
+  if (!confirm(`Delete weapon "${gunId}"? Users who own it keep it but can't buy more.`)) return;
+  const r = await api('DELETE', `/api/guns/shop/${gunId}`);
+  if (r.success) { toast('Weapon removed','ok'); await loadGunShop(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function revivePlayer(userId) {
+  if (!confirm(`Revive this player to full health?`)) return;
+  const r = await api('POST', `/api/guns/health/${userId}/revive`);
+  if (r.success) { toast('Player revived','ok'); await loadGunShop(); }
+  else toast(r.error||'Failed','err');
+}
+
+function openAddGun() {
+  const name = prompt('Weapon name:');
+  if (!name) return;
+  const price    = parseInt(prompt('Price ($):', '5000'));
+  const type     = prompt('Type (Pistol/SMG/Rifle/Shotgun/Sniper/Heavy):', 'Pistol');
+  const dmgMin   = parseInt(prompt('Min damage:', '15'));
+  const dmgMax   = parseInt(prompt('Max damage:', '30'));
+  const accuracy = parseFloat(prompt('Accuracy (0.0-1.0):', '0.70'));
+  const capacity = parseInt(prompt('Magazine capacity:', '15'));
+  const rarity   = prompt('Rarity (Common/Uncommon/Rare/Epic/Legendary/Mythic):', 'Common');
+  const emoji    = prompt('Emoji:', '🔫');
+  const desc     = prompt('Description:', 'A custom weapon.');
+
+  api('POST', '/api/guns/shop', { name, price, type, damage:[dmgMin,dmgMax], accuracy, capacity, rarity, emoji, desc, fireRate:'Semi', enabled:true })
+    .then(r => { if(r.success){toast('Weapon added','ok');loadGunShop();}else toast(r.error||'Failed','err'); });
+}
+
+// ════════════════════════════════════════════════
+// PET SHOP MANAGEMENT
+// ════════════════════════════════════════════════
+async function loadPetTypes() {
+  try {
+    const data = await api('GET', '/api/pets/types');
+    renderPetTypes(data || {});
+  } catch(e) { console.error('loadPetTypes error:', e); }
+}
+
+function renderPetTypes(types) {
+  let container = document.getElementById('pet-types-container');
+  if (!container) return;
+
+  const entries = Object.entries(types);
+  if (!entries.length) {
+    container.innerHTML = '<div class="empty-cell">No pet types configured.</div>';
+    return;
+  }
+
+  const RARITY_TAG_MAP = {
+    Common:'t-muted', Uncommon:'t-green', Rare:'t-blue',
+    Epic:'t-orange', Legendary:'t-red', Mythic:'t-gold'
+  };
+
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Pet</th><th>Rarity</th><th>Tier</th>
+          <th>Cost</th><th>Base Power</th><th>Base HP</th>
+          <th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${entries.map(([id, p]) => {
+          const tagCls = RARITY_TAG_MAP[p.rarity] || 't-muted';
+          return `<tr>
+            <td>
+              <span style="font-size:20px">${p.emoji || '\u{1F43E}'}</span>
+              <strong style="margin-left:6px">${p.name}</strong>
+              <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace">${id}</div>
+            </td>
+            <td><span class="tag ${tagCls}">${p.rarity}</span></td>
+            <td class="mono">T${p.tier || 1}</td>
+            <td>
+              <input class="iinput" id="pp-${id}" value="${p.cost || 0}" type="number" min="1" style="width:90px">
+              <button class="btn btn-ghost btn-sm" onclick="savePetPrice('${id}')" style="margin-left:4px">&#x1F4BE;</button>
+            </td>
+            <td class="mono" style="color:var(--accent)">&#x2694;&#xFE0F; ${p.basePower || 0}</td>
+            <td class="mono" style="color:var(--green)">&#x2764;&#xFE0F; ${p.baseHp || 0}</td>
+            <td><span class="tag ${p.enabled === false ? 't-red' : 't-green'}">${p.enabled === false ? 'Off' : 'On'}</span></td>
+            <td>
+              <button class="btn btn-ghost btn-sm" onclick="togglePetType('${id}', ${p.enabled !== false})">
+                ${p.enabled === false ? 'Enable' : 'Disable'}
+              </button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function savePetPrice(petId) {
+  const input = document.getElementById(`pp-${petId}`);
+  const price = parseInt(input?.value);
+  if (!price || price < 1) { toast('Enter a valid price', 'err'); return; }
+  const r = await api('PUT', `/api/pets/types/${petId}`, { cost: price });
+  if (r.success) toast('Price updated', 'ok');
+  else toast(r.error || 'Failed', 'err');
+}
+
+async function togglePetType(petId, currentlyEnabled) {
+  const r = await api('PUT', `/api/pets/types/${petId}`, { enabled: !currentlyEnabled });
+  if (r.success) {
+    toast(`Pet ${currentlyEnabled ? 'disabled' : 'enabled'}`, 'ok');
+    await loadPetTypes();
+  } else toast(r.error || 'Failed', 'err');
 }
 
 // ════════════════════════════════════════════════

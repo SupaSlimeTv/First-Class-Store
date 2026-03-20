@@ -70,7 +70,7 @@ module.exports = {
       return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0xff3b3b)
         .setTitle(`${color} ${name} ${gang.tag} — Founded!`)
-        .setDescription(`You spent **$${cost.toLocaleString()}** to found **${name}**.\n\nInvite members with \`/ganginvite @user\`.\nStart wars with \`/gangwar challenge\`.`)
+        .setDescription(`You spent **$${cost.toLocaleString()}** to found **${name}**.\n\nInvite members with \`/ganginvite @user\`.\nStart wars with \`/gangwar challenge\`.\n\n🔫 **Gun Shop Unlocked!**\nAs a gang member you now have access to \`/gunshop\`!\nArm your crew before the first war.`)
         .addFields(
           { name: '👑 Leader',  value: `<@${userId}>`, inline: true },
           { name: '👥 Members', value: '1',            inline: true },
