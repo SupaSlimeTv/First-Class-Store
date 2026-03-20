@@ -421,7 +421,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <button class="btn btn-ghost btn-sm" onclick="loadBusinesses()">⟳ Refresh</button>
         </div>
         <table>
-          <thead><tr><th>Rank</th><th>Business</th><th>Owner</th><th>Type</th><th>Level</th><th>Income/min</th><th>Employees</th><th>Total Earned</th><th>Revenue Ready</th></tr></thead>
+          <thead><tr><th>Rank</th><th>Business</th><th>Owner</th><th>Type</th><th>Level</th><th>Income/min</th><th>Employees</th><th>Total Earned</th><th>Revenue Ready</th><th>Actions</th></tr></thead>
           <tbody id="biz-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
@@ -2385,6 +2385,7 @@ async function loadBusinesses() {
         <td>${biz.employees.length} / 5</td>
         <td class="mono" style="color:var(--gold)">$${biz.totalEarned.toLocaleString()}</td>
         <td class="mono" style="color:var(--cyan)">$${biz.revenue.toLocaleString()}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteBusiness('${biz.ownerId}')">🗑 Clear</button></td>
       </tr>`;
     }).join('');
   } catch(e) {
@@ -2431,6 +2432,13 @@ async function loadPets() {
       </tr>`;
     }).join('');
   } catch(e) { console.error('loadPets error:', e); }
+}
+
+async function deleteBusiness(ownerId) {
+  if (!confirm('Delete this business? The owner can start a new one after.')) return;
+  const r = await api('POST', `/api/${GUILD}/businesses/${ownerId}/delete`);
+  if (r.success) { toast('Business deleted', 'ok'); loadBusinesses(); }
+  else toast(r.error||'Failed', 'err');
 }
 
 // ════════════════════════════════════════════════

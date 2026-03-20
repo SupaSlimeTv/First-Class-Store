@@ -726,6 +726,14 @@ app.post('/api/:guildId/guns/health/:userId/revive', requireGuildAuth, async (re
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/:guildId/businesses/:userId/delete', requireGuildAuth, async (req, res) => {
+  try {
+    const bizDb = require('../utils/bizDb');
+    bizDb.deleteBusiness(req.params.userId);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── CATCH-ALL — redirect to login or serve dashboard ─────────
 
 app.get('/', (req, res) => {
