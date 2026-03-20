@@ -23,10 +23,10 @@ const REDIRECT_URI          = process.env.DASHBOARD_URL
 app.use(express.json());
 app.set('trust proxy', 1);
 app.use(session({
-  secret:            process.env.SESSION_SECRET || 'changeme_' + Math.random(),
-  resave:            false,
+  secret:            process.env.SESSION_SECRET || 'fcs_secret_key_2026',
+  resave:            true,
   saveUninitialized: false,
-  cookie:            { secure: true, sameSite: 'none', maxAge: 24 * 60 * 60 * 1000 },
+  cookie:            { secure: true, sameSite: 'none', maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
 
 // ── HELPERS ───────────────────────────────────────────────────
@@ -110,7 +110,7 @@ app.get('/auth/callback', async (req, res) => {
     if (!user) return res.redirect('/login.html?error=user_failed');
     req.session.user        = { id: user.id, username: user.global_name || user.username, avatar: user.avatar };
     req.session.accessToken = tokenData.access_token;
-    res.redirect('/guild-select.html');
+    req.session.save(() => res.redirect('/guild-select.html'));
   } catch (err) {
     console.error('OAuth error:', err);
     res.redirect('/login.html?error=oauth_error');

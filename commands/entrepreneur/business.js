@@ -73,6 +73,7 @@ module.exports = {
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business yet! Use `/business start` to open one.")], ephemeral: true });
 
       const bizType = BIZ_TYPES[biz.type];
+      if (!bizType) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Your business has an invalid type. Please close it with \`/business close\` and start a new one.`)], ephemeral: true });
       // Tick revenue up to now
       const now      = Date.now();
       const elapsed  = (now - biz.lastTick) / 1000;
@@ -145,6 +146,7 @@ module.exports = {
       const biz     = getBusiness(userId);
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business.")], ephemeral: true });
       const bizType = BIZ_TYPES[biz.type];
+      if (!bizType) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Your business has an invalid type (\`${biz.type}\`). Please close it with \`/business close\` and start a new one.`)], ephemeral: true });
       if (biz.level >= bizType.maxLevel) return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription('Your business is already at **MAX LEVEL**!')], ephemeral: true });
 
       const cost = bizType.upgradeCost * biz.level;
