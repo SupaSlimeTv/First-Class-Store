@@ -35,7 +35,7 @@ module.exports = {
     if (!targetData) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`**${target.username}** doesn't have an account yet.`)], ephemeral: true });
 
     biz.employees.push({ userId: target.id, role, joinedAt: Date.now() });
-    saveBusiness(userId, biz);
+    await saveBusiness(userId, biz);
 
     // DM the new employee
     try {

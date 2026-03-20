@@ -88,7 +88,7 @@ module.exports = {
         freshBiz.employees = freshBiz.employees || [];
         freshBiz.employees.push({ npcId: npc.id, isNPC: true, role: npc.role, joinedAt: Date.now() });
         saveUser(userId, user);
-        saveBusiness(userId, freshBiz);
+        await saveBusiness(userId, freshBiz);
         collector.stop();
 
         return i.update({ embeds: [new EmbedBuilder()

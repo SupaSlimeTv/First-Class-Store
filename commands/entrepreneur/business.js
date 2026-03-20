@@ -28,7 +28,7 @@ module.exports = {
       const existing = getBusiness(userId);
       if (existing && existing.name && existing.type) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setTitle('❌ Already Owns a Business').setDescription(`You already own **${existing.name}**!\nSell it first with \`/business close\` before starting another.`)], ephemeral: true });
       // Clean up corrupt/undefined entry if present
-      if (existing && (!existing.name || !existing.type)) deleteBusiness(userId);
+      if (existing && (!existing.name || !existing.type)) await deleteBusiness(userId);
 
       const type     = interaction.options.getString('type');
       const bizName  = interaction.options.getString('name').slice(0, 50);
@@ -53,7 +53,7 @@ module.exports = {
         openedAt:    Date.now(),
         announceChannel: null,
       };
-      saveBusiness(userId, biz);
+      await saveBusiness(userId, biz);
 
       return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(COLORS.SUCCESS)
@@ -78,7 +78,7 @@ module.exports = {
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business yet! Use `/business start` to open one.")], ephemeral: true });
 
       const bizType = BIZ_TYPES[biz.type];
-      if (!bizType) { deleteBusiness(userId); return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Stale Record Cleared').setDescription('Your old business record was invalid and has been automatically removed.\n\nYou can now use `/business start` to open a new one!')], ephemeral: true }); }
+      if (!bizType) { await deleteBusiness(userId); return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Stale Record Cleared').setDescription('Your old business record was invalid and has been automatically removed.\n\nYou can now use `/business start` to open a new one!')], ephemeral: true }); }
       // Tick revenue up to now
       const now      = Date.now();
       const elapsed  = (now - biz.lastTick) / 1000;
@@ -118,7 +118,7 @@ module.exports = {
         biz = Object.values(all).find(b => b.ownerId === userId) || null;
       }
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business.")], ephemeral: true });
-      if (!biz.type || !BIZ_TYPES[biz.type]) { deleteBusiness(userId); return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Stale Record Cleared').setDescription('Your old business record was invalid and has been automatically removed.\n\nUse `/business start` to open a new one!')], ephemeral: true }); }
+      if (!biz.type || !BIZ_TYPES[biz.type]) { await deleteBusiness(userId); return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Stale Record Cleared').setDescription('Your old business record was invalid and has been automatically removed.\n\nUse `/business start` to open a new one!')], ephemeral: true }); }
 
       const now     = Date.now();
       const elapsed = (now - biz.lastTick) / 1000;
@@ -133,7 +133,7 @@ module.exports = {
       biz.lastTick   = now;
       biz.totalEarned += earned;
       saveUser(userId, user);
-      saveBusiness(userId, biz);
+      await saveBusiness(userId, biz);
 
       // Pay employees their cut (10% each, from the business not the owner)
       for (const emp of biz.employees) {
@@ -174,7 +174,7 @@ module.exports = {
       biz.level++;
       const newIncome = calcIncome(biz);
       saveUser(userId, user);
-      saveBusiness(userId, biz);
+      await saveBusiness(userId, biz);
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0xf5c518)
@@ -194,7 +194,7 @@ module.exports = {
 
       // If business is corrupt (undefined name/type), just delete it immediately
       if (!biz.name || !biz.type) {
-        deleteBusiness(userId);
+        await deleteBusiness(userId);
         return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Business Cleared').setDescription('Your corrupt business record has been removed. You can now start a new one with `/business start`.')], ephemeral: true });
       }
 
@@ -210,7 +210,7 @@ module.exports = {
       collector.on('collect', async btn => {
         collector.stop();
         if (btn.customId === 'biz_close_cancel') return btn.update({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription('Closed business closure. Your business is safe.')], components: [] });
-        deleteBusiness(userId);
+        await deleteBusiness(userId);
         await btn.update({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Business Closed').setDescription(`**${biz.name}** has been permanently closed.`)], components: [] });
       });
     }

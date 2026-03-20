@@ -61,6 +61,11 @@ client.once('ready', async () => {
   const { preloadCache } = require('./utils/db');
   await preloadCache();
 
+  // Load business cache from MongoDB
+  const { preloadBizCache } = require('./utils/bizDb');
+  await preloadBizCache();
+  console.log('📦 Business cache loaded');
+
   // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');

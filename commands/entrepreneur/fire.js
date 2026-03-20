@@ -22,7 +22,7 @@ module.exports = {
 
     const emp = biz.employees[idx];
     biz.employees.splice(idx, 1);
-    saveBusiness(userId, biz);
+    await saveBusiness(userId, biz);
 
     try {
       await target.send({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setTitle('📋 You\'ve Been Let Go').setDescription(`**${interaction.user.username}** has removed you from **${biz.name}**.\n\nBetter luck at your next job.`)] });

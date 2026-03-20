@@ -38,7 +38,7 @@ module.exports = {
       const npc      = getNPC(npcId);
       const freshBiz = getBusiness(userId);
       freshBiz.employees = (freshBiz.employees || []).filter(e => !(e.isNPC && e.npcId === npcId));
-      saveBusiness(userId, freshBiz);
+      await saveBusiness(userId, freshBiz);
       collector.stop();
       await i.update({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('📋 NPC Fired').setDescription(`**${npc?.name || npcId}** has been let go from **${freshBiz.name}**.`)], components: [] });
     });
