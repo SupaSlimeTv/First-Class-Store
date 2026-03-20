@@ -1505,6 +1505,34 @@ function renderStore(){
   }).join('');
 }
 
+// Magic actions — declared early so clearForm can reference them
+let magicActions = [];
+function renderMagicActions() {
+  const list  = document.getElementById('magic-actions-list');
+  const empty = document.getElementById('magic-actions-empty');
+  if (!list) return;
+  if (!magicActions.length) { list.innerHTML = ''; if(empty) empty.style.display='block'; return; }
+  if(empty) empty.style.display = 'none';
+  list.innerHTML = magicActions.map((action, i) => {
+    const def    = (typeof MAGIC_ACTION_DEFS !== 'undefined' && MAGIC_ACTION_DEFS[action.type]) || { label: action.type, emoji: '⚡' };
+    const fields = (typeof renderActionFields === 'function') ? renderActionFields(action, i) : '';
+    return `<div style="background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:12px;position:relative">
+      <button onclick="removeMagicAction(${i})" type="button" title="Remove" style="position:absolute;top:8px;right:8px;background:rgba(255,59,59,.15);border:1px solid rgba(255,59,59,.3);color:var(--accent);border-radius:4px;padding:2px 8px;cursor:pointer;font-weight:700;font-size:12px">✕</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span>${def.emoji}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Action ${i+1}</span>
+      </div>
+      <div class="fg" style="margin-bottom:${fields?'10px':'0'}">
+        <label class="flabel">Action Type</label>
+        <select class="fselect" id="ma-${i}-type" onchange="onMagicActionTypeChange(${i})">
+          ${typeof MAGIC_ACTION_DEFS !== 'undefined' ? Object.entries(MAGIC_ACTION_DEFS).map(([k,v])=>`<option value="${k}" ${action.type===k?'selected':''}>${v.label}</option>`).join('') : ''}
+        </select>
+      </div>
+      ${fields}
+    </div>`;
+  }).join('');
+}
+
 function clearForm(){
   ['m-name','m-desc','m-price','m-drain-amount','m-drain-duration',
    'm-silence-dur','m-passive-amount','m-passive-interval','m-passive-duration',
@@ -2790,7 +2818,6 @@ async function saveGun() {
 // ════════════════════════════════════════════════
 // MAGIC ACTION BUILDER
 // ════════════════════════════════════════════════
-let magicActions = [];
 
 // All available emojis for spell picker
 const SPELL_EMOJIS = ['✨','🔮','💀','🌟','❄️','🔥','⚡','🌊','🍄','💫','🎭','🎪','🗡️','🛡️','💣','🧪','🧿','🎯','🌀','👁️','💀','☠️','🔴','🟣','🟠','🟡','💜','🖤','❤️','🤍','💀','🧠','👾','🤖','📱','🚁','💬','🔩','💻','📡','🕷️','🦂','🐍','🦅','🐉','🌙','🌞','⭐','🌈','🌪️','🌊'];

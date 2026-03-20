@@ -711,8 +711,12 @@ app.delete('/api/:guildId/guns/shop/:id', requireGuildAuth, async (req, res) => 
 app.get('/api/:guildId/guns/health', requireGuildAuth, async (req, res) => {
   try {
     const { getAllHealth, getStatus } = require('../utils/gunDb');
-    const all  = getAllHealth();
-    const list = Object.entries(all).map(([userId,h])=>({userId,...h,statusLabel:getStatus(h.hp||100).label})).filter(h=>(h.hp||100)<100||h.hospitalUntil);
+    const all  = getAllHealth() || {};
+    const list = Object.entries(all).map(([userId,h]) => {
+      try {
+        return { userId, ...h, statusLabel: getStatus(h.hp ?? 100)?.label || 'Alive' };
+      } catch { return { userId, ...h, statusLabel: 'Unknown' }; }
+    }).filter(h => (h.hp ?? 100) < 100 || h.hospitalUntil);
     res.json(list);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
