@@ -1135,6 +1135,34 @@ client.on('messageCreate', async (message) => {
     return message.reply({ embeds:[new EmbedBuilder().setColor(status.color).setTitle('💊 Medkit Used').setDescription(`Spent **$${amount.toLocaleString()}** — healed **+${healAmt} HP**`).addFields({ name:'❤️ HP', value:`[${hpBar}] ${health.hp}/${MAX_HP}`, inline:true },{ name:'Status', value:status.label, inline:true })] });
   }
 
+
+  // ---- info / guide ----
+  if (commandName === 'info' || commandName === 'guide') {
+    const infoCmd = require('./commands/fun/info.js');
+    const IPAGES  = infoCmd.PAGES || [];
+    if (!IPAGES.length) return message.reply('Use `/info` for the full guide!');
+    let page = 0;
+    const { EmbedBuilder: EB2, ActionRowBuilder: AR2, ButtonBuilder: BB2, ButtonStyle: BS2 } = require('discord.js');
+    const buildIEmbed = (p) => {
+      const pg = IPAGES[p];
+      return new EB2().setColor(pg.color).setTitle(pg.title).setDescription(pg.desc).addFields(pg.fields).setFooter({ text:`Page ${p+1}/${IPAGES.length} — Use ◀ ▶ to navigate` });
+    };
+    const buildIRow = (p) => new AR2().addComponents(
+      new BB2().setCustomId('infop_prev').setLabel('◀').setStyle(BS2.Secondary).setDisabled(p===0),
+      new BB2().setCustomId('infop_next').setLabel('▶').setStyle(BS2.Secondary).setDisabled(p>=IPAGES.length-1),
+    );
+    const sent = await message.reply({ embeds:[buildIEmbed(page)], components:[buildIRow(page)], fetchReply:true });
+    const col  = sent.createMessageComponentCollector({ time:5*60*1000 });
+    col.on('collect', async btn => {
+      if (btn.user.id !== message.author.id) return btn.reply({ content:'Not your guide.', ephemeral:true });
+      if (btn.customId==='infop_prev') page=Math.max(0,page-1);
+      if (btn.customId==='infop_next') page=Math.min(IPAGES.length-1,page+1);
+      await btn.update({ embeds:[buildIEmbed(page)], components:[buildIRow(page)] });
+    });
+    col.on('end', ()=>sent.edit({ components:[] }).catch(()=>{}));
+    return;
+  }
+
 });
 
 // ---- PURGE WATCHER ----
@@ -1187,7 +1215,19 @@ const stockFs   = require('fs');
 const stockPath = require('path');
 const PRICES_FILE  = stockPath.join(__dirname, 'data/stockPrices.json');
 const HISTORY_FILE = stockPath.join(__dirname, 'data/stockHistory.json');
-const STOCK_COINS  = ['DOGE2','PEPE','RUGPUL','MOON','BODEN','CHAD'];
+
+// Each coin has its own personality — volatility, drift, crash/moon chance
+const COIN_PROFILES = {
+  DOGE2:  { vol:0.18, drift:0.002,  crashChance:0.04, moonChance:0.05, crashMag:0.45, moonMag:1.80, floor:0.01,  name:'Doge 2.0'       },
+  PEPE:   { vol:0.30, drift:-0.001, crashChance:0.06, moonChance:0.04, crashMag:0.60, moonMag:2.50, floor:0.001, name:'PepeCoin'        },
+  RUGPUL: { vol:0.45, drift:-0.008, crashChance:0.10, moonChance:0.03, crashMag:0.80, moonMag:3.00, floor:0.001, name:'RugPull Finance'  },
+  MOON:   { vol:0.25, drift:0.005,  crashChance:0.03, moonChance:0.08, crashMag:0.40, moonMag:4.00, floor:0.01,  name:'MoonShot'        },
+  BODEN:  { vol:0.12, drift:0.001,  crashChance:0.02, moonChance:0.02, crashMag:0.30, moonMag:1.40, floor:0.10,  name:'BodenBucks'      },
+  CHAD:   { vol:0.35, drift:0.003,  crashChance:0.05, moonChance:0.07, crashMag:0.55, moonMag:3.50, floor:0.001, name:'ChadToken'       },
+};
+
+// Momentum tracker — coins build momentum over ticks
+const stockMomentum = { DOGE2:0, PEPE:0, RUGPUL:0, MOON:0, BODEN:0, CHAD:0 };
 
 function tickStockPrices() {
   let prices  = {};
@@ -1195,14 +1235,42 @@ function tickStockPrices() {
   try { prices  = JSON.parse(stockFs.readFileSync(PRICES_FILE,  'utf8')); } catch {}
   try { history = JSON.parse(stockFs.readFileSync(HISTORY_FILE, 'utf8')); } catch {}
 
-  STOCK_COINS.forEach(id => {
-    const current = prices[id] || (50 + Math.random() * 450);
-    const swing   = (Math.random() - 0.5) * 0.25;
-    prices[id]    = Math.max(1, current * (1 + swing));
+  Object.entries(COIN_PROFILES).forEach(([id, profile]) => {
+    const current = prices[id] || (10 + Math.random() * 490);
+
+    // Random event rolls first
+    const crashRoll = Math.random();
+    const moonRoll  = Math.random();
+
+    let multiplier = 1;
+
+    if (crashRoll < profile.crashChance) {
+      // CRASH — lose crashMag% of value
+      const crashAmt = profile.crashMag * (0.5 + Math.random() * 0.5);
+      multiplier = 1 - crashAmt;
+      stockMomentum[id] = -0.3; // strong negative momentum after crash
+    } else if (moonRoll < profile.moonChance) {
+      // MOON — gain moonMag% of value
+      const moonAmt = (profile.moonMag - 1) * (0.4 + Math.random() * 0.8);
+      multiplier = 1 + moonAmt;
+      stockMomentum[id] = 0.3; // strong positive momentum after moon
+    } else {
+      // Normal tick — volatility + drift + momentum
+      const noise    = (Math.random() - 0.5) * 2 * profile.vol;
+      const momentum = stockMomentum[id] * 0.6; // decay momentum each tick
+      multiplier = 1 + noise + profile.drift + momentum;
+      // Decay momentum
+      stockMomentum[id] *= 0.75;
+      // Add small random momentum kick
+      stockMomentum[id] += (Math.random() - 0.5) * 0.05;
+      stockMomentum[id]  = Math.max(-0.5, Math.min(0.5, stockMomentum[id]));
+    }
+
+    prices[id] = Math.max(profile.floor, current * multiplier);
 
     // Keep last 1440 ticks (~4 hours at 10s intervals)
     if (!history[id]) history[id] = [];
-    history[id].push(prices[id]);
+    history[id].push(Math.round(prices[id] * 10000) / 10000);
     if (history[id].length > 1440) history[id] = history[id].slice(-1440);
   });
 
