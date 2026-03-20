@@ -276,12 +276,27 @@ function isBotBanned(userId) {
   const user = getUser(userId);
   if (!user.bannedUntil) return false;
   if (Date.now() > user.bannedUntil) {
-    // Ban expired — clear it
     user.bannedUntil = null;
     saveUser(userId, user);
     return false;
   }
   return true;
+}
+
+/**
+ * Preload all users and config into memory cache on startup
+ * so sync callers work without await
+ */
+async function preloadCache() {
+  try {
+    // Just read files into memory — the sync functions will use them
+    readJSON(USERS_FILE);
+    readJSON(CONFIG_FILE);
+    readJSON(STORE_FILE);
+    console.log('📂 Cache preloaded');
+  } catch(e) {
+    console.error('preloadCache error:', e.message);
+  }
 }
 
 module.exports = {
@@ -303,4 +318,5 @@ module.exports = {
   giveItem,
   removeItem,
   isBotBanned,
+  preloadCache,
 };
