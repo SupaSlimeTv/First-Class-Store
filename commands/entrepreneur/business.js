@@ -69,7 +69,12 @@ module.exports = {
     }
 
     if (sub === 'view') {
-      const biz = getBusiness(userId);
+      let biz = getBusiness(userId);
+      // Fallback: scan all businesses if primary key lookup fails
+      if (!biz) {
+        const all = require('../../utils/bizDb').getAllBusinesses();
+        biz = Object.values(all).find(b => b.ownerId === userId) || null;
+      }
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business yet! Use `/business start` to open one.")], ephemeral: true });
 
       const bizType = BIZ_TYPES[biz.type];
@@ -106,7 +111,12 @@ module.exports = {
     }
 
     if (sub === 'collect') {
-      const biz = getBusiness(userId);
+      let biz = getBusiness(userId);
+      // Fallback: scan all businesses if primary key lookup fails
+      if (!biz) {
+        const all = require('../../utils/bizDb').getAllBusinesses();
+        biz = Object.values(all).find(b => b.ownerId === userId) || null;
+      }
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business.")], ephemeral: true });
       if (!biz.type || !BIZ_TYPES[biz.type]) { deleteBusiness(userId); return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Stale Record Cleared').setDescription('Your old business record was invalid and has been automatically removed.\n\nUse `/business start` to open a new one!')], ephemeral: true }); }
 
@@ -144,13 +154,18 @@ module.exports = {
     }
 
     if (sub === 'upgrade') {
+      // Try primary key first, then scan all businesses for this owner
       let biz = getBusiness(userId);
-      // Nuclear: if no biz or corrupt type, wipe it and tell them to start fresh
-      if (!biz || !biz.type || !BIZ_TYPES[biz.type]) {
-        if (biz) deleteBusiness(userId);
-        return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x2ecc71).setTitle('✅ Ready to Start').setDescription('No valid business found — any old record has been cleared.\n\nRun `/business start` to open your business!')], ephemeral: true });
+      if (!biz) {
+        const all = require('../../utils/bizDb').getAllBusinesses();
+        biz = Object.values(all).find(b => b.ownerId === userId) || null;
       }
+      if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business. Use `/business start` to open one.")], ephemeral: true });
       const bizType = BIZ_TYPES[biz.type];
+      if (!bizType) {
+        deleteBusiness(userId);
+        return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Old Record Cleared').setDescription('Your old business had a corrupt type and was cleared.\n\nRun `/business start` to open a new one.')], ephemeral: true });
+      }
       if (biz.level >= bizType.maxLevel) return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription('Your business is already at **MAX LEVEL**!')], ephemeral: true });
 
       const cost = bizType.upgradeCost * biz.level;
