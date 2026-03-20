@@ -37,7 +37,7 @@ module.exports = {
 
   async execute(interaction) {
     const role = interaction.options.getRole('role');
-    const config = getConfig();
+    const config = getConfig(interaction.guildId);
 
     // Build the permissions object from the options provided
     // If an option wasn't provided (null), keep the existing value or default false

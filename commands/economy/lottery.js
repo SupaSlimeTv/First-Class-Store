@@ -15,7 +15,7 @@ function getLottery() {
 }
 
 function initLottery() {
-  const config = getConfig();
+  const config = getConfig(interaction.guildId);
   const lottery = {
     active:     config.lottery?.active ?? true,
     ticketPrice: config.lottery?.ticketPrice ?? 100,

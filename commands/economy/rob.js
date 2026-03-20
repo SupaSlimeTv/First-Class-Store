@@ -17,10 +17,10 @@ module.exports = {
     if (await noAccount(interaction)) return;
     const robberId = interaction.user.id;
     const target   = interaction.options.getUser('target');
-    const purge    = isPurgeActive();
+    const purge    = isPurgeActive(interaction.guildId);
 
     // Always read fresh config — dashboard may have changed it
-    const config      = getConfig();
+    const config      = getConfig(interaction.guildId);
     const COOLDOWN_MS = (config.robCooldownMinutes ?? 5) * 60 * 1000;
 
     if (target.id === robberId) return interaction.reply({ embeds: [errorEmbed("You can't rob yourself!")], ephemeral: true });

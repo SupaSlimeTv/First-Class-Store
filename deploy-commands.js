@@ -41,9 +41,10 @@ const rest = new REST().setToken(process.env.TOKEN);
   try {
     console.log(`\n🚀 Registering ${commands.length} slash commands...`);
 
-    // PUT replaces ALL existing guild commands with the new list
+    // PUT replaces ALL existing global commands with the new list
+    // Global commands work in every server the bot is in (takes ~1 hour to propagate)
     await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      Routes.applicationCommands(process.env.CLIENT_ID),
       { body: commands }
     );
 

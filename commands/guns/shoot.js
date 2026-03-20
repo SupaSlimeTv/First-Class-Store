@@ -103,7 +103,7 @@ module.exports = {
     }
 
     // ── CHECK TARGET SHIELD (item-based) ──
-    const purge = isPurgeActive();
+    const purge = isPurgeActive(interaction.guildId);
     if (damage > 0) {
       const { getUserEffects } = require('../../utils/effects').getUserEffects
         ? require('../../utils/effects')
@@ -120,7 +120,7 @@ module.exports = {
       }
 
       // Check protected roles
-      const config = getConfig();
+      const config = getConfig(interaction.guildId);
       const protectedRoles = Array.isArray(config.protectedRoles) ? config.protectedRoles : [];
       if (protectedRoles.length > 0 && interaction.guild) {
         const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
@@ -175,7 +175,7 @@ module.exports = {
 
     // ── SHOT TIMEOUT — silence target from bot commands ──
     if (damage > 0 && !petDefended) {
-      const config         = getConfig();
+      const config         = getConfig(interaction.guildId);
       const timeoutMins    = config.shotTimeoutMinutes ?? 5; // default 5 min, owner sets it
       if (timeoutMins > 0) {
         const victim         = getOrCreateUser(target.id);
@@ -193,7 +193,7 @@ module.exports = {
     const outcomeMsg = OUTCOME_MSGS[outcomeType]?.[Math.floor(Math.random()*OUTCOME_MSGS[outcomeType].length)] || '';
     const switchTag  = gun.hasSwitch ? ' 🔩' : '';
     const color      = isMiss ? 0x444444 : isCrit ? 0xff0000 : 0xff6600;
-    const config     = getConfig();
+    const config     = getConfig(interaction.guildId);
     const timeoutMins = config.shotTimeoutMinutes ?? 5;
 
     const embed = new EmbedBuilder()

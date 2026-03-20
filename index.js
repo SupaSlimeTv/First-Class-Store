@@ -162,7 +162,7 @@ client.on('messageCreate', async (message) => {
           robSuccessEmbed, robFailEmbed, coinflipEmbed, errorEmbed, COLORS } = embeds;
   const { EmbedBuilder } = require('discord.js');
 
-  const config = getConfig();
+  const config = getConfig(message.guildId);
   const prefix = config.prefix || '!';
 
   // ---- OPEN ACCOUNT (no prefix required — just "open account" or "!open account") ----
@@ -229,7 +229,7 @@ client.on('messageCreate', async (message) => {
   if (commandName === 'dep' || commandName === 'deposit') {
     if (needsAccount()) return;
     if (silenced(message.author.id)) return;
-    if (isPurgeActive()) return message.reply('🔴 Deposits are disabled during the purge!');
+    if (isPurgeActive(message.guildId)) return message.reply('🔴 Deposits are disabled during the purge!');
     const input = args[0]?.toLowerCase();
     if (!input) return message.reply('Usage: `' + prefix + 'dep <amount|all>`');
     const user   = getOrCreateUser(message.author.id);
@@ -244,7 +244,7 @@ client.on('messageCreate', async (message) => {
   if (commandName === 'with' || commandName === 'withdraw') {
     if (needsAccount()) return;
     if (silenced(message.author.id)) return;
-    if (isPurgeActive()) return message.reply('🔴 Withdrawals are disabled during the purge!');
+    if (isPurgeActive(message.guildId)) return message.reply('🔴 Withdrawals are disabled during the purge!');
     const input = args[0]?.toLowerCase();
     if (!input) return message.reply('Usage: `' + prefix + 'with <amount|all>`');
     const user   = getOrCreateUser(message.author.id);
@@ -287,7 +287,7 @@ client.on('messageCreate', async (message) => {
     if (target.bot) return message.reply("You can't rob a bot!");
     if (!hasAccount(target.id)) return message.reply(`**${target.username}** doesn't have an account yet.`);
 
-    const purge       = isPurgeActive();
+    const purge       = isPurgeActive(message.guildId);
     const COOLDOWN_MS = (config.robCooldownMinutes ?? 5) * 60 * 1000;
 
     // ---- PROTECTED ROLE CHECK ----
@@ -1103,7 +1103,7 @@ client.on('messageCreate', async (message) => {
     saveHealth(target.id, targetHealth);
 
     const { addHeat: ah } = require('./utils/police');
-    if (!isPurgeActive()) ah(message.author.id, died?40:damage>30?20:8, 'shooting');
+    if (!isPurgeActive(message.guildId)) ah(message.author.id, died?40:damage>30?20:8, 'shooting');
 
     let stolen=0;
     if (died) {

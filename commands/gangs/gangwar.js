@@ -144,7 +144,7 @@ module.exports = {
       const success     = roll < (0.35 + accuracy * 0.3);
       const basePoints  = success ? Math.floor(5 + Math.random() * 15) : 0;
       const points      = basePoints + gunBonus;
-      const heatAdded   = isPurgeActive() ? 0 : (success ? 8 : 3);
+      const heatAdded   = isPurgeActive(interaction.guildId) ? 0 : (success ? 8 : 3);
 
       // Use ammo
       if (bestGun && inv.length) {
@@ -161,8 +161,8 @@ module.exports = {
 
       if (heatAdded > 0) addHeat(userId, heatAdded, 'gang_attack');
 
-      const config  = require('../../utils/db').getConfig();
-      const raid    = isPurgeActive() ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
+      const config  = require('../../utils/db').getConfig(interaction.guildId);
+      const raid    = isPurgeActive(interaction.guildId) ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
 
       const gunLine = bestGun ? `\n${bestGun.gun.emoji} Used **${bestGun.gun.name}** (+${gunBonus} bonus pts)` : '\n*(No weapon equipped — visit /gunshop)*';
 

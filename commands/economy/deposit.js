@@ -11,7 +11,7 @@ module.exports = {
 
   async execute(interaction) {
     if (await noAccount(interaction)) return;
-    if (isPurgeActive()) return interaction.reply({ embeds: [errorEmbed('🔴 **THE PURGE IS ACTIVE!**\nDeposits are disabled.')], ephemeral: true });
+    if (isPurgeActive(interaction.guildId)) return interaction.reply({ embeds: [errorEmbed('🔴 **THE PURGE IS ACTIVE!**\nDeposits are disabled.')], ephemeral: true });
     const user  = getOrCreateUser(interaction.user.id);
     const input = interaction.options.getString('amount').toLowerCase();
     const amount = input === 'all' ? user.wallet : parseInt(input);

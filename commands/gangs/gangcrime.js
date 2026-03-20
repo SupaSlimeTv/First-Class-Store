@@ -89,11 +89,11 @@ module.exports = {
       ]});
     }
 
-    const caught = !isPurgeActive() && Math.random() < (crime.risk * (1 - onPayroll * 0.05));
+    const caught = !isPurgeActive(interaction.guildId) && Math.random() < (crime.risk * (1 - onPayroll * 0.05));
     const { getConsumeBuff } = require('../../utils/consumeBuffs');
     const crimeBoost    = getConsumeBuff(userId, 'crime_boost');
     const focusedBuff   = getConsumeBuff(userId, 'focused');
-    const effectiveHeat = isPurgeActive() ? 0 : Math.max(0, (crime.heat - onPayroll * 3) * (1 - crimeBoost / 100));
+    const effectiveHeat = isPurgeActive(interaction.guildId) ? 0 : Math.max(0, (crime.heat - onPayroll * 3) * (1 - crimeBoost / 100));
     const record = addHeat(userId, effectiveHeat, crime.id);
     const heatLvl = getHeatLevel(record.heat);
 
@@ -125,8 +125,8 @@ module.exports = {
     saveUser(userId, user);
     saveGang(myGang.id, myGang);
 
-    const config = require('../../utils/db').getConfig();
-    const raid   = isPurgeActive() ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
+    const config = require('../../utils/db').getConfig(interaction.guildId);
+    const raid   = isPurgeActive(interaction.guildId) ? null : await checkPoliceRaid(userId, interaction.client, config.purgeChannelId);
 
     const mafiaTag = crime.type==='mafia' ? ' 👔' : ' 🔫';
     const embed = new EmbedBuilder()

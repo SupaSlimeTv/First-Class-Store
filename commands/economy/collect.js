@@ -10,7 +10,7 @@ module.exports = {
 
   async execute(interaction) {
     if (await noAccount(interaction)) return;
-    const config     = getConfig();
+    const config     = getConfig(interaction.guildId);
     const roleIncome = config.roleIncome || {};
     const now        = Date.now();
     const memberRoles = interaction.member.roles.cache.map(r => r.id);
