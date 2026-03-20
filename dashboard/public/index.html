@@ -1160,28 +1160,16 @@ tr:hover td{background:rgba(255,255,255,.015)}
                 <option value="random">🎲 Random — picks a random player</option>
               </select>
             </div>
+
+            <!-- ACTION CHAIN BUILDER -->
             <div class="fg">
-              <label class="flabel">Actions (JSON array — chain multiple effects)</label>
-              <textarea class="finput" id="m-magic-actions" rows="6" style="font-family:'JetBrains Mono',monospace;font-size:11px;resize:vertical" placeholder='[
-  {"type":"drain","pct":20,"from":"wallet"},
-  {"type":"silence","minutes":5},
-  {"type":"msg","text":"The curse takes hold."}
-]'></textarea>
-              <div class="hint">
-                Available action types:<br>
-                <code>{"type":"drain","pct":20,"from":"wallet"}</code> — steal % (wallet/bank/both)<br>
-                <code>{"type":"give","amount":500,"to":"wallet"}</code> — give money<br>
-                <code>{"type":"silence","minutes":10}</code> — silence target<br>
-                <code>{"type":"heat","amount":20}</code> — add police heat<br>
-                <code>{"type":"buff","buffType":"lucky","strength":25,"minutes":15}</code> — apply consume buff<br>
-                <code>{"type":"xp","amount":50}</code> — give pet XP<br>
-                <code>{"type":"msg","text":"Custom message"}</code> — flavor text only<br>
-                <strong>🤖 AI Control:</strong><br>
-                <code>{"type":"ai_loyalty","value":0}</code> — set target's AI loyalty (0–100). 0 = goes rogue<br>
-                <code>{"type":"ai_mood","mood":"rogue"}</code> — force mood: loyal / happy / passive / rogue<br>
-                <code>{"type":"ai_ability","ability":"steal_data","enable":false}</code> — toggle a specific ability on/off<br>
-                <code>{"type":"ai_takeover","duration":10}</code> — force all target AIs rogue for X minutes<br>
-                <code>{"type":"ai_wipe"}</code> — wipe all memory, reset to factory defaults
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <label class="flabel" style="margin:0">⛓️ Action Chain</label>
+                <button class="btn btn-ghost btn-sm" onclick="addMagicAction()" type="button">+ Add Action</button>
+              </div>
+              <div id="magic-actions-list" style="display:flex;flex-direction:column;gap:8px"></div>
+              <div id="magic-actions-empty" style="color:var(--muted);font-size:12px;padding:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px">
+                No actions yet — click + Add Action to build your spell chain.
               </div>
             </div>
           </div>
@@ -1519,6 +1507,8 @@ function clearForm(){
   document.getElementById('m-effect-type').value='';
   document.getElementById('m-drain-type').value='percent';
   outcomes=[];
+  magicActions=[];
+  renderMagicActions();
   onTypeChange();onEffectChange();clearReqFields();
 }
 
@@ -1581,6 +1571,13 @@ function openEdit(id){
   if(ef.type==='shield'){
     document.getElementById('m-shield-blocks').value=ef.blocksLeft||3;
     document.getElementById('m-shield-dur').value=ef.durationMs?Math.ceil(ef.durationMs/3600000):24;
+  }
+  if(ef.type==='magic'){
+    document.getElementById('m-magic-name').value=ef.spellName||'';
+    document.getElementById('m-magic-emoji').value=ef.spellEmoji||'✨';
+    document.getElementById('m-magic-flavor').value=ef.spellFlavor||'';
+    document.getElementById('m-magic-target').value=ef.target||'self';
+    loadMagicActionsFromJSON(ef.actions||[]);
   }
   document.getElementById('item-modal').classList.add('open');
 }
@@ -1723,8 +1720,7 @@ async function saveItem(){
         effect.spellEmoji = document.getElementById('m-magic-emoji').value.trim()||'✨';
         effect.spellFlavor= document.getElementById('m-magic-flavor').value.trim()||null;
         effect.target     = document.getElementById('m-magic-target').value||'self';
-        try { effect.actions = JSON.parse(document.getElementById('m-magic-actions').value||'[]'); }
-        catch(e) { toast('Invalid JSON in Magic Actions','err'); return; }
+        effect.actions    = getMagicActionsJSON();
       }
       if(et==='consume'){
         effect.consumeType      = document.getElementById('m-consume-type').value;
@@ -2785,7 +2781,116 @@ async function saveGun() {
 }
 
 // ════════════════════════════════════════════════
-// STOCK MARKET ENGINE
+// MAGIC ACTION BUILDER
+// ════════════════════════════════════════════════
+let magicActions = [];
+
+const MAGIC_ACTION_DEFS = {
+  drain:        { label:'💸 Drain Money',          emoji:'💸', fields:['pct','from_wallet'] },
+  give:         { label:'💰 Give Money',            emoji:'💰', fields:['amount','to_wallet'] },
+  silence:      { label:'🔇 Silence',               emoji:'🔇', fields:['minutes'] },
+  heat:         { label:'🌡️ Add Police Heat',       emoji:'🌡️', fields:['amount'] },
+  buff:         { label:'✨ Apply Buff',             emoji:'✨', fields:['buffType','strength','minutes'] },
+  xp:           { label:'🐾 Give Pet XP',           emoji:'🐾', fields:['amount'] },
+  msg:          { label:'💬 Flavor Message',         emoji:'💬', fields:['text'] },
+  ai_loyalty:   { label:'🤖 Set AI Loyalty',        emoji:'🤖', fields:['ai_loyalty_val'] },
+  ai_mood:      { label:'😡 Force AI Mood',         emoji:'😡', fields:['ai_mood_val'] },
+  ai_ability:   { label:'⚙️ Toggle AI Ability',     emoji:'⚙️', fields:['ai_ability_name','ai_ability_enable'] },
+  ai_takeover:  { label:'💻 AI Takeover',           emoji:'💻', fields:['minutes'] },
+  ai_wipe:      { label:'🗑️ Wipe AI Memory',        emoji:'🗑️', fields:[] },
+};
+
+const MAGIC_FIELD_RENDERERS = {
+  pct:              (i) => `<div class="fg"><label class="flabel">Drain %</label><input class="finput" id="ma-${i}-pct" type="number" min="1" max="100" placeholder="20" value="20"></div>`,
+  from_wallet:      (i) => `<div class="fg"><label class="flabel">Drain From</label><select class="fselect" id="ma-${i}-from"><option value="wallet">💵 Wallet</option><option value="bank">🏦 Bank</option><option value="both">💀 Both</option></select></div>`,
+  amount:           (i) => `<div class="fg"><label class="flabel">Amount</label><input class="finput" id="ma-${i}-amount" type="number" min="1" placeholder="500" value="100"></div>`,
+  to_wallet:        (i) => `<div class="fg"><label class="flabel">Give To</label><select class="fselect" id="ma-${i}-to"><option value="wallet">💵 Wallet</option><option value="bank">🏦 Bank</option></select></div>`,
+  minutes:          (i) => `<div class="fg"><label class="flabel">Minutes</label><input class="finput" id="ma-${i}-minutes" type="number" min="1" placeholder="5" value="5"></div>`,
+  text:             (i) => `<div class="fg"><label class="flabel">Message Text</label><input class="finput" id="ma-${i}-text" placeholder="The curse takes hold..."></div>`,
+  strength:         (i) => `<div class="fg"><label class="flabel">Strength %</label><input class="finput" id="ma-${i}-strength" type="number" min="1" max="200" placeholder="25" value="25"></div>`,
+  buffType:         (i) => `<div class="fg"><label class="flabel">Buff Type</label><select class="fselect" id="ma-${i}-buffType"><option value="work_boost">💼 Work Boost</option><option value="lucky">🍀 Lucky</option><option value="rob_boost">🔫 Rob Boost</option><option value="crime_boost">🌡️ Crime Boost</option><option value="passive_boost">💰 Passive Boost</option><option value="speed">⚡ Speed</option><option value="focused">🎯 Focused</option><option value="shield">🛡️ Shield</option><option value="poisoned">☠️ Poisoned</option><option value="high">😵 High</option></select></div>`,
+  ai_loyalty_val:   (i) => `<div class="fg"><label class="flabel">Loyalty Value (0–100)</label><input class="finput" id="ma-${i}-value" type="number" min="0" max="100" placeholder="0" value="0"><div class="hint">0 = goes rogue · 100 = fully loyal</div></div>`,
+  ai_mood_val:      (i) => `<div class="fg"><label class="flabel">Mood</label><select class="fselect" id="ma-${i}-mood"><option value="rogue">😡 Rogue</option><option value="loyal">😊 Loyal</option><option value="happy">😄 Happy</option><option value="passive">😐 Passive</option></select></div>`,
+  ai_ability_name:  (i) => `<div class="fg"><label class="flabel">Ability Name</label><input class="finput" id="ma-${i}-ability" placeholder="e.g. steal_data"></div>`,
+  ai_ability_enable:(i) => `<div class="fg"><label class="flabel">Enable/Disable</label><select class="fselect" id="ma-${i}-enable"><option value="true">✅ Enable</option><option value="false">❌ Disable</option></select></div>`,
+};
+
+function addMagicAction() {
+  magicActions.push({ type: 'drain' });
+  renderMagicActions();
+}
+
+function removeMagicAction(i) {
+  magicActions.splice(i, 1);
+  renderMagicActions();
+}
+
+function onMagicActionTypeChange(i) {
+  magicActions[i] = { type: document.getElementById(`ma-${i}-type`).value };
+  renderMagicActions();
+}
+
+function renderMagicActions() {
+  const list  = document.getElementById('magic-actions-list');
+  const empty = document.getElementById('magic-actions-empty');
+  if (!list) return;
+  if (!magicActions.length) { list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+
+  list.innerHTML = magicActions.map((action, i) => {
+    const def    = MAGIC_ACTION_DEFS[action.type] || MAGIC_ACTION_DEFS.msg;
+    const fields = def.fields.map(f => MAGIC_FIELD_RENDERERS[f]?.(i) || '').join('');
+    return `<div style="background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:12px;position:relative">
+      <button onclick="removeMagicAction(${i})" type="button" style="position:absolute;top:8px;right:8px;background:rgba(255,59,59,.2);border:none;color:var(--accent);border-radius:3px;padding:2px 8px;cursor:pointer;font-weight:700">✕</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:16px">${def.emoji}</span>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Action ${i+1}</div>
+      </div>
+      <div class="fg" style="margin-bottom:${def.fields.length?'10px':'0'}">
+        <label class="flabel">Action Type</label>
+        <select class="fselect" id="ma-${i}-type" onchange="onMagicActionTypeChange(${i})">
+          ${Object.entries(MAGIC_ACTION_DEFS).map(([k,v])=>`<option value="${k}" ${action.type===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+      ${def.fields.length ? `<div class="grid2">${fields}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function getMagicActionsJSON() {
+  return magicActions.map((action, i) => {
+    const def = MAGIC_ACTION_DEFS[action.type];
+    if (!def) return null;
+    const obj = { type: action.type };
+    def.fields.forEach(f => {
+      const el = document.getElementById(`ma-${i}-${f.replace('from_wallet','from').replace('to_wallet','to').replace('ai_loyalty_val','value').replace('ai_mood_val','mood').replace('ai_ability_name','ability').replace('ai_ability_enable','enable')}`);
+      if (!el) return;
+      const key = f.replace('from_wallet','from').replace('to_wallet','to').replace('ai_loyalty_val','value').replace('ai_mood_val','mood').replace('ai_ability_name','ability').replace('ai_ability_enable','enable');
+      const val = el.value;
+      if (f === 'pct' || f === 'amount' || f === 'minutes' || f === 'strength' || f === 'ai_loyalty_val') obj[key] = parseInt(val)||0;
+      else if (f === 'ai_ability_enable') obj[key] = val === 'true';
+      else obj[key] = val;
+    });
+    return obj;
+  }).filter(Boolean);
+}
+
+function loadMagicActionsFromJSON(actions) {
+  magicActions = (actions||[]).map(a => ({ type: a.type }));
+  renderMagicActions();
+  // After render, populate saved values
+  setTimeout(() => {
+    (actions||[]).forEach((action, i) => {
+      const def = MAGIC_ACTION_DEFS[action.type];
+      if (!def) return;
+      def.fields.forEach(f => {
+        const key = f.replace('from_wallet','from').replace('to_wallet','to').replace('ai_loyalty_val','value').replace('ai_mood_val','mood').replace('ai_ability_name','ability').replace('ai_ability_enable','enable');
+        const el  = document.getElementById(`ma-${i}-${key}`);
+        if (el && action[key] !== undefined) el.value = action[key];
+      });
+    });
+  }, 50);
+}
 // ════════════════════════════════════════════════
 const COINS = [
   { id:'DOGE2',  name:'Doge 2.0',       emoji:'🐕', color:'#f5c518', desc:'Such wow. Much gains. Very moon.' },
