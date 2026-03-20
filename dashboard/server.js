@@ -21,11 +21,12 @@ const REDIRECT_URI          = process.env.DASHBOARD_URL
   : `http://localhost:${PORT}/auth/callback`;
 
 app.use(express.json());
+app.set('trust proxy', 1);
 app.use(session({
   secret:            process.env.SESSION_SECRET || 'changeme_' + Math.random(),
   resave:            false,
   saveUninitialized: false,
-  cookie:            { secure: false, maxAge: 24 * 60 * 60 * 1000 },
+  cookie:            { secure: true, sameSite: 'none', maxAge: 24 * 60 * 60 * 1000 },
 }));
 
 // ── HELPERS ───────────────────────────────────────────────────
@@ -202,11 +203,56 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
   res.json(list);
 });
 
+app.post('/api/:guildId/users/:id/give-gun', requireGuildAuth, async (req, res) => {
+  try {
+    const { gunId } = req.body;
+    if (!gunId) return res.status(400).json({ error: 'gunId required' });
+    const { getGunShop, getGunInventory, saveGunInventory } = require('../utils/gunDb');
+    const shop = getGunShop();
+    const gun  = shop.guns.find(g => g.id === gunId);
+    if (!gun) return res.status(404).json({ error: 'Gun not found' });
+    const inv = getGunInventory(req.params.id);
+    inv.push({ gunId, boughtAt: Date.now(), ammo: gun.capacity * 3, gifted: true });
+    saveGunInventory(req.params.id, inv);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/pet-tokens', requireGuildAuth, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || amount < 1) return res.status(400).json({ error: 'amount required' });
+    const { getPet, savePet } = require('../utils/petDb');
+    const pet = getPet(req.params.id);
+    if (!pet) return res.status(404).json({ error: 'User does not have a pet' });
+    pet.tokens = (pet.tokens||0) + parseInt(amount);
+    savePet(req.params.id, pet);
+    res.json({ success: true, tokens: pet.tokens });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/pet-level', requireGuildAuth, async (req, res) => {
+  try {
+    const { level } = req.body;
+    if (!level || level < 1) return res.status(400).json({ error: 'level required' });
+    const { getPet, savePet, calcPetStats } = require('../utils/petDb');
+    const pet = getPet(req.params.id);
+    if (!pet) return res.status(404).json({ error: 'User does not have a pet' });
+    pet.level  = parseInt(level);
+    pet.xp     = 0;
+    const stats = calcPetStats(pet);
+    pet.hp     = stats.hp;
+    savePet(req.params.id, pet);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/:guildId/users/:id/money', requireGuildAuth, async (req, res) => {
   const user = db.getOrCreateUser(req.params.id);
-  const { wallet, bank } = req.body;
-  if (wallet != null) user.wallet = Math.max(0, parseInt(wallet)||0);
-  if (bank   != null) user.bank   = Math.max(0, parseInt(bank)||0);
+  const { wallet, bank, addWallet } = req.body;
+  if (wallet    != null) user.wallet = Math.max(0, parseInt(wallet)||0);
+  if (bank      != null) user.bank   = Math.max(0, parseInt(bank)||0);
+  if (addWallet != null) user.wallet = Math.max(0, user.wallet + (parseInt(addWallet)||0));
   db.saveUser(req.params.id, user);
   res.json({ success: true });
 });
@@ -301,6 +347,13 @@ app.post('/api/:guildId/config/rob-cooldown', requireGuildAuth, (req, res) => {
   const parsed = parseFloat(req.body.minutes);
   if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Must be >= 0' });
   const config = db.getConfig(req.guildId); config.robCooldownMinutes = parsed;
+  db.saveConfig(req.guildId, config); res.json({ success: true });
+});
+
+app.post('/api/:guildId/config/shot-timeout', requireGuildAuth, (req, res) => {
+  const parsed = parseFloat(req.body.minutes);
+  if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Must be >= 0' });
+  const config = db.getConfig(req.guildId); config.shotTimeoutMinutes = parsed;
   db.saveConfig(req.guildId, config); res.json({ success: true });
 });
 

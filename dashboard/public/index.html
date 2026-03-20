@@ -199,15 +199,28 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
 
       <!-- ROB COOLDOWN -->
-      <div class="purge-panel owner-only" style="margin-bottom:0">
+      <div class="purge-panel owner-only" style="margin-bottom:14px">
         <div class="purge-info">
           <h3>⏱️ Rob Cooldown</h3>
-          <p>How many minutes users must wait between rob attempts. Set to <strong>0</strong> to remove the cooldown entirely. During the purge the cooldown is always removed regardless of this setting.</p>
+          <p>How many minutes users must wait between rob attempts. Set to <strong>0</strong> to remove the cooldown entirely.</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
           <input id="rob-cooldown-input" type="number" min="0" step="0.5" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="5">
           <div style="font-size:12px;color:var(--muted)">min</div>
           <button class="btn btn-primary" onclick="saveRobCooldown()">Save</button>
+        </div>
+      </div>
+
+      <!-- SHOT TIMEOUT -->
+      <div class="purge-panel owner-only" style="margin-bottom:0">
+        <div class="purge-info">
+          <h3>🔫 Shot Timeout</h3>
+          <p>When a player is hit by a gun, they are silenced from all bot commands for this many minutes. Set to <strong>0</strong> to disable. During purge timeouts still apply.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <input id="shot-timeout-input" type="number" min="0" step="1" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="5">
+          <div style="font-size:12px;color:var(--muted)">min</div>
+          <button class="btn btn-primary" onclick="saveShotTimeout()">Save</button>
         </div>
       </div>
     </div>
@@ -495,8 +508,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <button class="btn btn-gold btn-sm" onclick="openAddGun()">+ Add Weapon</button>
         </div>
         <table>
-          <thead><tr><th>Weapon</th><th>Type</th><th>Rarity</th><th>Damage</th><th>Accuracy</th><th>Price</th><th>Ammo Cap</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="gun-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
+          <thead><tr><th>Weapon</th><th>Type</th><th>Rarity</th><th>Damage</th><th>Acc</th><th>Switch</th><th>Price</th><th>Cap</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="gun-tbody"><tr><td colspan="10" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
 
@@ -625,21 +638,53 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
 <!-- GIVE/TAKE ITEM MODAL -->
 <div id="item-give-modal" class="backdrop">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-top"><h3 id="give-modal-title">Give Item</h3></div>
+  <div class="modal" style="max-width:480px">
+    <div class="modal-top"><h3 id="give-modal-title">Give to User</h3></div>
     <div class="modal-body">
       <input type="hidden" id="give-target-id">
       <div class="fg">
-        <label class="flabel">Select Item</label>
-        <select class="fselect" id="give-item-select">
-          <option value="">— Choose an item —</option>
+        <label class="flabel">Gift Type</label>
+        <select class="fselect" id="give-category" onchange="onGiveCategoryChange()">
+          <option value="item">🎒 Store Item</option>
+          <option value="money">💵 Money</option>
+          <option value="tokens">🪙 Pet Tokens</option>
+          <option value="petlevel">⭐ Pet Level</option>
+          <option value="gun">🔫 Gun</option>
         </select>
       </div>
-      <div class="hint" id="give-modal-hint">Select an item to give to this user. It will appear in their inventory immediately.</div>
+      <!-- Store item -->
+      <div id="give-item-section" class="fg">
+        <label class="flabel">Select Item</label>
+        <select class="fselect" id="give-item-select"><option value="">— Choose an item —</option></select>
+      </div>
+      <!-- Money -->
+      <div id="give-money-section" class="fg" style="display:none">
+        <label class="flabel">Amount ($)</label>
+        <input class="finput" id="give-money-amount" type="number" min="1" placeholder="1000">
+        <div class="hint">Money goes directly to their wallet.</div>
+      </div>
+      <!-- Pet tokens -->
+      <div id="give-tokens-section" class="fg" style="display:none">
+        <label class="flabel">Pet Tokens</label>
+        <input class="finput" id="give-tokens-amount" type="number" min="1" placeholder="10">
+        <div class="hint">Tokens are used by the user to upgrade their pet stats.</div>
+      </div>
+      <!-- Pet level -->
+      <div id="give-petlevel-section" class="fg" style="display:none">
+        <label class="flabel">Set Pet Level To</label>
+        <input class="finput" id="give-petlevel-amount" type="number" min="1" max="100" placeholder="10">
+        <div class="hint">Directly sets the pet's level. User must own a pet.</div>
+      </div>
+      <!-- Gun -->
+      <div id="give-gun-section" class="fg" style="display:none">
+        <label class="flabel">Select Gun</label>
+        <select class="fselect" id="give-gun-select"><option value="">— Choose a gun —</option></select>
+      </div>
+      <div class="hint" id="give-modal-hint" style="margin-top:8px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeGiveTakeModal()">Cancel</button>
-      <button class="btn btn-gold" id="give-confirm-btn" onclick="confirmGiveTake()">Give Item</button>
+      <button class="btn btn-gold" id="give-confirm-btn" onclick="confirmGiveTake()">Give</button>
     </div>
   </div>
 </div>
@@ -1139,6 +1184,71 @@ tr:hover td{background:rgba(255,255,255,.015)}
   </div>
 </div>
 
+<!-- GUN MODAL -->
+<div id="gun-modal" class="backdrop">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-top"><h3 id="gun-modal-h">Add Weapon</h3></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Weapon Name *</label><input class="finput" id="gun-m-name" placeholder="e.g. Glock 19"></div>
+        <div class="fg"><label class="flabel">Emoji</label><input class="finput" id="gun-m-emoji" placeholder="🔫" maxlength="4"></div>
+      </div>
+      <div class="grid2">
+        <div class="fg">
+          <label class="flabel">Type</label>
+          <select class="fselect" id="gun-m-type">
+            <option>Pistol</option><option>SMG</option><option>Rifle</option><option>Shotgun</option><option>Sniper</option><option>Heavy</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Rarity</label>
+          <select class="fselect" id="gun-m-rarity">
+            <option>Common</option><option>Uncommon</option><option>Rare</option><option>Epic</option><option>Legendary</option><option>Mythic</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Min Damage</label><input class="finput" id="gun-m-dmgmin" type="number" min="1" placeholder="15"></div>
+        <div class="fg"><label class="flabel">Max Damage</label><input class="finput" id="gun-m-dmgmax" type="number" min="1" placeholder="30"></div>
+      </div>
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Accuracy (0.0–1.0)</label><input class="finput" id="gun-m-accuracy" type="number" min="0" max="1" step="0.05" placeholder="0.70"></div>
+        <div class="fg"><label class="flabel">Magazine Capacity</label><input class="finput" id="gun-m-capacity" type="number" min="1" placeholder="15"></div>
+      </div>
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Price ($)</label><input class="finput" id="gun-m-price" type="number" min="1" placeholder="5000"></div>
+        <div class="fg">
+          <label class="flabel">Fire Rate</label>
+          <select class="fselect" id="gun-m-firerate">
+            <option value="Semi">Semi-Auto</option>
+            <option value="Auto">Full-Auto</option>
+            <option value="Bolt">Bolt-Action</option>
+            <option value="Single">Single Shot</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="flabel">Description</label>
+        <input class="finput" id="gun-m-desc" placeholder="e.g. Reliable. Concealable. Classic.">
+      </div>
+      <div class="fg" style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px 16px;margin-top:4px">
+        <div>
+          <div style="font-weight:700;font-size:14px">🔩 Fully Automatic Switch</div>
+          <div style="font-size:11px;color:var(--muted)">Illegal auto switch attachment — converts to full-auto. Users who buy this weapon get the switch included.</div>
+        </div>
+        <label style="flex-shrink:0;display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="gun-m-switch" style="width:18px;height:18px;cursor:pointer">
+          <span style="font-size:12px;color:var(--accent);font-weight:700">ENABLE</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('gun-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveGun()">Save Weapon</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1218,6 +1328,10 @@ async function refresh(){
   // Populate rob cooldown
   const rcInput = document.getElementById('rob-cooldown-input');
   if (rcInput) rcInput.value = config.robCooldownMinutes ?? 5;
+
+  // Populate shot timeout
+  const stInput = document.getElementById('shot-timeout-input');
+  if (stInput) stInput.value = config.shotTimeoutMinutes ?? 5;
 
   // Populate purge channel
   const pcInput  = document.getElementById('purge-channel-input');
@@ -1726,9 +1840,17 @@ async function saveRobCooldown(){
   const mins=parseFloat(val);
   if(isNaN(mins)||mins<0){toast('Enter a valid number (0 or more)','err');return;}
   const r=await api('POST',`/api/${GUILD}/config/rob-cooldown`,{minutes:mins});
-  if(r.success){
-    toast(mins===0?'Rob cooldown removed':'Rob cooldown set to '+mins+' min','ok');
-  } else toast(r.error||'Failed','err');
+  if(r.success){toast(mins===0?'Rob cooldown removed':'Rob cooldown set to '+mins+' min','ok');}
+  else toast(r.error||'Failed','err');
+}
+
+async function saveShotTimeout(){
+  const val=document.getElementById('shot-timeout-input').value;
+  const mins=parseFloat(val);
+  if(isNaN(mins)||mins<0){toast('Enter a valid number (0 or more)','err');return;}
+  const r=await api('POST',`/api/${GUILD}/config/shot-timeout`,{minutes:mins});
+  if(r.success){toast(mins===0?'Shot timeout disabled':`Shot timeout set to ${mins} min`,'ok');}
+  else toast(r.error||'Failed','err');
 }
 
 // ════════════════════════════════════════════════
@@ -2047,13 +2169,21 @@ function populateRoleDropdowns() {
 let giveTakeMode = 'give';
 let giveTakeUserId = '';
 
+function onGiveCategoryChange() {
+  const cat = document.getElementById('give-category').value;
+  ['item','money','tokens','petlevel','gun'].forEach(s => {
+    document.getElementById(`give-${s}-section`).style.display = cat===s?'block':'none';
+  });
+}
+
 function openGiveItem(userId, username) {
   giveTakeMode   = 'give';
   giveTakeUserId = userId;
-  document.getElementById('give-modal-title').textContent = `Give Item to ${username}`;
-  document.getElementById('give-confirm-btn').textContent = 'Give Item';
+  document.getElementById('give-modal-title').textContent = `Give to ${username}`;
+  document.getElementById('give-confirm-btn').textContent = 'Give';
   document.getElementById('give-confirm-btn').className   = 'btn btn-gold';
-  document.getElementById('give-modal-hint').textContent  = 'Select an item to give. It will appear in their inventory immediately.';
+  document.getElementById('give-category').value = 'item';
+  onGiveCategoryChange();
   populateGiveSelect();
   document.getElementById('item-give-modal').classList.add('open');
 }
@@ -2061,19 +2191,23 @@ function openGiveItem(userId, username) {
 function openTakeItem(userId, username) {
   giveTakeMode   = 'take';
   giveTakeUserId = userId;
-  document.getElementById('give-modal-title').textContent = `Take Item from ${username}`;
+  document.getElementById('give-modal-title').textContent = `Take from ${username}`;
   document.getElementById('give-confirm-btn').textContent = 'Take Item';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
-  document.getElementById('give-modal-hint').textContent  = 'Select an item to remove from their inventory.';
+  document.getElementById('give-category').value = 'item';
+  onGiveCategoryChange();
   populateGiveSelect();
   document.getElementById('item-give-modal').classList.add('open');
 }
 
 function populateGiveSelect() {
-  const sel = document.getElementById('give-item-select');
+  // Store items
+  const sel  = document.getElementById('give-item-select');
   const items = S.store || [];
-  if (!items.length) { sel.innerHTML = '<option value="">No items in store</option>'; return; }
   sel.innerHTML = '<option value="">— Choose an item —</option>' + items.map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
+  // Guns
+  const gunSel = document.getElementById('give-gun-select');
+  gunSel.innerHTML = '<option value="">— Choose a gun —</option>' + (_gunShopCache||[]).map(g=>`<option value="${g.id}">${g.emoji} ${g.name}</option>`).join('');
 }
 
 function closeGiveTakeModal() {
@@ -2081,15 +2215,50 @@ function closeGiveTakeModal() {
 }
 
 async function confirmGiveTake() {
-  const itemId = document.getElementById('give-item-select').value;
-  if (!itemId) { toast('Select an item first', 'err'); return; }
-  const endpoint = giveTakeMode === 'give' ? 'give-item' : 'take-item';
-  const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/${endpoint}`, { itemId });
-  if (r.success) {
-    toast(giveTakeMode === 'give' ? 'Item given!' : 'Item taken!', 'ok');
-    closeGiveTakeModal();
-    refresh();
-  } else toast(r.error || 'Failed', 'err');
+  const cat = document.getElementById('give-category').value;
+
+  if (giveTakeMode === 'take') {
+    // Take is always item only
+    const itemId = document.getElementById('give-item-select').value;
+    if (!itemId) return toast('Select an item first','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/take-item`, { itemId });
+    if (r.success) { toast('Item taken!','ok'); closeGiveTakeModal(); refresh(); }
+    else toast(r.error||'Failed','err');
+    return;
+  }
+
+  // Give
+  if (cat === 'item') {
+    const itemId = document.getElementById('give-item-select').value;
+    if (!itemId) return toast('Select an item first','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/give-item`, { itemId });
+    if (r.success) { toast('Item given!','ok'); closeGiveTakeModal(); refresh(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'money') {
+    const amount = parseInt(document.getElementById('give-money-amount').value)||0;
+    if (amount < 1) return toast('Enter a valid amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { wallet: null, addWallet: amount });
+    if (r.success) { toast(`$${amount.toLocaleString()} given!`,'ok'); closeGiveTakeModal(); refresh(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'tokens') {
+    const amount = parseInt(document.getElementById('give-tokens-amount').value)||0;
+    if (amount < 1) return toast('Enter a valid amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/pet-tokens`, { amount });
+    if (r.success) { toast(`${amount} pet tokens given!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'petlevel') {
+    const level = parseInt(document.getElementById('give-petlevel-amount').value)||0;
+    if (level < 1) return toast('Enter a valid level','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/pet-level`, { level });
+    if (r.success) { toast(`Pet level set to ${level}!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'gun') {
+    const gunId = document.getElementById('give-gun-select').value;
+    if (!gunId) return toast('Select a gun first','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/give-gun`, { gunId });
+    if (r.success) { toast('Gun given!','ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  }
 }
 
 document.getElementById('item-give-modal').addEventListener('click', function(e){ if(e.target===this) closeGiveTakeModal(); });
@@ -2403,6 +2572,7 @@ async function loadGunShop() {
     ]);
 
     const guns   = shopData.guns || [];
+    _gunShopCache = guns;
     const health = healthData || [];
 
     // Stats
@@ -2414,17 +2584,19 @@ async function loadGunShop() {
 
     // Weapons table
     const gt = document.getElementById('gun-tbody');
-    if (!guns.length) { gt.innerHTML='<tr><td colspan="9" class="empty-cell">No weapons configured.</td></tr>'; }
+    if (!guns.length) { gt.innerHTML='<tr><td colspan="10" class="empty-cell">No weapons configured.</td></tr>'; }
     else gt.innerHTML = guns.map(g => `<tr>
       <td><strong>${g.emoji} ${g.name}</strong><div style="font-size:10px;color:var(--muted)">${g.desc?.slice(0,40)||''}</div></td>
       <td><span class="tag t-muted">${g.type}</span></td>
       <td><span class="tag ${RARITY_TAG[g.rarity]||'t-muted'}">${g.rarity}</span></td>
       <td class="mono">${g.damage?.[0]}–${g.damage?.[1]}</td>
       <td class="mono">${Math.round((g.accuracy||0)*100)}%</td>
-      <td><input class="iinput" id="gp-${g.id}" value="${g.price}" type="number" min="1" style="width:90px"> <button class="btn btn-ghost btn-sm" onclick="saveGunPrice('${g.id}')">💾</button></td>
+      <td>${g.hasSwitch?'<span class="tag t-red">🔩 Auto</span>':'<span class="tag t-muted">—</span>'}</td>
+      <td class="mono">$${(g.price||0).toLocaleString()}</td>
       <td class="mono">${g.capacity}</td>
       <td><span class="tag ${g.enabled===false?'t-red':'t-green'}">${g.enabled===false?'Off':'On'}</span></td>
       <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="openEditGun('${g.id}')">Edit</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleGun('${g.id}',${g.enabled!==false})">Toggle</button>
         <button class="btn btn-danger btn-sm" onclick="deleteGun('${g.id}')">Del</button>
       </td>
@@ -2478,20 +2650,70 @@ async function revivePlayer(userId) {
 }
 
 function openAddGun() {
-  const name = prompt('Weapon name:');
-  if (!name) return;
-  const price    = parseInt(prompt('Price ($):', '5000'));
-  const type     = prompt('Type (Pistol/SMG/Rifle/Shotgun/Sniper/Heavy):', 'Pistol');
-  const dmgMin   = parseInt(prompt('Min damage:', '15'));
-  const dmgMax   = parseInt(prompt('Max damage:', '30'));
-  const accuracy = parseFloat(prompt('Accuracy (0.0-1.0):', '0.70'));
-  const capacity = parseInt(prompt('Magazine capacity:', '15'));
-  const rarity   = prompt('Rarity (Common/Uncommon/Rare/Epic/Legendary/Mythic):', 'Common');
-  const emoji    = prompt('Emoji:', '🔫');
-  const desc     = prompt('Description:', 'A custom weapon.');
+  // Reset gun modal
+  ['gun-m-name','gun-m-price','gun-m-dmgmin','gun-m-dmgmax','gun-m-accuracy','gun-m-capacity','gun-m-desc','gun-m-emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('gun-m-type').value    = 'Pistol';
+  document.getElementById('gun-m-rarity').value  = 'Common';
+  document.getElementById('gun-m-firerate').value= 'Semi';
+  document.getElementById('gun-m-switch').checked= false;
+  document.getElementById('gun-modal-h').textContent = 'Add Weapon';
+  gunEditId = null;
+  document.getElementById('gun-modal').classList.add('open');
+}
 
-  api('POST', `/api/${GUILD}/guns/shop`, { name, price, type, damage:[dmgMin,dmgMax], accuracy, capacity, rarity, emoji, desc, fireRate:'Semi', enabled:true })
-    .then(r => { if(r.success){toast('Weapon added','ok');loadGunShop();}else toast(r.error||'Failed','err'); });
+let gunEditId = null;
+
+function openEditGun(gunId) {
+  const guns = _gunShopCache || [];
+  const gun  = guns.find(g=>g.id===gunId);
+  if (!gun) return toast('Gun not found','err');
+  gunEditId = gunId;
+  document.getElementById('gun-modal-h').textContent = 'Edit Weapon';
+  document.getElementById('gun-m-name').value     = gun.name||'';
+  document.getElementById('gun-m-price').value    = gun.price||0;
+  document.getElementById('gun-m-type').value     = gun.type||'Pistol';
+  document.getElementById('gun-m-dmgmin').value   = gun.damage?.[0]||0;
+  document.getElementById('gun-m-dmgmax').value   = gun.damage?.[1]||0;
+  document.getElementById('gun-m-accuracy').value = gun.accuracy||0.7;
+  document.getElementById('gun-m-capacity').value = gun.capacity||15;
+  document.getElementById('gun-m-rarity').value   = gun.rarity||'Common';
+  document.getElementById('gun-m-firerate').value = gun.fireRate||'Semi';
+  document.getElementById('gun-m-switch').checked = gun.hasSwitch||false;
+  document.getElementById('gun-m-emoji').value    = gun.emoji||'🔫';
+  document.getElementById('gun-m-desc').value     = gun.desc||'';
+  document.getElementById('gun-modal').classList.add('open');
+}
+
+let _gunShopCache = [];
+
+async function saveGun() {
+  const name     = document.getElementById('gun-m-name').value.trim();
+  const price    = parseInt(document.getElementById('gun-m-price').value)||0;
+  const type     = document.getElementById('gun-m-type').value;
+  const dmgMin   = parseInt(document.getElementById('gun-m-dmgmin').value)||0;
+  const dmgMax   = parseInt(document.getElementById('gun-m-dmgmax').value)||0;
+  const accuracy = parseFloat(document.getElementById('gun-m-accuracy').value)||0.7;
+  const capacity = parseInt(document.getElementById('gun-m-capacity').value)||15;
+  const rarity   = document.getElementById('gun-m-rarity').value;
+  const fireRate = document.getElementById('gun-m-firerate').value;
+  const hasSwitch= document.getElementById('gun-m-switch').checked;
+  const emoji    = document.getElementById('gun-m-emoji').value.trim()||'🔫';
+  const desc     = document.getElementById('gun-m-desc').value.trim();
+
+  if (!name || !price) return toast('Name and price required','err');
+  if (dmgMin >= dmgMax) return toast('Min damage must be less than max','err');
+
+  const body = { name, price, type, damage:[dmgMin,dmgMax], accuracy, capacity, rarity, fireRate, hasSwitch, emoji, desc, enabled:true };
+
+  const r = gunEditId
+    ? await api('PUT', `/api/${GUILD}/guns/shop/${gunEditId}`, body)
+    : await api('POST', `/api/${GUILD}/guns/shop`, body);
+
+  if (r.success) {
+    toast(gunEditId ? 'Weapon updated' : 'Weapon added', 'ok');
+    document.getElementById('gun-modal').classList.remove('open');
+    loadGunShop();
+  } else toast(r.error||'Failed','err');
 }
 
 // ════════════════════════════════════════════════
