@@ -154,23 +154,20 @@ module.exports = {
     }
 
     if (sub === 'upgrade') {
-      // Try primary key first, then scan all businesses for this owner
-      let biz = getBusiness(userId);
-      if (!biz) {
-        const all = require('../../utils/bizDb').getAllBusinesses();
-        biz = Object.values(all).find(b => b.ownerId === userId) || null;
-      }
-      if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business. Use `/business start` to open one.")], ephemeral: true });
+      // Find business - try direct key first, then scan by ownerId
+      const allBiz = require('../../utils/bizDb').getAllBusinesses();
+      const biz = allBiz[userId] || Object.values(allBiz).find(b => b.ownerId === userId) || null;
+
+      if (!biz) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business. Use `/business start` to open one.")], ephemeral:true });
+
       const bizType = BIZ_TYPES[biz.type];
-      if (!bizType) {
-        deleteBusiness(userId);
-        return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🏢 Old Record Cleared').setDescription('Your old business had a corrupt type and was cleared.\n\nRun `/business start` to open a new one.')], ephemeral: true });
-      }
-      if (biz.level >= bizType.maxLevel) return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription('Your business is already at **MAX LEVEL**!')], ephemeral: true });
+      if (!bizType) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Unknown business type: \`${biz.type}\`. Use \`/business close\` then \`/business start\`.`)], ephemeral:true });
+
+      if (biz.level >= bizType.maxLevel) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Your business is already at **MAX LEVEL**!')], ephemeral:true });
 
       const cost = bizType.upgradeCost * biz.level;
       const user = getOrCreateUser(userId);
-      if (user.wallet < cost) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You need **$${cost.toLocaleString()}** to upgrade. You have **$${user.wallet.toLocaleString()}**.`)], ephemeral: true });
+      if (user.wallet < cost) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You need **$${cost.toLocaleString()}** to upgrade. You have **$${user.wallet.toLocaleString()}**.`)], ephemeral:true });
 
       const oldIncome = calcIncome(biz);
       user.wallet -= cost;
@@ -179,19 +176,19 @@ module.exports = {
       saveUser(userId, user);
       saveBusiness(userId, biz);
 
-      return interaction.reply({ embeds: [new EmbedBuilder()
+      return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0xf5c518)
         .setTitle(`⭐ ${biz.name} — Level ${biz.level}!`)
         .setDescription(`You upgraded your **${bizType.name}** to **Level ${biz.level}**!`)
         .addFields(
-          { name: '📈 Income Before', value: `$${oldIncome.toLocaleString()}/min`, inline: true },
-          { name: '📈 Income Now',    value: `$${newIncome.toLocaleString()}/min`, inline: true },
-          { name: '💵 Wallet',        value: `$${user.wallet.toLocaleString()}`,   inline: true },
+          { name:'📈 Income Before', value:`$${oldIncome.toLocaleString()}/min`, inline:true },
+          { name:'📈 Income Now',    value:`$${newIncome.toLocaleString()}/min`, inline:true },
+          { name:'💵 Wallet',        value:`$${user.wallet.toLocaleString()}`,   inline:true },
         )
       ]});
     }
 
-    if (sub === 'close') {
+        if (sub === 'close') {
       const biz = getBusiness(userId);
       if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business.")], ephemeral: true });
 

@@ -1515,8 +1515,7 @@ function clearForm(){
   document.getElementById('m-effect-type').value='';
   document.getElementById('m-drain-type').value='percent';
   outcomes=[];
-  magicActions=[];
-  renderMagicActions();
+  if(typeof magicActions !== 'undefined') { magicActions=[]; renderMagicActions(); }
   onTypeChange();onEffectChange();clearReqFields();
 }
 
