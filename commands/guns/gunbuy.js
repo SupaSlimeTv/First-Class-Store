@@ -42,7 +42,7 @@ module.exports = {
     const inv   = getGunInventory(interaction.user.id);
     inv.push({ gunId, boughtAt: Date.now(), ammo: gun.capacity * 3 });
     await saveGunInventory(interaction.user.id, inv);
-    saveUser(interaction.user.id, user);
+    await saveUser(interaction.user.id, user);
 
     return interaction.reply({ embeds: [new EmbedBuilder()
       .setColor(0xff3b3b)

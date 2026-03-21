@@ -441,6 +441,25 @@ app.post('/api/:guildId/purge/end', requireGuildAuth, (req, res) => {
 
 // ── GUILD ROLES ───────────────────────────────────────────────
 
+// Resolve multiple user IDs to display names in one call
+app.post('/api/:guildId/users/resolve', requireGuildAuth, async (req, res) => {
+  try {
+    const ids = req.body.ids || [];
+    const result = {};
+    const members = await fetchBotAPI(`/guilds/${req.guildId}/members?limit=1000`);
+    const memberMap = {};
+    if (Array.isArray(members)) {
+      for (const m of members) {
+        if (m.user) memberMap[m.user.id] = m.nick || m.user.global_name || m.user.username || m.user.id;
+      }
+    }
+    for (const id of ids) {
+      result[id] = memberMap[id] || id;
+    }
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/:guildId/guild/roles', requireGuildAuth, async (req, res) => {
   try {
     const roles = await fetchBotAPI(`/guilds/${req.guildId}/roles`);

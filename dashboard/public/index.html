@@ -2432,7 +2432,7 @@ async function loadBusinesses() {
           <div style="font-weight:700">${biz.typeEmoji} ${biz.name}</div>
           <div style="font-size:10px;color:var(--muted)">${biz.typeName}</div>
         </td>
-        <td class="mono" style="font-size:11px;color:var(--muted)">${biz.ownerId}</td>
+        <td><div style="font-weight:600">${resolveName(biz.ownerId)}</div><div class="mono" style="font-size:10px;color:var(--muted)">${biz.ownerId}</div></td>
         <td><span class="tag t-blue">${biz.typeName}</span></td>
         <td>
           <div style="font-weight:700">Lv ${biz.level}</div>
@@ -2479,7 +2479,7 @@ async function loadPets() {
       return `<tr>
         <td style="font-weight:700;color:var(--gold)">${medal}</td>
         <td><div style="font-weight:700">${p.typeEmoji} ${p.name}</div></td>
-        <td class="mono" style="font-size:11px">${p.ownerId}</td>
+        <td><div style="font-weight:600">${resolveName(p.ownerId)}</div><div class="mono" style="font-size:10px;color:var(--muted)">${p.ownerId}</div></td>
         <td>${p.typeName}</td>
         <td><span style="color:${RARITY_COLORS2[p.rarity]||'#fff'}">${RARITY_EMOJI[p.rarity]||''} ${p.rarity}</span></td>
         <td style="font-weight:700">Lv${p.level}</td>
@@ -2500,6 +2500,23 @@ async function deleteBusiness(ownerId) {
   else toast(r.error||'Failed', 'err');
 }
 
+// ── NAME RESOLVER ─────────────────────────────────────────
+// Cache of userId -> display name for this session
+const _nameCache = {};
+
+async function resolveNames(ids) {
+  const unknown = [...new Set(ids)].filter(id => id && !_nameCache[id]);
+  if (unknown.length) {
+    try {
+      const result = await api('POST', `/api/${GUILD}/users/resolve`, { ids: unknown });
+      Object.assign(_nameCache, result);
+    } catch {}
+  }
+  return ids.map(id => _nameCache[id] || id);
+}
+
+function resolveName(id) { return _nameCache[id] || id; }
+
 // ════════════════════════════════════════════════
 // GANGS
 // ════════════════════════════════════════════════
@@ -2508,6 +2525,10 @@ async function loadGangs() {
     const data  = await api('GET', `/api/${GUILD}/gangs`);
     const gangs = data.gangs || [];
     const wars  = data.activeWars || [];
+
+    // Resolve all leader IDs to names
+    const leaderIds = gangs.map(g => g.leaderId).filter(Boolean);
+    await resolveNames(leaderIds);
 
     document.getElementById('gang-count').textContent   = gangs.length;
     document.getElementById('gang-wars').textContent    = wars.length;
@@ -2521,7 +2542,7 @@ async function loadGangs() {
       return `<tr>
         <td style="font-weight:700;color:var(--gold)">${medal}</td>
         <td><div style="font-weight:700">${g.color} ${g.name} <span style="color:var(--muted);font-size:11px">${g.tag}</span></div></td>
-        <td class="mono" style="font-size:11px">${g.leaderId}</td>
+        <td><div style="font-weight:600">${resolveName(g.leaderId)}</div><div class="mono" style="font-size:10px;color:var(--muted)">${g.leaderId}</div></td>
         <td>${g.members.length}/20</td>
         <td style="color:var(--gold);font-weight:700">${g.rep||0}</td>
         <td>${g.wins||0}W/${g.losses||0}L</td>
@@ -2562,6 +2583,8 @@ async function loadPolice() {
     const tb   = document.getElementById('police-tbody');
     if (!list.length) { tb.innerHTML='<tr><td colspan="6" class="empty-cell">No active heat records.</td></tr>'; return; }
 
+    await resolveNames(list.map(r => r.userId));
+
     const HEAT_COLORS = { 0:'#2ecc71', 25:'#f5c518', 50:'#ff8800', 75:'#ff3b3b', 90:'#cc00cc' };
     tb.innerHTML = list.map(r => {
       const heat     = r.heat || 0;
@@ -2571,7 +2594,7 @@ async function loadPolice() {
       const lvl      = heat>75?'💀 Most Wanted':heat>50?'🔴 Fugitive':heat>25?'🟠 Hot':'🟡 Wanted';
       const bar      = '█'.repeat(Math.floor(heat/10))+'░'.repeat(10-Math.floor(heat/10));
       return `<tr>
-        <td class="mono" style="font-size:11px">${r.userId}</td>
+        <td><div style="font-weight:600">${resolveName(r.userId)}</div><div class="mono" style="font-size:10px;color:var(--muted)">${r.userId}</div></td>
         <td><span style="color:${heatClr};font-family:'JetBrains Mono',monospace;font-weight:700">[${bar}] ${heat}</span></td>
         <td>${lvl}</td>
         <td>${r.arrests||0}</td>
@@ -2643,7 +2666,7 @@ function renderAIEntities(entities) {
       ? '<span class="tag t-green">😊 Happy</span>'
       : '<span class="tag t-muted">😐 Idle</span>';
     return `<tr>
-      <td class="mono" style="font-size:11px">${e.ownerId}</td>
+      <td><div style="font-weight:600">${resolveName(e.ownerId)}</div><div class="mono" style="font-size:10px;color:var(--muted)">${e.ownerId}</div></td>
       <td><strong>${arch.emoji} ${e.name}</strong></td>
       <td>${arch.name}</td>
       <td>${moodTag}</td>
@@ -2732,20 +2755,23 @@ async function loadGunShop() {
     // Health table
     const ht = document.getElementById('health-tbody');
     if (!health.length) { ht.innerHTML='<tr><td colspan="6" class="empty-cell">All players at full health.</td></tr>'; }
-    else ht.innerHTML = health.map(h => {
-      const jailed = h.hospitalUntil && Date.now() < h.hospitalUntil;
-      const minsLeft = jailed ? Math.ceil((h.hospitalUntil-Date.now())/60000) : 0;
-      const hpBar = '█'.repeat(Math.floor((h.hp||0)/10))+'░'.repeat(10-Math.floor((h.hp||0)/10));
-      const hpColor = (h.hp||0)<=20?'var(--accent)':(h.hp||0)<=50?'#ff8800':'var(--gold)';
-      return `<tr>
-        <td class="mono" style="font-size:11px">${h.userId}</td>
-        <td><span style="color:${hpColor};font-family:monospace">[${hpBar}] ${h.hp||0}/100</span></td>
-        <td>${h.statusLabel||'—'}</td>
-        <td class="mono">${h.deathCount||0}</td>
-        <td>${jailed?`🏥 ${minsLeft}m left`:'🟢 Active'}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="revivePlayer('${h.userId}')">⚕️ Revive</button></td>
-      </tr>`;
-    }).join('');
+    else {
+      await resolveNames(health.map(h => h.userId));
+      ht.innerHTML = health.map(h => {
+        const jailed = h.hospitalUntil && Date.now() < h.hospitalUntil;
+        const minsLeft = jailed ? Math.ceil((h.hospitalUntil-Date.now())/60000) : 0;
+        const hpBar = '█'.repeat(Math.floor((h.hp||0)/10))+'░'.repeat(10-Math.floor((h.hp||0)/10));
+        const hpColor = (h.hp||0)<=20?'var(--accent)':(h.hp||0)<=50?'#ff8800':'var(--gold)';
+        return `<tr>
+          <td><div style="font-weight:600">${resolveName(h.userId)}</div><div class="mono" style="font-size:10px;color:var(--muted)">${h.userId}</div></td>
+          <td><span style="color:${hpColor};font-family:monospace">[${hpBar}] ${h.hp||0}/100</span></td>
+          <td>${h.statusLabel||'—'}</td>
+          <td class="mono">${h.deathCount||0}</td>
+          <td>${jailed?`🏥 ${minsLeft}m left`:'🟢 Active'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="revivePlayer('${h.userId}')">⚕️ Revive</button></td>
+        </tr>`;
+      }).join('');
+    }
   } catch(e) { console.error('loadGunShop error:', e); }
 }
 
