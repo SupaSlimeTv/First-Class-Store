@@ -2418,11 +2418,9 @@ async function openTakeItem(userId, username) {
   document.getElementById('give-confirm-btn').textContent = 'Take';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
 
-  // Show ALL categories just like Give (tokens/petlevel/gang/business hidden since can't take those)
+  // Show ALL same categories as Give — nothing hidden
   const catSel = document.getElementById('give-category');
-  [...catSel.options].forEach(o => {
-    o.hidden = ['tokens','petlevel','gang','business'].includes(o.value);
-  });
+  [...catSel.options].forEach(o => { o.hidden = false; });
   catSel.value = 'money';
   onGiveCategoryChange();
 
@@ -2499,6 +2497,31 @@ async function confirmGiveTake() {
       else toast(r.error||'Failed','err');
       return;
     }
+    if (cat === 'tokens') {
+      const amount = parseInt(document.getElementById('give-tokens-amount').value)||0;
+      if (amount < 1) return toast('Enter a valid amount','err');
+      const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/pet-tokens`, { amount: -amount });
+      if (r.success) { toast(`${amount} pet tokens taken!`,'ok'); closeGiveTakeModal(); }
+      else toast(r.error||'Failed','err');
+      return;
+    }
+    if (cat === 'petlevel') {
+      const level = parseInt(document.getElementById('give-petlevel-amount').value)||0;
+      if (level < 1) return toast('Enter a valid level','err');
+      const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/pet-level`, { level: -level });
+      if (r.success) { toast(`Pet level reduced by ${level}!`,'ok'); closeGiveTakeModal(); }
+      else toast(r.error||'Failed','err');
+      return;
+    }
+    if (cat === 'business') {
+      const amount = parseInt(document.getElementById('give-business-amount').value)||0;
+      if (amount < 1) return toast('Enter a valid amount','err');
+      const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/business-money`, { amount: -amount });
+      if (r.success) { toast(`$${amount.toLocaleString()} taken from business!`,'ok'); closeGiveTakeModal(); }
+      else toast(r.error||'Failed','err');
+      return;
+    }
+    // Default — store item
     const itemId = document.getElementById('give-item-select').value;
     if (!itemId) return toast('Select an item first','err');
     const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/take-item`, { itemId });
