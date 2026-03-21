@@ -2387,7 +2387,10 @@ async function openGiveItem(userId, username) {
   document.getElementById('give-modal-title').textContent = `Give to ${username}`;
   document.getElementById('give-confirm-btn').textContent = 'Give';
   document.getElementById('give-confirm-btn').className   = 'btn btn-gold';
-  document.getElementById('give-category').value = 'item';
+  // Restore all category options (take mode hides some)
+  const catSel = document.getElementById('give-category');
+  [...catSel.options].forEach(o => { o.hidden = false; });
+  catSel.value = 'item';
   onGiveCategoryChange();
   document.getElementById('item-give-modal').classList.add('open');
   await populateGiveSelect();
@@ -2399,10 +2402,39 @@ async function openTakeItem(userId, username) {
   document.getElementById('give-modal-title').textContent = `Take from ${username}`;
   document.getElementById('give-confirm-btn').textContent = 'Take';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
-  document.getElementById('give-category').value = 'item';
+
+  // For take mode — only show item and gun categories, hide the rest
+  const catSel = document.getElementById('give-category');
+  // Temporarily hide give-only options
+  [...catSel.options].forEach(o => {
+    o.hidden = ['money','tokens','petlevel','gang','business'].includes(o.value);
+  });
+  catSel.value = 'item';
   onGiveCategoryChange();
+
+  // Load user's actual inventory
+  document.getElementById('give-item-select').innerHTML = '<option value="">Loading...</option>';
+  document.getElementById('give-gun-select').innerHTML  = '<option value="">Loading...</option>';
+
+  try {
+    const data  = await api('GET', `/api/${GUILD}/users/${userId}/inventory`);
+    const items = data.items || [];
+    const guns  = data.guns  || [];
+
+    const itemSel = document.getElementById('give-item-select');
+    itemSel.innerHTML = items.length
+      ? '<option value="">— Choose an item —</option>' + items.map(i=>`<option value="${i.id}">${i.name} ×${i.count} (${i.id})</option>`).join('')
+      : '<option value="">User has no items</option>';
+
+    const gunSel = document.getElementById('give-gun-select');
+    gunSel.innerHTML = guns.length
+      ? '<option value="">— Choose a gun —</option>' + guns.map(g=>`<option value="${g.id}">${g.emoji} ${g.name} (${g.ammo} rounds)</option>`).join('')
+      : '<option value="">User has no guns</option>';
+  } catch {
+    document.getElementById('give-item-select').innerHTML = '<option value="">Failed to load inventory</option>';
+  }
+
   document.getElementById('item-give-modal').classList.add('open');
-  await populateGiveSelect();
 }
 
 async function populateGiveSelect() {
@@ -2443,6 +2475,14 @@ async function confirmGiveTake() {
       if (amount < 1) return toast('Enter a valid amount','err');
       const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { addWallet: -amount, announce: true, announceType: 'tax' });
       if (r.success) { toast(`$${amount.toLocaleString()} taken!`,'ok'); closeGiveTakeModal(); refresh(); }
+      else toast(r.error||'Failed','err');
+      return;
+    }
+    if (cat === 'gun') {
+      const gunId = document.getElementById('give-gun-select').value;
+      if (!gunId) return toast('Select a gun first','err');
+      const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/take-gun`, { gunId });
+      if (r.success) { toast('Gun taken!','ok'); closeGiveTakeModal(); refresh(); }
       else toast(r.error||'Failed','err');
       return;
     }

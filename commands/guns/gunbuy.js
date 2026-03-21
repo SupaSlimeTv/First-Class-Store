@@ -44,17 +44,10 @@ module.exports = {
     await saveGunInventory(interaction.user.id, inv);
     await saveUser(interaction.user.id, user);
 
-    return interaction.reply({ embeds: [new EmbedBuilder()
+    // Public channel announcement only
+    await interaction.reply({ embeds: [new EmbedBuilder()
       .setColor(0xff3b3b)
-      .setTitle(`${gun.emoji} ${gun.name} Acquired!`)
-      .setDescription(`You purchased a **${gun.name}** for **$${gun.price.toLocaleString()}**.\n\n*${gun.desc}*`)
-      .addFields(
-        { name:'⚔️ Damage',    value:`${gun.damage[0]}–${gun.damage[1]}`, inline:true },
-        { name:'🎯 Accuracy',  value:`${Math.round(gun.accuracy*100)}%`,  inline:true },
-        { name:'📦 Ammo',      value:`${gun.capacity * 3} rounds`,         inline:true },
-        { name:'💵 Wallet',    value:`$${user.wallet.toLocaleString()}`,   inline:true },
-      )
-      .setFooter({ text: 'Use /guns to see your arsenal · /shoot @user to use it' })
-    ], ephemeral: true });
+      .setDescription(`${gun.emoji} **${interaction.user.username}** just bought a **${gun.name}**${gun.hasSwitch ? ' 🔩' : ''}!`)
+    ]});
   },
 };

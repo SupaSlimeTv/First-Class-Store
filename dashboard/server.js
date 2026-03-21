@@ -334,6 +334,20 @@ app.post('/api/:guildId/users/:id/take-item', requireGuildAuth, async (req, res)
   res.json({ success: true });
 });
 
+app.post('/api/:guildId/users/:id/take-gun', requireGuildAuth, async (req, res) => {
+  try {
+    const { gunId } = req.body;
+    if (!gunId) return res.status(400).json({ error: 'gunId required' });
+    const { getGunInventory, saveGunInventory } = require('../utils/gunDb');
+    const inv = getGunInventory(req.params.id);
+    const idx = inv.findIndex(g => g.gunId === gunId);
+    if (idx === -1) return res.status(400).json({ error: 'User does not have this gun' });
+    inv.splice(idx, 1);
+    await saveGunInventory(req.params.id, inv);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── STORE (GLOBAL) ────────────────────────────────────────────
 
 app.get('/api/store', requireAuth, (req, res) => res.json(db.getStore()));
