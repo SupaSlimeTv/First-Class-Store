@@ -815,6 +815,18 @@ app.post('/api/:guildId/businesses/:userId/delete', requireGuildAuth, async (req
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Stock prices endpoint for dashboard live grid
+app.get('/api/:guildId/stock-prices', requireGuildAuth, async (req, res) => {
+  try {
+    const { col } = require('../utils/mongo');
+    const pc   = await col('stockPrices');
+    const doc  = await pc.findOne({ _id: 'prices' });
+    const prices = doc ? { ...doc } : {};
+    delete prices._id;
+    res.json({ prices });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── CUSTOM COINS ─────────────────────────────────────────
 
 app.get('/api/:guildId/coins', requireGuildAuth, async (req, res) => {

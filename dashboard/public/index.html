@@ -3316,6 +3316,8 @@ async function loadCustomCoins() {
       <td>${c.ownerId ? resolveName(c.ownerId) : '— Admin —'}</td>
       <td><button class="btn btn-danger btn-sm" onclick="deleteCoin('${c.id}','${c.name}')">Delete</button></td>
     </tr>`).join('');
+    // Also update live grid
+    await loadCustomCoinsIntoGrid();
   } catch(e) { console.error('loadCustomCoins error:', e); }
 }
 
@@ -3337,20 +3339,57 @@ const COINS = [
   { id:'CHAD',   name:'ChadToken',       emoji:'💪', color:'#ff6b35', desc:'Alpha moves only. Buy high sell low.' },
 ];
 
+// All coins including custom — rebuilt when custom coins load
+let ALL_COINS = [...COINS];
 const stockState = {};
-COINS.forEach(c => {
-  const start = 50 + Math.random() * 450;
-  stockState[c.id] = { price: start, history: Array.from({length:20}, () => start*(0.8+Math.random()*0.4)), change: 0, hype: Math.random() };
-});
+
+function initCoinState(coin, startPrice) {
+  const start = startPrice || (50 + Math.random() * 450);
+  stockState[coin.id] = { price: start, history: Array.from({length:20}, () => start*(0.8+Math.random()*0.4)), change: 0, hype: Math.random() };
+}
+
+COINS.forEach(c => initCoinState(c));
+
+// Load custom coins and merge into the grid
+async function loadCustomCoinsIntoGrid() {
+  try {
+    const coins = await api('GET', `/api/${GUILD}/coins`);
+    // Fetch live prices for all coins
+    const priceRes = await fetch(`/api/${GUILD}/stock-prices`, { credentials:'include' }).then(r=>r.json()).catch(()=>({}));
+    const prices   = priceRes.prices || {};
+
+    // Add custom coins to state if not already there
+    const custom = (coins||[]).map(c => ({
+      id: c.id, name: c.name, emoji: c.emoji||'🪙',
+      color: c.color||'#f5c518', desc: c.desc||'',
+      custom: true,
+    }));
+
+    ALL_COINS = [...COINS, ...custom];
+
+    custom.forEach(c => {
+      if (!stockState[c.id]) initCoinState(c, prices[c.id]);
+      else if (prices[c.id]) stockState[c.id].price = prices[c.id];
+    });
+
+    // Also sync real prices for built-in coins
+    COINS.forEach(c => {
+      if (prices[c.id]) stockState[c.id].price = prices[c.id];
+    });
+
+    renderStocks();
+  } catch {}
+}
 
 function tickStocks() {
-  COINS.forEach(c => {
+  ALL_COINS.forEach(c => {
     const s = stockState[c.id];
+    if (!s) return;
     s.hype = Math.max(0, Math.min(1, s.hype + (Math.random()-0.5)*0.2));
     const bias  = (s.hype - 0.5) * 0.3;
     const swing = (Math.random()-0.5)*0.25 + bias;
     const old   = s.price;
-    s.price  = Math.max(1, s.price * (1+swing));
+    s.price  = Math.max(0.0001, s.price * (1+swing));
     s.change = ((s.price - old) / old) * 100;
     s.history.push(s.price);
     if (s.history.length > 20) s.history.shift();
@@ -3361,34 +3400,36 @@ function tickStocks() {
 function renderStocks() {
   const grid = document.getElementById('stocks-grid');
   if (!grid) return;
-  grid.innerHTML = COINS.map(coin => {
-    const s      = stockState[coin.id];
-    const up     = s.change >= 0;
-    const chgCls = up ? 'color:#2ecc71' : 'color:#ff3b3b';
-    const chgStr = (up?'+':'') + s.change.toFixed(2) + '%';
-    const fmtStockPrice = (p) => {
-      if (p >= 1e12) return '$' + (p/1e12).toFixed(2) + 'T';
-      if (p >= 1e9)  return '$' + (p/1e9).toFixed(2)  + 'B';
-      if (p >= 1e6)  return '$' + (p/1e6).toFixed(2)  + 'M';
-      if (p >= 1000) return '$' + Math.round(p).toLocaleString();
-      if (p >= 1)    return '$' + p.toFixed(2);
-      if (p >= 0.01) return '$' + p.toFixed(4);
-      return '$' + p.toFixed(6);
-    };
-    const price  = fmtStockPrice(s.price);
-    const hype   = Math.round(s.hype * 100);
-    const hypeClr= s.hype>0.65?'#2ecc71':s.hype<0.35?'#ff3b3b':'#f5c518';
+  const fmtStockPrice = (p) => {
+    if (p >= 1e12) return '$' + (p/1e12).toFixed(2) + 'T';
+    if (p >= 1e9)  return '$' + (p/1e9).toFixed(2)  + 'B';
+    if (p >= 1e6)  return '$' + (p/1e6).toFixed(2)  + 'M';
+    if (p >= 1000) return '$' + Math.round(p).toLocaleString();
+    if (p >= 1)    return '$' + p.toFixed(2);
+    if (p >= 0.01) return '$' + p.toFixed(4);
+    return '$' + p.toFixed(6);
+  };
+  grid.innerHTML = ALL_COINS.map(coin => {
+    const s = stockState[coin.id];
+    if (!s) return '';
+    const up      = s.change >= 0;
+    const chgCls  = up ? 'color:#2ecc71' : 'color:#ff3b3b';
+    const chgStr  = (up?'+':'') + s.change.toFixed(2) + '%';
+    const price   = fmtStockPrice(s.price);
+    const hype    = Math.round(s.hype * 100);
+    const hypeClr = s.hype>0.65?'#2ecc71':s.hype<0.35?'#ff3b3b':'#f5c518';
     const h=s.history, minP=Math.min(...h), maxP=Math.max(...h), rng=maxP-minP||1;
-    const W=260,H=60;
-    const pts = h.map((v,i)=>`${(i/(h.length-1))*W},${H-((v-minP)/rng)*H}`).join(' ');
-    const spkClr = up ? '#2ecc71' : '#ff3b3b';
-    const lastX  = W, lastY = H-((h[h.length-1]-minP)/rng)*H;
+    const W=260, H=60;
+    const pts   = h.map((v,i)=>`${(i/(h.length-1))*W},${H-((v-minP)/rng)*H}`).join(' ');
+    const spkClr= up ? '#2ecc71' : '#ff3b3b';
+    const lastX = W, lastY = H-((h[h.length-1]-minP)/rng)*H;
+    const customBadge = coin.custom ? `<span style="font-size:9px;background:rgba(255,195,0,.15);color:#f5c518;border:1px solid rgba(255,195,0,.3);border-radius:3px;padding:1px 5px;margin-left:4px">CUSTOM</span>` : '';
     return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;position:relative;overflow:hidden;cursor:default;transition:border-color .2s,box-shadow .2s" onmouseover="this.style.borderColor='${coin.color}';this.style.boxShadow='0 0 20px ${coin.color}33'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${coin.color}"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
         <div>
           <div style="font-size:24px;margin-bottom:2px">${coin.emoji}</div>
-          <div style="font-weight:700;font-size:15px">${coin.name}</div>
+          <div style="font-weight:700;font-size:15px">${coin.name}${customBadge}</div>
           <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.06em">${coin.id}</div>
         </div>
         <div style="text-align:right">
@@ -3416,6 +3457,8 @@ function renderStocks() {
 
 setInterval(tickStocks, 10000);
 renderStocks();
+// Load custom coins into grid on startup
+loadCustomCoinsIntoGrid();
 
 function toggleEmojiPicker() {
   const picker = document.getElementById('emoji-picker');
