@@ -39,12 +39,16 @@ async function fetchDiscordAPI(endpoint, token) {
   return res.json();
 }
 
-async function fetchBotAPI(endpoint) {
-  const res = await fetch(`https://discord.com/api/v10${endpoint}`, {
-    headers: { Authorization: `Bot ${process.env.TOKEN}` },
-  });
+async function fetchBotAPI(endpoint, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: { Authorization: `Bot ${process.env.TOKEN}`, 'Content-Type': 'application/json' },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`https://discord.com/api/v10${endpoint}`, opts);
   if (!res.ok) return null;
-  return res.json();
+  if (res.status === 204) return { ok: true };
+  return res.json().catch(() => ({ ok: true }));
 }
 
 async function isAdminInGuild(userId, guildId) {
@@ -110,7 +114,7 @@ app.get('/auth/callback', async (req, res) => {
     if (!user) return res.redirect('/login.html?error=user_failed');
     req.session.user        = { id: user.id, username: user.global_name || user.username, avatar: user.avatar };
     req.session.accessToken = tokenData.access_token;
-    req.session.save(() => res.redirect('/guild-select.html'));
+    req.session.save(async () => { try { await writeAudit('global', req.session.user?.id, 'login', { username: req.session.user?.username }); } catch {} res.redirect('/guild-select.html'); });
   } catch (err) {
     console.error('OAuth error:', err);
     res.redirect('/login.html?error=oauth_error');
@@ -134,6 +138,7 @@ app.get('/api/my-guilds', requireAuth, async (req, res) => {
     const botPresent  = adminGuilds.filter(g => botGuildIds.has(g.id)).map(g => ({
       id: g.id, name: g.name,
       icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : null,
+      isOwner: !!g.owner,
     }));
 
     const addable = adminGuilds.filter(g => !botGuildIds.has(g.id)).map(g => ({
@@ -269,6 +274,10 @@ app.post('/api/:guildId/users/:id/money', requireGuildAuth, async (req, res) => 
   if (added !== 0) user.wallet = Math.max(0, user.wallet + added);
   db.saveUser(req.params.id, user);
 
+  // Audit log
+  if (added > 0) await writeAudit(req.guildId, req.session.user?.id, 'give_money', { amount: added, target: `<@${req.params.id}>` });
+  else if (added < 0) await writeAudit(req.guildId, req.session.user?.id, 'take_money', { amount: Math.abs(added), target: `<@${req.params.id}>` });
+
   // Announce in purge/announcement channel if requested
   if (announce && added !== 0) {
     try {
@@ -353,12 +362,14 @@ app.post('/api/:guildId/users/:id/give-item', requireGuildAuth, async (req, res)
   const { itemId } = req.body;
   if (!itemId) return res.status(400).json({ error: 'itemId required' });
   db.giveItem(req.params.id, itemId);
+  await writeAudit(req.guildId, req.session.user?.id, 'give_item', { item: itemId, target: `<@${req.params.id}>` });
   res.json({ success: true });
 });
 
 app.post('/api/:guildId/users/:id/take-item', requireGuildAuth, async (req, res) => {
   const removed = db.removeItem(req.params.id, req.body.itemId);
   if (!removed) return res.status(400).json({ error: 'User does not have this item' });
+  await writeAudit(req.guildId, req.session.user?.id, 'take_item', { item: req.body.itemId, target: `<@${req.params.id}>` });
   res.json({ success: true });
 });
 
@@ -372,6 +383,7 @@ app.post('/api/:guildId/users/:id/take-gun', requireGuildAuth, async (req, res) 
     if (idx === -1) return res.status(400).json({ error: 'User does not have this gun' });
     inv.splice(idx, 1);
     await saveGunInventory(req.params.id, inv);
+    await writeAudit(req.guildId, req.session.user?.id, 'take_gun', { item: gunId, target: `<@${req.params.id}>` });
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -480,7 +492,7 @@ app.delete('/api/:guildId/roleincome/:roleId', requireGuildAuth, (req, res) => {
 
 // ── PURGE ─────────────────────────────────────────────────────
 
-app.post('/api/:guildId/purge/start', requireGuildAuth, (req, res) => {
+app.post('/api/:guildId/purge/start', requireGuildAuth, async (req, res) => { await writeAudit(req.guildId, req.session.user?.id, 'purge_start', {});
   const config = db.getConfig(req.guildId);
   if (config.purgeActive) return res.status(400).json({ error: 'Already active' });
   const allUsers = db.getAllUsers();
@@ -489,7 +501,7 @@ app.post('/api/:guildId/purge/start', requireGuildAuth, (req, res) => {
   db.saveConfig(req.guildId, config); res.json({ success: true });
 });
 
-app.post('/api/:guildId/purge/end', requireGuildAuth, (req, res) => {
+app.post('/api/:guildId/purge/end', requireGuildAuth, async (req, res) => { await writeAudit(req.guildId, req.session.user?.id, 'purge_end', {});
   const config = db.getConfig(req.guildId);
   config.purgeActive = false; config.purgeStartTime = null;
   db.saveConfig(req.guildId, config); res.json({ success: true });
@@ -907,6 +919,52 @@ app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
     const c = await col('customCoins');
     await c.deleteOne({ _id: req.params.id });
     try { const idx = require('../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Jail / prison config
+app.post('/api/:guildId/config/jail', requireGuildAuth, (req, res) => {
+  const config = db.getConfig(req.guildId);
+  const { prisonRoleId, prisonChannelId } = req.body;
+  if (prisonRoleId    !== undefined) config.prisonRoleId     = prisonRoleId    || null;
+  if (prisonChannelId !== undefined) config.prisonChannelId  = prisonChannelId || null;
+  db.saveConfig(req.guildId, config);
+  writeAudit(req.guildId, req.session.user?.id, 'jail_config', { prisonRoleId, prisonChannelId });
+  res.json({ success: true });
+});
+
+// ── AUDIT LOG ─────────────────────────────────────────────
+
+async function writeAudit(guildId, userId, action, data={}) {
+  try {
+    const { col } = require('../utils/mongo');
+    const c = await col('auditLog');
+    await c.insertOne({ guildId, userId, action, data, ts: Date.now() });
+  } catch {}
+}
+
+app.get('/api/:guildId/audit-log', requireGuildAuth, async (req, res) => {
+  try {
+    const { col } = require('../utils/mongo');
+    const c    = await col('auditLog');
+    const logs = await c.find({ guildId: req.guildId }).sort({ ts: -1 }).limit(100).toArray();
+    res.json(logs.map(l => ({ userId: l.userId, action: l.action, data: l.data, ts: l.ts })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── BOT LEAVE ─────────────────────────────────────────────
+app.post('/api/:guildId/leave', requireGuildAuth, async (req, res) => {
+  try {
+    // Only guild owner can kick bot
+    const guildInfo = await fetchBotAPI(`/guilds/${req.guildId}`);
+    if (!guildInfo) return res.status(404).json({ error: 'Guild not found' });
+    if (guildInfo.owner_id !== req.session.user.id) {
+      return res.status(403).json({ error: 'Only the server owner can remove the bot.' });
+    }
+    await writeAudit(req.guildId, req.session.user.id, 'bot_removed', { guildName: guildInfo.name });
+    // Leave guild via bot
+    await fetchBotAPI(`/users/@me/guilds/${req.guildId}`, 'DELETE');
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

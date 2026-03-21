@@ -223,6 +223,17 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <button class="btn btn-primary" onclick="saveShotTimeout()">Save</button>
         </div>
       </div>
+
+      <!-- AUDIT LOG -->
+      <div style="margin-top:20px">
+        <div class="tbl-head" style="margin-bottom:10px">
+          <h3>📋 Audit Log</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadAuditLog()">⟳ Refresh</button>
+        </div>
+        <div id="audit-log-body" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:4px 0;max-height:320px;overflow-y:auto">
+          <div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Loading audit log...</div>
+        </div>
+      </div>
     </div>
 
     <!-- USERS -->
@@ -558,6 +569,21 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <!-- POLICE -->
     <div id="section-police" class="section">
       <p class="sub-txt">Monitor heat levels and manage arrests. High heat players are at risk of police raids. You can release players from jail or clear their record here.</p>
+
+      <!-- JAIL CONFIG -->
+      <div class="purge-panel owner-only" style="margin-bottom:14px">
+        <div class="purge-info">
+          <h3>🔒 Prison System</h3>
+          <p>Run <code>/jailcreate</code> in your server to create the Prison channel and Prisoner role automatically. Once created, select the Prisoner role below so the dashboard can jail/release users.</p>
+          <p id="jail-status" style="margin-top:6px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">—</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;min-width:200px">
+          <select class="fselect" id="jail-role-select"><option value="">— Select Prisoner Role —</option></select>
+          <select class="fselect" id="jail-channel-select"><option value="">— Select Prison Channel —</option></select>
+          <button class="btn btn-primary" onclick="saveJailConfig()">Save Prison Config</button>
+        </div>
+      </div>
+
       <div class="tbl-wrap">
         <div class="tbl-head"><h3>🚔 Active Heat Records</h3><button class="btn btn-ghost btn-sm" onclick="loadPolice()">⟳ Refresh</button></div>
         <table>
@@ -1390,10 +1416,12 @@ async function refresh(){
   await loadBusinesses();
   await loadGangs();
   await loadPolice();
+  await loadJailConfig();
   await loadPets();
   await loadAIEntities();
   await loadGunShop();
   await loadCustomCoins();
+  await loadAuditLog();
 
   // Load users separately so the list doesn't flash blank
   api('GET',`/api/${GUILD}/users`).then(users => {
@@ -2787,6 +2815,59 @@ async function resolveNames(ids) {
 function resolveName(id) { return _nameCache[id] || id; }
 
 // ════════════════════════════════════════════════
+// AUDIT LOG
+// ════════════════════════════════════════════════
+
+const ACTION_LABELS = {
+  login:            (d) => `logged into the dashboard`,
+  purge_start:      (d) => `🔴 started the Purge`,
+  purge_end:        (d) => `🟢 ended the Purge`,
+  prefix_change:    (d) => `changed the prefix to \`${d.value}\``,
+  give_money:       (d) => `gave **$${(d.amount||0).toLocaleString()}** to ${d.target||'a user'}`,
+  take_money:       (d) => `took **$${(d.amount||0).toLocaleString()}** from ${d.target||'a user'}`,
+  give_item:        (d) => `gave **${d.item||'an item'}** to ${d.target||'a user'}`,
+  take_item:        (d) => `took **${d.item||'an item'}** from ${d.target||'a user'}`,
+  give_gun:         (d) => `gave **${d.item||'a gun'}** to ${d.target||'a user'}`,
+  take_gun:         (d) => `took **${d.item||'a gun'}** from ${d.target||'a user'}`,
+  delete_gang:      (d) => `deleted gang **${d.name||''}**`,
+  add_coin:         (d) => `launched coin **${d.name||''}** (${d.id||''})`,
+  delete_coin:      (d) => `deleted coin **${d.name||''}**`,
+  add_store_item:   (d) => `added store item **${d.name||''}**`,
+  delete_store_item:(d) => `removed store item **${d.name||''}**`,
+  edit_store_item:  (d) => `edited store item **${d.name||''}**`,
+  release_player:   (d) => `released ${d.target||'a player'} from jail`,
+  clear_heat:       (d) => `cleared heat for ${d.target||'a player'}`,
+  revive_player:    (d) => `revived ${d.target||'a player'}`,
+  rob_cooldown:     (d) => `set rob cooldown to **${d.value} min**`,
+  shot_timeout:     (d) => `set shot timeout to **${d.value} min**`,
+};
+
+async function loadAuditLog() {
+  const body = document.getElementById('audit-log-body');
+  body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Loading...</div>';
+  try {
+    const logs = await api('GET', `/api/${GUILD}/audit-log`);
+    if (!logs.length) {
+      body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">No audit entries yet.</div>';
+      return;
+    }
+    await resolveNames(logs.map(l => l.userId).filter(Boolean));
+    body.innerHTML = logs.map(l => {
+      const label  = ACTION_LABELS[l.action];
+      const text   = label ? label(l.data||{}) : l.action;
+      const name   = resolveName(l.userId);
+      const time   = new Date(l.ts).toLocaleString();
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px">
+        <div style="flex:1"><span style="font-weight:700;color:var(--gold)">${name}</span> <span style="color:var(--text)">${text}</span></div>
+        <div style="font-size:10px;color:var(--muted);flex-shrink:0;font-family:'JetBrains Mono',monospace;white-space:nowrap">${time}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">Failed to load audit log.</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════
 // GANGS
 // ════════════════════════════════════════════════
 async function loadGangs() {
@@ -2887,6 +2968,42 @@ async function clearHeat(userId) {
   if (!confirm('Clear this player\'s entire police record?')) return;
   const r = await api('POST', `/api/${GUILD}/police/${userId}/clear`);
   if (r.success) { toast('Record cleared','ok'); await loadPolice(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function loadJailConfig() {
+  try {
+    const [config, roles, chans] = await Promise.all([
+      api('GET', `/api/${GUILD}/config`),
+      api('GET', `/api/${GUILD}/guild/roles`).catch(()=>[]),
+      api('GET', `/api/${GUILD}/guild/channels`).catch(()=>[]),
+    ]);
+    const roleSel = document.getElementById('jail-role-select');
+    const chanSel = document.getElementById('jail-channel-select');
+    if (!roleSel || !chanSel) return;
+    roleSel.innerHTML = '<option value="">— Select Prisoner Role —</option>' +
+      (roles||[]).map(r => `<option value="${r.id}" ${config.prisonRoleId===r.id?'selected':''}>${r.name}</option>`).join('');
+    chanSel.innerHTML = '<option value="">— Select Prison Channel —</option>' +
+      (chans||[]).map(c => `<option value="${c.id}" ${config.prisonChannelId===c.id?'selected':''}>#${c.name}</option>`).join('');
+    const status = document.getElementById('jail-status');
+    if (status) {
+      if (config.prisonRoleId && config.prisonChannelId) {
+        status.textContent = `✅ Prison active — Role ID: ${config.prisonRoleId}`;
+        status.style.color = '#2ecc71';
+      } else {
+        status.textContent = '⚠️ Run /jailcreate in your server first, then select the role and channel here.';
+        status.style.color = '#f5c518';
+      }
+    }
+  } catch(e) { console.error('loadJailConfig error:', e); }
+}
+
+async function saveJailConfig() {
+  const roleId = document.getElementById('jail-role-select').value;
+  const chanId = document.getElementById('jail-channel-select').value;
+  if (!roleId || !chanId) return toast('Select both a role and channel','err');
+  const r = await api('POST', `/api/${GUILD}/config/jail`, { prisonRoleId: roleId, prisonChannelId: chanId });
+  if (r.success) { toast('Prison config saved ✅','ok'); await loadJailConfig(); }
   else toast(r.error||'Failed','err');
 }
 

@@ -1232,6 +1232,38 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
+  // ---- jailcreate ----
+  if (commandName === 'jailcreate') {
+    return message.reply('Use `/jailcreate` slash command — requires bot permissions to create channels and roles.');
+  }
+
+  // ---- jail (!jail @user <mins> <reason>) ----
+  if (commandName === 'jail') {
+    if (!message.member.permissions.has('ManageMessages')) return message.reply('❌ You need **Manage Messages** permission.');
+    const target = message.mentions.users.first();
+    const mins   = parseInt(args[1]) || 10;
+    const reason = args.slice(2).join(' ') || 'Jailed by staff';
+    if (!target) return message.reply(`Usage: \`${prefix}jail @user <minutes> <reason>\``);
+    const { getConfig } = require('./utils/db');
+    const { jailUser }  = require('./commands/moderation/jail');
+    const config = getConfig(message.guild.id);
+    const result = await jailUser(message.guild, target.id, mins, reason, config, message.author.id);
+    if (!result.ok) return message.reply(`❌ ${result.error}`);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('🔒 User Jailed').setDescription(`<@${target.id}> jailed for **${mins}m** — *${reason}*`)] });
+  }
+
+  // ---- unjail (!unjail @user) ----
+  if (commandName === 'unjail' || commandName === 'release') {
+    if (!message.member.permissions.has('ManageMessages')) return message.reply('❌ You need **Manage Messages** permission.');
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}unjail @user\``);
+    const { getConfig } = require('./utils/db');
+    const { releaseUser } = require('./commands/moderation/jail');
+    const config = getConfig(message.guild.id);
+    await releaseUser(message.guild, target.id, config, message.author.id);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setDescription(`🟢 <@${target.id}> has been released.`)] });
+  }
+
   // ---- overview ----
   if (commandName === 'overview' || commandName === 'stats' || commandName === 'serverstats') {
     const overviewCmd = require('./commands/moderation/overview.js');
@@ -1317,6 +1349,31 @@ setInterval(async () => {
     }
   } catch(e) { console.error('Purge watcher error:', e.message); }
 }, 5000);
+
+// ---- JAIL RELEASE WATCHER ----
+setInterval(async () => {
+  try {
+    const { getAllPoliceRecords, savePoliceRecord } = require('./utils/gangDb');
+    const { getConfig } = require('./utils/db');
+    const { releaseUser } = require('./commands/moderation/jail');
+    const records = getAllPoliceRecords ? getAllPoliceRecords() : {};
+    const now = Date.now();
+    for (const [userId, rec] of Object.entries(records)) {
+      if (!rec.jailUntil || rec.jailUntil > now) continue;
+      // Sentence expired — release from all guilds
+      for (const [, guild] of client.guilds.cache) {
+        const config = getConfig(guild.id);
+        if (!config.prisonRoleId) continue;
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) continue;
+        const role = guild.roles.cache.get(config.prisonRoleId);
+        if (role && member.roles.cache.has(role.id)) {
+          await releaseUser(guild, userId, config, null);
+        }
+      }
+    }
+  } catch(e) { console.error('Jail watcher error:', e.message); }
+}, 15_000); // check every 15 seconds
 
 // ---- PASSIVE INCOME TICK ENGINE ----
 const { tickPassiveIncome } = require('./utils/effects');

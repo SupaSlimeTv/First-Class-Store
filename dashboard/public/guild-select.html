@@ -38,6 +38,8 @@ h1{font-size:24px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;c
 .guild-id{font-family:'JetBrains Mono',monospace;font-size:10px;color:#40404a}
 .empty{text-align:center;color:#40404a;font-size:14px;padding:32px;background:#0f0f14;border:1px solid #1e1e28;border-radius:10px}
 .loading{text-align:center;color:#60607a;padding:48px;font-size:14px}
+.remove-btn{position:absolute;top:8px;right:8px;background:rgba(255,59,59,.15);border:1px solid rgba(255,59,59,.3);color:#ff3b3b;border-radius:50%;width:22px;height:22px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;font-weight:700;z-index:10;line-height:1}
+.remove-btn:hover{background:rgba(255,59,59,.35);border-color:#ff3b3b;transform:scale(1.1)}
 </style>
 </head>
 <body>
@@ -93,14 +95,17 @@ async function load() {
     html += `<div class="empty">No managed servers yet. Add the bot to a server below.</div>`;
   } else {
     html += botGuilds.map(g => `
-      <a class="guild-card" href="/dashboard/${g.id}">
-        <div class="badge">Manage</div>
-        <div class="guild-icon">${g.icon ? `<img src="${g.icon}">` : g.name.charAt(0).toUpperCase()}</div>
-        <div>
-          <div class="guild-name">${g.name}</div>
-          <div class="guild-id">${g.id}</div>
-        </div>
-      </a>`).join('');
+      <div style="position:relative">
+        <a class="guild-card" href="/dashboard/${g.id}">
+          <div class="badge">Manage</div>
+          <div class="guild-icon">${g.icon ? `<img src="${g.icon}">` : g.name.charAt(0).toUpperCase()}</div>
+          <div>
+            <div class="guild-name">${g.name}</div>
+            <div class="guild-id">${g.id}</div>
+          </div>
+        </a>
+        ${g.isOwner ? `<button class="remove-btn" onclick="removeBot('${g.id}','${g.name}',event)" title="Remove bot from server">✕</button>` : ''}
+      </div>`).join('');
   }
   html += `</div></div>`;
 
@@ -129,6 +134,19 @@ function addBot(guildId, name) {
   if (!cid) { alert('Bot client ID not loaded. Please try refreshing.'); return; }
   const url = `https://discord.com/oauth2/authorize?client_id=${cid}&permissions=8&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
   window.open(url, '_blank', 'width=500,height=700');
+}
+
+async function removeBot(guildId, name, event) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (!confirm(`Remove the bot from "${name}"?\n\nAll dashboard access to this server will be lost. Economy data stays saved.`)) return;
+  const r = await fetch(`/api/${guildId}/leave`, { method:'POST', credentials:'include' }).then(r => r.json()).catch(() => ({}));
+  if (r.success) {
+    alert(`Bot removed from ${name}. Refresh to update the list.`);
+    load();
+  } else {
+    alert(r.error || 'Failed to remove bot. Make sure you are the server owner.');
+  }
 }
 
 load();

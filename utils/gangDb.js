@@ -42,6 +42,8 @@ function getPoliceRecord(userId) {
   return _police[userId] || { userId, heat: 0, arrests: 0, jailUntil: null, offenses: [] };
 }
 
+function getAllPoliceRecords() { return { ..._police }; }
+
 async function savePoliceRecord(userId, data) {
   _police[userId] = data;
   try { const c = await col('police'); await c.replaceOne({ _id: userId }, { _id: userId, ...data }, { upsert: true }); }
@@ -91,16 +93,31 @@ async function checkPoliceRaid(userId, client, channelId) {
   if ((r.heat || 0) < 60) return null;
   const raidChance = (r.heat - 60) / 200;
   if (Math.random() > raidChance) return null;
-  const { getOrCreateUser, saveUser } = require('./db');
+  const { getOrCreateUser, saveUser, getConfig } = require('./db');
   const user    = getOrCreateUser(userId);
   const fine    = Math.floor(user.wallet * 0.25);
   user.wallet   = Math.max(0, user.wallet - fine);
-  r.jailUntil   = Date.now() + 10 * 60 * 1000;
+  const jailMinutes = 10;
+  r.jailUntil   = Date.now() + jailMinutes * 60 * 1000;
   r.arrests     = (r.arrests || 0) + 1;
   r.heat        = Math.max(0, r.heat - 30);
+  r.jailReason  = 'Police raid — too much heat';
   saveUser(userId, user);
   await savePoliceRecord(userId, r);
-  return { fine, jailMinutes: 10 };
+
+  // Apply Discord jail role if prison is set up
+  if (client) {
+    try {
+      for (const [, guild] of client.guilds.cache) {
+        const config = getConfig(guild.id);
+        if (!config.prisonRoleId || !config.prisonChannelId) continue;
+        const { jailUser } = require('../commands/moderation/jail');
+        await jailUser(guild, userId, jailMinutes, 'Police raid — heat level too high', config, null);
+      }
+    } catch(e) { console.error('checkPoliceRaid jail error:', e.message); }
+  }
+
+  return { fine, jailMinutes };
 }
 
 // ── GANG RANKS ────────────────────────────────────────────
@@ -122,6 +139,6 @@ module.exports = {
   getGang, getGangByMember, getAllGangs, saveGang, deleteGang,
   getPoliceRecord, savePoliceRecord,
   getWar, getAllWars, saveWar, deleteWar,
-  addHeat, checkPoliceRaid, isJailed, getJailTimeLeft,
+  addHeat, checkPoliceRaid, isJailed, getJailTimeLeft, getAllPoliceRecords,
   GANG_RANKS, getMemberRank,
 };
