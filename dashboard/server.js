@@ -460,24 +460,30 @@ app.post('/api/:guildId/users/resolve', requireGuildAuth, async (req, res) => {
   try {
     const ids = req.body.ids || [];
     const result = {};
-    // First try guild members (fast, gets nicknames)
+
+    // Try guild members first (gets nicknames)
     const members = await fetchBotAPI(`/guilds/${req.guildId}/members?limit=1000`);
     const memberMap = {};
     if (Array.isArray(members)) {
       for (const m of members) {
-        if (m.user) memberMap[m.user.id] = m.nick || m.user.global_name || m.user.username || m.user.id;
+        if (m.user) memberMap[m.user.id] = m.nick || m.user.global_name || m.user.username;
       }
     }
-    // For IDs not found in guild, fetch directly from Discord
+
+    // For IDs not in guild, fetch user directly — bot token can fetch any user
     const unknown = ids.filter(id => !memberMap[id]);
-    await Promise.all(unknown.map(async id => {
+    await Promise.allSettled(unknown.map(async id => {
       try {
         const u = await fetchBotAPI(`/users/${id}`);
-        if (u) memberMap[id] = u.global_name || u.username || id;
+        if (u && (u.global_name || u.username)) {
+          memberMap[id] = u.global_name || u.username;
+        }
       } catch {}
     }));
+
     for (const id of ids) {
-      result[id] = memberMap[id] || id;
+      // Only return if we got a real name, not a raw ID
+      if (memberMap[id]) result[id] = memberMap[id];
     }
     res.json(result);
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -2558,22 +2558,35 @@ async function deleteBusiness(ownerId) {
 const _nameCache = {};
 
 async function resolveNames(ids) {
-  const unknown = [...new Set(ids)].filter(id => id && !_nameCache[id]);
-  // First check S.users which is already loaded
+  // Only fetch IDs we haven't resolved to a REAL name yet (not cached as raw ID)
+  const unknown = [...new Set(ids)].filter(id => {
+    if (!id) return false;
+    const cached = _nameCache[id];
+    // Skip if cached and it's a real name (not just the ID itself)
+    if (cached && cached !== id) return false;
+    return true;
+  });
+
+  // First check S.users which is already loaded with display names
   if (unknown.length && S.users && S.users.length) {
     for (const id of unknown) {
       const u = S.users.find(u => u.id === id);
-      if (u && u.username) _nameCache[id] = u.username;
+      if (u && u.username && u.username !== id) _nameCache[id] = u.username;
     }
   }
-  // Then fetch any still unknown from Discord
-  const stillUnknown = unknown.filter(id => !_nameCache[id]);
+
+  // Then fetch any still unknown from Discord API
+  const stillUnknown = unknown.filter(id => !_nameCache[id] || _nameCache[id] === id);
   if (stillUnknown.length) {
     try {
       const result = await api('POST', `/api/${GUILD}/users/resolve`, { ids: stillUnknown });
-      Object.assign(_nameCache, result);
+      // Only cache actual names, not raw IDs
+      for (const [id, name] of Object.entries(result)) {
+        if (name && name !== id) _nameCache[id] = name;
+      }
     } catch {}
   }
+
   return ids.map(id => _nameCache[id] || id);
 }
 
