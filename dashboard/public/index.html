@@ -1539,6 +1539,28 @@ function renderMagicActions() {
   }).join('');
 }
 
+function addMagicAction() {
+  magicActions.push({ type: 'drain' });
+  renderMagicActions();
+}
+
+function removeMagicAction(i) {
+  magicActions.splice(i, 1);
+  renderMagicActions();
+}
+
+function onMagicActionTypeChange(i) {
+  const newType = document.getElementById(`ma-${i}-type`).value;
+  magicActions[i] = { type: newType };
+  renderMagicActions();
+}
+
+function onMagicTargetChange() {
+  const t    = document.getElementById('m-magic-target')?.value;
+  const hint = document.getElementById('magic-target-ai-hint');
+  if (hint) hint.style.display = t === 'ai_entity' ? 'block' : 'none';
+}
+
 function clearForm(){
   ['m-name','m-desc','m-price','m-drain-amount','m-drain-duration',
    'm-silence-dur','m-passive-amount','m-passive-interval','m-passive-duration',
