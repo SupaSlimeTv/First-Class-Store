@@ -1513,6 +1513,21 @@ function renderStore(){
 
 // Magic actions — declared early so clearForm can reference them
 let magicActions = [];
+
+const MAGIC_ACTION_DEFS = {
+  drain:       { label:'💸 Drain Money',        emoji:'💸' },
+  give:        { label:'💰 Give Money',          emoji:'💰' },
+  silence:     { label:'🔇 Silence',             emoji:'🔇' },
+  heat:        { label:'🌡️ Add Police Heat',     emoji:'🌡️' },
+  buff:        { label:'✨ Apply Buff',           emoji:'✨' },
+  xp:          { label:'🐾 Give Pet XP',         emoji:'🐾' },
+  msg:         { label:'💬 Flavor Message',       emoji:'💬' },
+  ai_loyalty:  { label:'🤖 Set AI Loyalty',      emoji:'🤖' },
+  ai_mood:     { label:'😡 Force AI Mood',       emoji:'😡' },
+  ai_ability:  { label:'⚙️ Toggle AI Ability',   emoji:'⚙️' },
+  ai_takeover: { label:'💻 AI Takeover',         emoji:'💻' },
+  ai_wipe:     { label:'🗑️ Wipe AI Memory',      emoji:'🗑️' },
+};
 function renderMagicActions() {
   const list  = document.getElementById('magic-actions-list');
   const empty = document.getElementById('magic-actions-empty');
