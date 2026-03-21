@@ -213,7 +213,7 @@ app.post('/api/:guildId/users/:id/give-gun', requireGuildAuth, async (req, res) 
     if (!gun) return res.status(404).json({ error: 'Gun not found' });
     const inv = getGunInventory(req.params.id);
     inv.push({ gunId, boughtAt: Date.now(), ammo: gun.capacity * 3, gifted: true });
-    saveGunInventory(req.params.id, inv);
+    await saveGunInventory(req.params.id, inv);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -446,6 +446,7 @@ app.post('/api/:guildId/users/resolve', requireGuildAuth, async (req, res) => {
   try {
     const ids = req.body.ids || [];
     const result = {};
+    // First try guild members (fast, gets nicknames)
     const members = await fetchBotAPI(`/guilds/${req.guildId}/members?limit=1000`);
     const memberMap = {};
     if (Array.isArray(members)) {
@@ -453,6 +454,14 @@ app.post('/api/:guildId/users/resolve', requireGuildAuth, async (req, res) => {
         if (m.user) memberMap[m.user.id] = m.nick || m.user.global_name || m.user.username || m.user.id;
       }
     }
+    // For IDs not found in guild, fetch directly from Discord
+    const unknown = ids.filter(id => !memberMap[id]);
+    await Promise.all(unknown.map(async id => {
+      try {
+        const u = await fetchBotAPI(`/users/${id}`);
+        if (u) memberMap[id] = u.global_name || u.username || id;
+      } catch {}
+    }));
     for (const id of ids) {
       result[id] = memberMap[id] || id;
     }
@@ -768,6 +777,13 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🖥️  Dashboard running at http://0.0.0.0:${PORT}`);
+  // Preload MongoDB caches so gun shop, gang, business data is available
+  try {
+    await require('../utils/gunDb').preloadGunCache();
+    await require('../utils/gangDb').preloadGangCache();
+    await require('../utils/bizDb').preloadBizCache();
+    console.log('📦 Dashboard caches loaded');
+  } catch(e) { console.error('Dashboard cache preload error:', e.message); }
 });
