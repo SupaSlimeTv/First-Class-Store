@@ -82,6 +82,14 @@ client.once('ready', async () => {
   const { preloadPhoneCache } = require('./utils/phoneDb');
   await preloadPhoneCache();
 
+  // Load goon cache from MongoDB
+  const { preloadGoonCache } = require('./utils/goonDb');
+  await preloadGoonCache();
+
+  // Load bitcoin cache from MongoDB
+  const { preloadBitcoinCache } = require('./utils/bitcoinDb');
+  await preloadBitcoinCache();
+
   // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');
@@ -1274,6 +1282,50 @@ client.on('messageCreate', async (message) => {
     return overviewCmd.executePrefix(message);
   }
 
+  // ---- bitcoin / btc ----
+  if (commandName === 'bitcoin' || commandName === 'btc' || commandName === 'btcwallet') {
+    return message.reply('Use `/bitcoin` slash command — subcommand selection required.');
+  }
+
+  // ---- phish ----
+  if (commandName === 'phish') {
+    return message.reply('Use `/phish` slash command — requires user mention selection.');
+  }
+
+  // ---- myrouting / laptop ----
+  if (commandName === 'myrouting' || commandName === 'routing' || commandName === 'myrn') {
+    if (needsAccount()) return;
+    const { routing } = require('./commands/economy/laptop.js');
+    return routing.execute({ user:message.author, guild:message.guild, reply:(o)=>message.reply(o), options:{ getString:()=>null } });
+  }
+  if (commandName === 'laptop') {
+    return message.reply(`Use \`/laptop\` slash command — routing number and action require dropdown selection.`);
+  }
+
+  // ---- hack ----
+  if (commandName === 'hack') {
+    return message.reply(`Use \`/hack\` slash command — hacking requires mode selection (bank/business/social).`);
+  }
+
+  // ---- goons / goonattack / launder ----
+  if (['goons','goonroster','groster'].includes(commandName)) {
+    return message.reply(`Use \`/goons\` slash command — goon management requires subcommand selection.`);
+  }
+  if (commandName === 'goonattack' || commandName === 'sendgoons' || commandName === 'hit') {
+    if (needsAccount()) return;
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}goonattack @user\``);
+    const { getGangByMember } = require('./utils/gangDb');
+    if (!getGangByMember(message.author.id)) return message.reply("You're not in a gang.");
+    return message.reply(`Use \`/goonattack\` slash command for the full attack UI.`);
+  }
+  if (commandName === 'launder' || commandName === 'wash') {
+    if (needsAccount()) return;
+    const cmd = require('./commands/gangs/launder.js');
+    if (cmd.executePrefix) return cmd.executePrefix(message, args);
+    return message.reply(`Use \`/launder\` slash command to launder dirty money.`);
+  }
+
   // ---- phone / phoneshop ----
   if (commandName === 'phoneshop' || commandName === 'phones') {
     const cmd = require('./commands/economy/phoneshop.js');
@@ -1392,6 +1444,73 @@ setInterval(async () => {
 const { tickPassiveIncome } = require('./utils/effects');
 setInterval(tickPassiveIncome, 60_000);
 tickPassiveIncome();
+
+// ---- BITCOIN MIX COMPLETION TICK ----
+// Moves completed mixes from queue to cleanFunds every minute
+setInterval(async () => {
+  try {
+    const { getAllBtcWallets, saveBtcWallet } = require('./utils/bitcoinDb');
+    const all = getAllBtcWallets();
+    const now = Date.now();
+    for (const [userId, btc] of Object.entries(all)) {
+      if (!(btc.mixQueue||[]).length) continue;
+      let moved = 0;
+      btc.mixQueue = btc.mixQueue.filter(m => {
+        if (m.completeAt <= now) { moved += m.amount; return false; }
+        return true;
+      });
+      if (moved > 0) {
+        btc.cleanFunds = (btc.cleanFunds||0) + moved;
+        await saveBtcWallet(userId, btc);
+        // Notify user their mix is ready
+        try {
+          const u = await client.users.fetch(userId);
+          await u.send({ embeds:[new EmbedBuilder().setColor(0xf7931a)
+            .setTitle('₿ Bitcoin Mix Complete')
+            .setDescription(`**$${moved.toLocaleString()}** in clean funds are ready.\nUse \`/bitcoin collect\` to move them to your wallet.`)
+          ]});
+        } catch {}
+      }
+    }
+  } catch(e) { console.error('Bitcoin tick error:', e.message); }
+}, 60_000);
+
+// ---- GOON DIRTY MONEY TICK ENGINE ----
+// Goons generate dirty money every 5 minutes
+setInterval(async () => {
+  try {
+    const { getAllGangGoons, saveGangGoons, goonTraffickRate, hasAccountant } = require('./utils/goonDb');
+    const { getAllGangs, saveGang } = require('./utils/gangDb');
+    const { getBusiness, saveBusiness, BIZ_TYPES } = require('./utils/bizDb');
+    const allGoons = getAllGangGoons();
+    const TICK_MINS = 5;
+    for (const [gangId, goonData] of Object.entries(allGoons)) {
+      const roster = goonData.goons || [];
+      if (!roster.length) continue;
+      const ratePerHr = goonTraffickRate(roster);
+      if (!ratePerHr) continue;
+      const earned = Math.floor(ratePerHr * TICK_MINS / 60);
+      goonData.dirtyMoney = (goonData.dirtyMoney||0) + earned;
+
+      // Auto-launder if accountant + gang leader owns a cash business
+      if (hasAccountant(roster)) {
+        const gangs = getAllGangs();
+        const gang  = gangs.find(g => g.id === gangId);
+        if (gang?.leaderId) {
+          const biz = getBusiness(gang.leaderId);
+          const bizType = biz ? BIZ_TYPES[biz.type] : null;
+          if (biz && (bizType?.isCashBusiness || bizType?.isLegit)) {
+            const autoClean = Math.floor(goonData.dirtyMoney * 0.10); // accountant auto-launders 10%/tick
+            goonData.dirtyMoney -= autoClean;
+            biz.revenue = (biz.revenue||0) + Math.floor(autoClean * 0.90); // 10% fee even on auto
+            await saveBusiness(gang.leaderId, biz);
+          }
+        }
+      }
+      await saveGangGoons(gangId, goonData);
+    }
+  } catch(e) { console.error('Goon dirty money tick error:', e.message); }
+}, 5 * 60 * 1000);
 
 // ---- STOCK PRICE TICK ENGINE ----
 // ---- STOCK PRICE TICK ENGINE ----

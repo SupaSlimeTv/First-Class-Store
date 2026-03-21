@@ -21,25 +21,23 @@ h1{font-size:24px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;c
 .section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#40404a;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .section-label::after{content:'';flex:1;height:1px;background:#1e1e28}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
-/* Active guild card */
-.guild-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .15s;text-decoration:none;color:inherit;position:relative;overflow:hidden}
-.guild-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,59,59,.04) 0%,transparent 60%);opacity:0;transition:.15s}
+.guild-wrap{position:relative}
+.guild-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .15s;text-decoration:none;color:inherit;overflow:hidden;display:block}
 .guild-card:hover{border-color:#ff3b3b;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
-.guild-card:hover::before{opacity:1}
-.guild-card .badge{position:absolute;bottom:10px;left:10px;background:rgba(46,204,113,.15);color:#2ecc71;border:1px solid rgba(46,204,113,.3);border-radius:4px;font-size:9px;font-weight:700;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em}
-/* Add bot card */
-.add-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:18px;display:flex;align-items:center;gap:14px;transition:all .15s;color:inherit;position:relative;overflow:hidden}
+.guild-card .badge{position:absolute;bottom:10px;left:10px;background:rgba(46,204,113,.15);color:#2ecc71;border:1px solid rgba(46,204,113,.3);border-radius:4px;font-size:9px;font-weight:700;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em;z-index:2}
+.guild-inner{display:flex;align-items:center;gap:14px}
+.remove-btn{position:absolute;top:8px;right:8px;background:rgba(255,59,59,.15);border:1px solid rgba(255,59,59,.3);color:#ff3b3b;border-radius:50%;width:22px;height:22px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;font-weight:700;z-index:10;line-height:1}
+.remove-btn:hover{background:rgba(255,59,59,.35);border-color:#ff3b3b;transform:scale(1.1)}
+.add-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:18px;display:flex;align-items:center;gap:14px;transition:all .15s;color:inherit}
 .add-card:hover{border-color:#5865f2;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .add-btn{margin-left:auto;flex-shrink:0;background:#5865f2;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:.15s;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
-.add-btn:hover{background:#4752c4;transform:scale(1.05)}
+.add-btn:hover{background:#4752c4}
 .guild-icon{width:48px;height:48px;border-radius:12px;background:#1e1e28;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;overflow:hidden;color:#fff}
 .guild-icon img{width:48px;height:48px;object-fit:cover}
 .guild-name{font-weight:700;font-size:15px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
 .guild-id{font-family:'JetBrains Mono',monospace;font-size:10px;color:#40404a}
 .empty{text-align:center;color:#40404a;font-size:14px;padding:32px;background:#0f0f14;border:1px solid #1e1e28;border-radius:10px}
 .loading{text-align:center;color:#60607a;padding:48px;font-size:14px}
-.remove-btn{position:absolute;top:8px;right:8px;background:rgba(255,59,59,.15);border:1px solid rgba(255,59,59,.3);color:#ff3b3b;border-radius:50%;width:22px;height:22px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;font-weight:700;z-index:10;line-height:1}
-.remove-btn:hover{background:rgba(255,59,59,.35);border-color:#ff3b3b;transform:scale(1.1)}
 </style>
 </head>
 <body>
@@ -59,94 +57,89 @@ h1{font-size:24px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;c
 </div>
 
 <script>
-const BOT_INVITE = `https://discord.com/oauth2/authorize?client_id=${location.hostname === 'localhost' ? 'YOUR_CLIENT_ID' : ''}&permissions=8&scope=bot%20applications.commands`;
-
 async function load() {
-  const me = await fetch('/auth/me').then(r => r.ok ? r.json() : null);
-  if (!me) { location.href = '/login.html'; return; }
+  try {
+    const me = await fetch('/auth/me').then(r => r.ok ? r.json() : null);
+    if (!me) { location.href = '/login.html'; return; }
 
-  // Fetch client ID from meta if possible
-  const clientIdMeta = document.querySelector('meta[name="client-id"]');
-  const inviteUrl = (guildId) => `https://discord.com/oauth2/authorize?client_id=${window._clientId||''}&permissions=8&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
+    document.getElementById('user-bar').innerHTML =
+      (me.avatar ? '<img src="https://cdn.discordapp.com/avatars/' + me.id + '/' + me.avatar + '.png?size=32">' : '⚡') +
+      '<span>Logged in as <strong>' + me.username + '</strong></span>' +
+      '<a href="/auth/logout">Logout</a>';
 
-  document.getElementById('user-bar').innerHTML = `
-    ${me.avatar ? `<img src="https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=32">` : '⚡'}
-    <span>Logged in as <strong>${me.username}</strong></span>
-    <a href="/auth/logout">Logout</a>
-  `;
+    const data = await fetch('/api/my-guilds', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { botGuilds: [], addableGuilds: [] })
+      .catch(() => ({ botGuilds: [], addableGuilds: [] }));
 
-  const data = await fetch('/api/my-guilds').then(r => r.ok ? r.json() : { botGuilds:[], addableGuilds:[] });
-  // Support old array format too
-  const botGuilds    = Array.isArray(data) ? data : (data.botGuilds || []);
-  const addableGuilds= Array.isArray(data) ? [] :  (data.addableGuilds || []);
-  const cid          = data.clientId || '';
-  window._clientId   = cid;
+    const botGuilds     = Array.isArray(data) ? data        : (data.botGuilds     || []);
+    const addableGuilds = Array.isArray(data) ? []          : (data.addableGuilds || []);
+    window._clientId    = data.clientId || '';
 
-  const content = document.getElementById('content');
+    const content = document.getElementById('content');
+    let html = '';
 
-  let html = '';
+    // ── Managed servers ────────────────────────────────────
+    html += '<div class="section">';
+    html += '<div class="section-label">🟢 Manage — Bot is in these servers</div>';
+    html += '<div class="grid">';
 
-  // ── Servers with bot ───────────────────────────────────────
-  html += `<div class="section">
-    <div class="section-label">🟢 Manage — Bot is in these servers</div>
-    <div class="grid">`;
+    if (!botGuilds.length) {
+      html += '<div class="empty">No managed servers yet. Add the bot to a server below.</div>';
+    } else {
+      botGuilds.forEach(function(g) {
+        var icon = g.icon ? '<img src="' + g.icon + '">' : g.name.charAt(0).toUpperCase();
+        html += '<div class="guild-wrap">';
+        html += '<a class="guild-card" href="/dashboard/' + g.id + '">';
+        html += '<div class="guild-inner">';
+        html += '<div class="guild-icon">' + icon + '</div>';
+        html += '<div><div class="guild-name">' + g.name + '</div><div class="guild-id">' + g.id + '</div></div>';
+        html += '</div>';
+        html += '<div class="badge">Manage</div>';
+        html += '</a>';
+        html += '<button class="remove-btn" onclick="removeBot(\'' + g.id + '\',\'' + g.name.replace(/'/g,"\\'") + '\',event)" title="Remove bot">✕</button>';
+        html += '</div>';
+      });
+    }
+    html += '</div></div>';
 
-  if (!botGuilds.length) {
-    html += `<div class="empty">No managed servers yet. Add the bot to a server below.</div>`;
-  } else {
-    html += botGuilds.map(g => `
-      <div style="position:relative">
-        <a class="guild-card" href="/dashboard/${g.id}">
-          <div class="badge">Manage</div>
-          <div class="guild-icon">${g.icon ? `<img src="${g.icon}">` : g.name.charAt(0).toUpperCase()}</div>
-          <div>
-            <div class="guild-name">${g.name}</div>
-            <div class="guild-id">${g.id}</div>
-          </div>
-        </a>
-        `<button class="remove-btn" onclick="removeBot('${g.id}','${g.name}',event)" title="Remove bot from server">✕</button>`
-      </div>`).join('');
+    // ── Addable servers ────────────────────────────────────
+    if (addableGuilds.length) {
+      html += '<div class="section">';
+      html += '<div class="section-label">➕ Add Bot — You have admin in these servers</div>';
+      html += '<div class="grid">';
+      addableGuilds.forEach(function(g) {
+        var icon = g.icon ? '<img src="' + g.icon + '">' : g.name.charAt(0).toUpperCase();
+        html += '<div class="add-card">';
+        html += '<div class="guild-icon">' + icon + '</div>';
+        html += '<div style="min-width:0"><div class="guild-name">' + g.name + '</div><div class="guild-id">' + g.id + '</div></div>';
+        html += '<button class="add-btn" onclick="addBot(\'' + g.id + '\',\'' + g.name.replace(/'/g,"\\'") + '\')">+ Add Bot</button>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    content.innerHTML = html;
+  } catch(e) {
+    document.getElementById('content').innerHTML = '<div class="empty">Error loading servers. <a href="#" onclick="load()" style="color:#ff3b3b">Retry</a></div>';
   }
-  html += `</div></div>`;
-
-  // ── Servers without bot ────────────────────────────────────
-  if (addableGuilds.length) {
-    html += `<div class="section">
-      <div class="section-label">➕ Add Bot — You have admin in these servers</div>
-      <div class="grid">`;
-    html += addableGuilds.map(g => `
-      <div class="add-card">
-        <div class="guild-icon">${g.icon ? `<img src="${g.icon}">` : g.name.charAt(0).toUpperCase()}</div>
-        <div style="min-width:0">
-          <div class="guild-name">${g.name}</div>
-          <div class="guild-id">${g.id}</div>
-        </div>
-        <button class="add-btn" onclick="addBot('${g.id}','${g.name}')">+ Add Bot</button>
-      </div>`).join('');
-    html += `</div></div>`;
-  }
-
-  content.innerHTML = html;
 }
 
 function addBot(guildId, name) {
-  const cid = window._clientId;
-  if (!cid) { alert('Bot client ID not loaded. Please try refreshing.'); return; }
-  const url = `https://discord.com/oauth2/authorize?client_id=${cid}&permissions=8&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
+  var cid = window._clientId;
+  if (!cid) { alert('Client ID not loaded. Refresh and try again.'); return; }
+  var url = 'https://discord.com/oauth2/authorize?client_id=' + cid + '&permissions=8&scope=bot%20applications.commands&guild_id=' + guildId + '&disable_guild_select=true';
   window.open(url, '_blank', 'width=500,height=700');
 }
 
 async function removeBot(guildId, name, event) {
   event.preventDefault();
   event.stopPropagation();
-  if (!confirm(`Remove the bot from "${name}"?\n\nAll dashboard access to this server will be lost. Economy data stays saved.`)) return;
-  const r = await fetch(`/api/${guildId}/leave`, { method:'POST', credentials:'include' }).then(r => r.json()).catch(() => ({}));
-  if (r.success) {
-    alert(`Bot removed from ${name}. Refresh to update the list.`);
-    load();
-  } else {
-    alert(r.error || 'Failed to remove bot. Make sure the bot has enough permissions.');
-  }
+  if (!confirm('Remove the bot from "' + name + '"?\n\nEconomy data stays saved.')) return;
+  try {
+    var r = await fetch('/api/' + guildId + '/leave', { method: 'POST', credentials: 'include' }).then(r => r.json());
+    if (r.success) { alert('Bot removed from ' + name + '.'); load(); }
+    else alert(r.error || 'Failed to remove bot.');
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 load();
