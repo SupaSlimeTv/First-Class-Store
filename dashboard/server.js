@@ -779,8 +779,8 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🖥️  Dashboard running at http://0.0.0.0:${PORT}`);
-  // Preload MongoDB caches so gun shop, gang, business data is available
   try {
+    await require('../utils/db').preloadCache();
     await require('../utils/gunDb').preloadGunCache();
     await require('../utils/gangDb').preloadGangCache();
     await require('../utils/bizDb').preloadBizCache();

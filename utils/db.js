@@ -1,322 +1,159 @@
 // ============================================================
-// utils/db.js — JSON "Database" Manager
-// All economy data is stored in data/users.json
-// All server config (purge state, mod roles) in data/config.json
-// Item store data in data/store.json
-//
-// TEACHES: fs module, JSON.parse/stringify, error handling,
-//          default values, object destructuring
+// utils/db.js — MongoDB-backed Database
+// All data persists across Railway deploys via MongoDB Atlas
 // ============================================================
 
-const fs = require('fs');
-const path = require('path');
+const { col } = require('./mongo');
 
-const USERS_FILE  = path.join(__dirname, '../data/users.json');
-const CONFIG_FILE = path.join(__dirname, '../data/config.json');
-const STORE_FILE  = path.join(__dirname, '../data/store.json');
+// ── IN-MEMORY CACHES ─────────────────────────────────────
+let _users  = {};   // userId -> user object
+let _config = {};   // guildId -> config object
+let _store  = null; // { items: [...] }
 
-// ---- HELPERS: Read & Write JSON files ----
-
-function readJSON(filePath, defaultValue = {}) {
-  try {
-    // If file doesn't exist yet, return the default
-    if (!fs.existsSync(filePath)) return defaultValue;
-    const raw = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return defaultValue;
-  }
-}
-
-function writeJSON(filePath, data) {
-  // null, 2 = pretty-print with 2-space indentation (readable JSON)
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-}
-
-// ---- USER DATA ----
-
+// ── DEFAULT VALUES ────────────────────────────────────────
 const DEFAULT_USER = {
-  wallet: 500,
-  bank: 0,
-  lastDaily: null,
-  inventory: [],
-  bannedUntil: null,
-  hitmanCount: 0,
-  roleIncomeCooldowns: {},
-  accountOpen: true, // false = user hasn't opened an account yet
+  wallet: 500, bank: 0, lastDaily: null, inventory: [],
+  bannedUntil: null, hitmanCount: 0, roleIncomeCooldowns: {},
+  accountOpen: true,
 };
 
-/**
- * Get a user's data — returns null if they haven't opened an account yet.
- * @param {string} userId - Discord user ID
- */
+const DEFAULT_CONFIG = {
+  purgeActive: false, purgeRoleId: null, modRoles: {}, prefix: '!',
+  roleIncome: {}, restrictedRoleId: null, robCooldownMinutes: 5,
+  protectedRoles: [], purgeChannelId: null, shotTimeoutMinutes: 5,
+  lottery: { active: true, ticketPrice: 100, intervalHours: 24 },
+};
+
+const DEFAULT_STORE = {
+  items: [{
+    id: 'hitman', name: '🔫 Hitman',
+    description: 'Deploy against a user — rob 50% of their balance OR silence them for 24h.',
+    price: 2500, type: 'useable', reusable: false, roleReward: null,
+    effect: { type: 'hitman', action: 'rob' }, requirements: null, enabled: true,
+  }],
+};
+
+// ── PRELOAD ───────────────────────────────────────────────
+async function preloadCache() {
+  try {
+    const [uc, cc, sc] = await Promise.all([col('users'), col('configs'), col('store')]);
+    const [users, configs, storeDoc] = await Promise.all([
+      uc.find({}).toArray(),
+      cc.find({}).toArray(),
+      sc.findOne({ _id: 'store' }),
+    ]);
+    _users  = Object.fromEntries(users.map(d   => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
+    _config = Object.fromEntries(configs.map(d => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
+    _store  = storeDoc ? { items: storeDoc.items || [] } : null;
+    console.log(`📂 Cache preloaded (${Object.keys(_users).length} users)`);
+  } catch(e) { console.error('preloadCache error:', e.message); }
+}
+
+// ── USERS ─────────────────────────────────────────────────
 function getUser(userId) {
-  const users = readJSON(USERS_FILE);
-  if (!users[userId]) return null;
-  // Backfill accountOpen for existing users
-  if (users[userId].accountOpen === undefined) {
-    users[userId].accountOpen = true;
-    writeJSON(USERS_FILE, users);
-  }
-  return users[userId];
+  return _users[userId] || null;
 }
 
-/**
- * Get or create a user — used internally where we always need a user object.
- * Only call this after confirming the user has an account.
- */
 function getOrCreateUser(userId) {
-  const users = readJSON(USERS_FILE);
-  if (!users[userId]) {
-    users[userId] = { ...DEFAULT_USER };
-    writeJSON(USERS_FILE, users);
-  }
-  if (users[userId].accountOpen === undefined) {
-    users[userId].accountOpen = true;
-    writeJSON(USERS_FILE, users);
-  }
-  return users[userId];
+  if (!_users[userId]) _users[userId] = { ...DEFAULT_USER };
+  return _users[userId];
 }
 
-/**
- * Open a new account for a user — called when they type "open account"
- */
+function hasAccount(userId) { return !!_users[userId]; }
+
 function openAccount(userId) {
-  const users = readJSON(USERS_FILE);
-  if (users[userId]) return false; // already exists
-  users[userId] = { ...DEFAULT_USER, accountOpen: true };
-  writeJSON(USERS_FILE, users);
+  if (_users[userId]) return false;
+  _users[userId] = { ...DEFAULT_USER, accountOpen: true };
+  saveUser(userId, _users[userId]);
   return true;
 }
 
-/**
- * Check if a user has an account
- */
-function hasAccount(userId) {
-  const users = readJSON(USERS_FILE);
-  return !!users[userId];
-}
-
-/**
- * Save updated data for a single user
- */
 function saveUser(userId, data) {
-  const users = readJSON(USERS_FILE);
-  users[userId] = data;
-  writeJSON(USERS_FILE, users);
+  _users[userId] = data;
+  // Fire-and-forget async save — don't block sync callers
+  col('users').then(c => c.replaceOne({ _id: userId }, { _id: userId, ...data }, { upsert: true }))
+    .catch(e => console.error('saveUser error:', e.message));
 }
 
-/**
- * Get ALL users (used for purge — need to loop everyone)
- */
-function getAllUsers() {
-  return readJSON(USERS_FILE);
-}
-
-/**
- * Save ALL users at once (used for bulk purge operation)
- */
+function getAllUsers()     { return { ..._users }; }
 function saveAllUsers(data) {
-  writeJSON(USERS_FILE, data);
+  _users = { ...data };
+  col('users').then(async c => {
+    const ops = Object.entries(data).map(([id, u]) => ({
+      replaceOne: { filter: { _id: id }, replacement: { _id: id, ...u }, upsert: true }
+    }));
+    if (ops.length) await c.bulkWrite(ops);
+  }).catch(e => console.error('saveAllUsers error:', e.message));
 }
 
-// ---- SERVER CONFIG ----
-
-const DEFAULT_CONFIG = {
-  purgeActive: false,
-  purgeRoleId: null,
-  modRoles: {},
-  prefix: '!',
-  roleIncome: {},
-  restrictedRoleId: null,
-  robCooldownMinutes: 5,
-  protectedRoles: [],
-  purgeChannelId: null,
-  lottery: {
-    active:        true,
-    ticketPrice:   100,
-    intervalHours: 24,
-  },
-};
-
-function getConfigFile(guildId) {
-  const id = guildId || process.env.GUILD_ID || 'default';
-  return path.join(__dirname, `../data/config_${id}.json`);
-}
-
+// ── CONFIG ────────────────────────────────────────────────
 function getConfig(guildId) {
-  // Try guild-specific file first
-  const guildFile = getConfigFile(guildId);
-  if (fs.existsSync(guildFile)) {
-    const config = readJSON(guildFile);
-    return { ...DEFAULT_CONFIG, ...config };
-  }
-  // Fall back to legacy config.json (migrates old data automatically)
-  const legacy = readJSON(CONFIG_FILE);
-  if (Object.keys(legacy).length && guildId) {
-    // Migrate legacy config to guild-specific file on first read
-    writeJSON(guildFile, legacy);
-  }
-  return { ...DEFAULT_CONFIG, ...legacy };
+  const id = guildId || process.env.GUILD_ID || 'default';
+  return { ...DEFAULT_CONFIG, ...(_config[id] || {}) };
 }
 
 function saveConfig(guildId, data) {
-  // Support both saveConfig(guildId, data) and old saveConfig(data)
   if (typeof guildId === 'object') { data = guildId; guildId = null; }
-  writeJSON(getConfigFile(guildId), data);
-  // Also keep legacy file in sync for backwards compat
-  if (!guildId || guildId === process.env.GUILD_ID) writeJSON(CONFIG_FILE, data);
+  const id = guildId || process.env.GUILD_ID || 'default';
+  _config[id] = data;
+  col('configs').then(c => c.replaceOne({ _id: id }, { _id: id, ...data }, { upsert: true }))
+    .catch(e => console.error('saveConfig error:', e.message));
 }
 
-// ---- ECONOMY HELPERS ----
-
-/**
- * Add money to a user's wallet
- */
-function addToWallet(userId, amount) {
-  const user = getUser(userId);
-  user.wallet += amount;
-  saveUser(userId, user);
-  return user;
-}
-
-/**
- * Transfer money from wallet to bank
- */
-function deposit(userId, amount) {
-  const user = getUser(userId);
-  if (amount > user.wallet) throw new Error('Not enough money in wallet.');
-  user.wallet -= amount;
-  user.bank += amount;
-  saveUser(userId, user);
-  return user;
-}
-
-/**
- * Transfer money from bank to wallet
- */
-function withdraw(userId, amount) {
-  const user = getUser(userId);
-  if (amount > user.bank) throw new Error('Not enough money in bank.');
-  user.bank -= amount;
-  user.wallet += amount;
-  saveUser(userId, user);
-  return user;
-}
-
-/**
- * Check if purge is currently active
- */
-function isPurgeActive(guildId) {
-  return !!getConfig(guildId).purgeActive;
-}
-
-// ---- ITEM STORE ----
-
-const DEFAULT_STORE = {
-  items: [
-    {
-      id: 'hitman',
-      name: '🔫 Hitman',
-      description: 'Deploy against a user — rob 50% of their balance OR silence them for 24h. Fails = you lose 50% as karma.',
-      price: 2500,
-      type: 'useable',
-      reusable: false,
-      roleReward: null,
-      effect: {
-        type: 'hitman',
-        action: 'rob', // 'rob' or 'silence' — set per item
-      },
-      requirements: null,
-      enabled: true,
-    },
-  ],
-};
-
+// ── STORE ─────────────────────────────────────────────────
 function getStore() {
-  const store = readJSON(STORE_FILE);
-  if (!store.items) return DEFAULT_STORE;
-  return store;
+  return _store || DEFAULT_STORE;
 }
 
 function saveStore(data) {
-  writeJSON(STORE_FILE, data);
+  _store = data;
+  col('store').then(c => c.replaceOne({ _id: 'store' }, { _id: 'store', ...data }, { upsert: true }))
+    .catch(e => console.error('saveStore error:', e.message));
 }
 
-// ---- INVENTORY HELPERS ----
+// ── ECONOMY HELPERS ───────────────────────────────────────
+function addToWallet(userId, amount) {
+  const user = getOrCreateUser(userId); user.wallet += amount; saveUser(userId, user); return user;
+}
 
-/**
- * Add an item to a user's inventory
- */
+function deposit(userId, amount) {
+  const user = getUser(userId);
+  if (amount > user.wallet) throw new Error('Not enough money in wallet.');
+  user.wallet -= amount; user.bank += amount; saveUser(userId, user); return user;
+}
+
+function withdraw(userId, amount) {
+  const user = getUser(userId);
+  if (amount > user.bank) throw new Error('Not enough money in bank.');
+  user.bank -= amount; user.wallet += amount; saveUser(userId, user); return user;
+}
+
+function isPurgeActive(guildId) { return !!getConfig(guildId).purgeActive; }
+
+// ── INVENTORY ─────────────────────────────────────────────
 function giveItem(userId, itemId) {
-  const user = getUser(userId);
+  const user = getOrCreateUser(userId);
   if (!user.inventory) user.inventory = [];
-  user.inventory.push(itemId);
-  saveUser(userId, user);
-  return user;
+  user.inventory.push(itemId); saveUser(userId, user); return user;
 }
 
-/**
- * Remove one instance of an item from inventory (returns false if not found)
- */
 function removeItem(userId, itemId) {
-  const user = getUser(userId);
-  if (!user.inventory) return false;
-  const idx = user.inventory.indexOf(itemId);
-  if (idx === -1) return false;
-  user.inventory.splice(idx, 1); // splice(index, deleteCount) — removes 1 item at idx
-  saveUser(userId, user);
-  return true;
+  const user = getUser(userId); if (!user?.inventory) return false;
+  const idx = user.inventory.indexOf(itemId); if (idx === -1) return false;
+  user.inventory.splice(idx, 1); saveUser(userId, user); return true;
 }
 
-/**
- * Check if a user is currently bot-banned by hitman
- */
 function isBotBanned(userId) {
-  const user = getUser(userId);
-  if (!user.bannedUntil) return false;
-  if (Date.now() > user.bannedUntil) {
-    user.bannedUntil = null;
-    saveUser(userId, user);
-    return false;
-  }
+  const user = getUser(userId); if (!user?.bannedUntil) return false;
+  if (Date.now() > user.bannedUntil) { user.bannedUntil = null; saveUser(userId, user); return false; }
   return true;
-}
-
-/**
- * Preload all users and config into memory cache on startup
- * so sync callers work without await
- */
-async function preloadCache() {
-  try {
-    // Just read files into memory — the sync functions will use them
-    readJSON(USERS_FILE);
-    readJSON(CONFIG_FILE);
-    readJSON(STORE_FILE);
-    console.log('📂 Cache preloaded');
-  } catch(e) {
-    console.error('preloadCache error:', e.message);
-  }
 }
 
 module.exports = {
-  getUser,
-  getOrCreateUser,
-  openAccount,
-  hasAccount,
-  saveUser,
-  getAllUsers,
-  saveAllUsers,
-  getConfig,
-  saveConfig,
-  addToWallet,
-  deposit,
-  withdraw,
-  isPurgeActive,
-  getStore,
-  saveStore,
-  giveItem,
-  removeItem,
-  isBotBanned,
   preloadCache,
+  getUser, getOrCreateUser, openAccount, hasAccount, saveUser, getAllUsers, saveAllUsers,
+  getConfig, saveConfig,
+  getStore, saveStore,
+  addToWallet, deposit, withdraw, isPurgeActive,
+  giveItem, removeItem, isBotBanned,
 };
