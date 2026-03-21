@@ -2418,7 +2418,7 @@ async function openTakeItem(userId, username) {
   document.getElementById('give-confirm-btn').textContent = 'Take';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
 
-  // For take mode — only hide options that don't make sense to take
+  // Show ALL categories just like Give (tokens/petlevel/gang/business hidden since can't take those)
   const catSel = document.getElementById('give-category');
   [...catSel.options].forEach(o => {
     o.hidden = ['tokens','petlevel','gang','business'].includes(o.value);
@@ -2426,26 +2426,25 @@ async function openTakeItem(userId, username) {
   catSel.value = 'money';
   onGiveCategoryChange();
 
-  // Load user's actual inventory
-  document.getElementById('give-item-select').innerHTML = '<option value="">Loading...</option>';
-  document.getElementById('give-gun-select').innerHTML  = '<option value="">Loading...</option>';
-
+  // Pre-fetch user inventory and filter dropdowns to only owned items
   try {
     const data  = await api('GET', `/api/${GUILD}/users/${userId}/inventory`);
     const items = data.items || [];
     const guns  = data.guns  || [];
 
+    // Override item select — only what they own
     const itemSel = document.getElementById('give-item-select');
     itemSel.innerHTML = items.length
-      ? '<option value="">— Choose an item —</option>' + items.map(i=>`<option value="${i.id}">${i.name} ×${i.count} (${i.id})</option>`).join('')
+      ? '<option value="">— Choose an item —</option>' + items.map(i => `<option value="${i.id}">${i.name} ×${i.count}</option>`).join('')
       : '<option value="">User has no items</option>';
 
+    // Override gun select — only what they own
     const gunSel = document.getElementById('give-gun-select');
     gunSel.innerHTML = guns.length
-      ? '<option value="">— Choose a gun —</option>' + guns.map(g=>`<option value="${g.id}">${g.emoji} ${g.name} (${g.ammo} rounds)</option>`).join('')
+      ? '<option value="">— Choose a gun —</option>' + guns.map(g => `<option value="${g.id}">${g.emoji} ${g.name} (${g.ammo} rounds)</option>`).join('')
       : '<option value="">User has no guns</option>';
   } catch {
-    document.getElementById('give-item-select').innerHTML = '<option value="">Failed to load inventory</option>';
+    document.getElementById('give-item-select').innerHTML = '<option value="">Failed to load</option>';
   }
 
   document.getElementById('item-give-modal').classList.add('open');
