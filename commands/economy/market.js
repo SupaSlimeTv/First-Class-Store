@@ -56,7 +56,15 @@ function buildCoinEmbed(coin, prices, history) {
   const hypeBar = buildBar(hype, 100, 15);
   const hypeLabel = hype > 65 ? '🔥 HOT' : hype < 35 ? '🧊 COLD' : '😐 NEUTRAL';
 
-  const priceStr = price < 10 ? price.toFixed(4) : price < 100 ? price.toFixed(2) : Math.round(price).toLocaleString();
+  const fmtP = (p) => {
+    if (p >= 1e12) return '$' + (p/1e12).toFixed(2) + 'T';
+    if (p >= 1e9)  return '$' + (p/1e9).toFixed(2)  + 'B';
+    if (p >= 1e6)  return '$' + (p/1e6).toFixed(2)  + 'M';
+    if (p >= 1000) return '$' + Math.round(p).toLocaleString();
+    if (p >= 1)    return '$' + p.toFixed(2);
+    return '$' + p.toFixed(4);
+  };
+  const priceStr = fmtP(price);
 
   return new EmbedBuilder()
     .setColor(coin.color)
@@ -66,7 +74,7 @@ function buildCoinEmbed(coin, prices, history) {
       `\`\`\`\n${sparkline}\n\`\`\``
     )
     .addFields(
-      { name: '💰 Price',      value: `$${priceStr}`,                                           inline: true },
+      { name: '💰 Price',      value: priceStr,                                           inline: true },
       { name: up ? '📈 Change' : '📉 Change', value: `${up?'+':''}${change.toFixed(2)}%`,      inline: true },
       { name: '📊 24h Change', value: `${dayChg >= 0 ? '+' : ''}${dayChg.toFixed(2)}%`,        inline: true },
       { name: '🔺 24h High',   value: `$${dayHigh < 10 ? dayHigh.toFixed(4) : dayHigh.toFixed(2)}`, inline: true },

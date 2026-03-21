@@ -36,6 +36,15 @@ module.exports = {
       return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff3b3b).setTitle('❌ No Investment').setDescription(`You don't have any **${coin.name}** shares to cash out.`)], ephemeral: true });
     }
 
+
+  const fmtP = (p) => {
+    if (p >= 1e12) return '$' + (p/1e12).toFixed(2) + 'T';
+    if (p >= 1e9)  return '$' + (p/1e9).toFixed(2)  + 'B';
+    if (p >= 1e6)  return '$' + (p/1e6).toFixed(2)  + 'M';
+    if (p >= 1000) return '$' + Math.round(p).toLocaleString();
+    if (p >= 1)    return '$' + p.toFixed(2);
+    return '$' + p.toFixed(4);
+  };
     const prices   = getPrices();
     const price    = prices[coinId] || 100;
     const shares   = user.stocks[coinId].shares;
@@ -52,7 +61,7 @@ module.exports = {
     await interaction.reply({ embeds: [new EmbedBuilder()
       .setColor(won ? 0x2ecc71 : 0xff3b3b)
       .setTitle(`${coin.emoji} Cashed Out ${coin.name}`)
-      .setDescription(`You sold **${shares.toFixed(6)} shares** at **$${price.toFixed(2)}** each.`)
+      .setDescription(`You sold **${shares.toFixed(6)} shares** at **${fmtP(price)}** each.`)
       .addFields(
         { name: '💰 Received',   value: `$${Math.floor(value).toLocaleString()}`, inline: true },
         { name: won ? '📈 Profit' : '📉 Loss', value: `${won?'+':''} $${Math.floor(Math.abs(profit)).toLocaleString()} (${won?'+':''}${pct}%)`, inline: true },

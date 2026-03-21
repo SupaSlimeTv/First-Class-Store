@@ -43,6 +43,15 @@ module.exports = {
     const coinId = interaction.options.getString('coin');
     const amount = interaction.options.getInteger('amount');
     const coin   = COINS.find(c => c.id === coinId);
+
+  const fmtP = (p) => {
+    if (p >= 1e12) return '$' + (p/1e12).toFixed(2) + 'T';
+    if (p >= 1e9)  return '$' + (p/1e9).toFixed(2)  + 'B';
+    if (p >= 1e6)  return '$' + (p/1e6).toFixed(2)  + 'M';
+    if (p >= 1000) return '$' + Math.round(p).toLocaleString();
+    if (p >= 1)    return '$' + p.toFixed(2);
+    return '$' + p.toFixed(4);
+  };
     const prices = getPrices();
     const price  = prices[coinId] || 100;
 
@@ -60,7 +69,7 @@ module.exports = {
     await interaction.reply({ embeds: [new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle(`${coin.emoji} Invested in ${coin.name}`)
-      .setDescription(`You invested **$${amount.toLocaleString()}** in **${coin.name}** at **$${price.toFixed(2)}** per coin.`)
+      .setDescription(`You invested **$${amount.toLocaleString()}** in **${coin.name}** at **${fmtP(price)}** per coin.`)
       .addFields(
         { name: '📊 Shares Bought',  value: shares.toFixed(6),               inline: true },
         { name: '💵 Wallet Left',    value: `$${user.wallet.toLocaleString()}`, inline: true },

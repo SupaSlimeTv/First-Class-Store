@@ -3077,7 +3077,16 @@ function renderStocks() {
     const up     = s.change >= 0;
     const chgCls = up ? 'color:#2ecc71' : 'color:#ff3b3b';
     const chgStr = (up?'+':'') + s.change.toFixed(2) + '%';
-    const price  = s.price < 10 ? s.price.toFixed(4) : s.price < 100 ? s.price.toFixed(2) : Math.round(s.price).toLocaleString();
+    const fmtStockPrice = (p) => {
+      if (p >= 1e12) return '$' + (p/1e12).toFixed(2) + 'T';
+      if (p >= 1e9)  return '$' + (p/1e9).toFixed(2)  + 'B';
+      if (p >= 1e6)  return '$' + (p/1e6).toFixed(2)  + 'M';
+      if (p >= 1000) return '$' + Math.round(p).toLocaleString();
+      if (p >= 1)    return '$' + p.toFixed(2);
+      if (p >= 0.01) return '$' + p.toFixed(4);
+      return '$' + p.toFixed(6);
+    };
+    const price  = fmtStockPrice(s.price);
     const hype   = Math.round(s.hype * 100);
     const hypeClr= s.hype>0.65?'#2ecc71':s.hype<0.35?'#ff3b3b':'#f5c518';
     const h=s.history, minP=Math.min(...h), maxP=Math.max(...h), rng=maxP-minP||1;
@@ -3094,7 +3103,7 @@ function renderStocks() {
           <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.06em">${coin.id}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${coin.color}">$${price}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${coin.color}">${price}</div>
           <div style="font-size:13px;font-weight:700;${chgCls}">${chgStr}</div>
         </div>
       </div>
