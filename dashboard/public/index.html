@@ -2402,9 +2402,18 @@ async function openGiveItem(userId, username) {
   document.getElementById('give-modal-title').textContent = `Give to ${username}`;
   document.getElementById('give-confirm-btn').textContent = 'Give';
   document.getElementById('give-confirm-btn').className   = 'btn btn-gold';
-  // Restore all category options (take mode hides some)
+  // Restore all category options and original labels
   const catSel = document.getElementById('give-category');
-  [...catSel.options].forEach(o => { o.hidden = false; });
+  [...catSel.options].forEach(o => {
+    o.hidden = false;
+    if (o.value === 'item')     { o.text = '🎒 Store Item';              }
+    if (o.value === 'money')    { o.text = '💵 Money';                   }
+    if (o.value === 'tokens')   { o.text = '🪙 Pet Tokens';              }
+    if (o.value === 'petlevel') { o.text = '⭐ Pet Level';               }
+    if (o.value === 'gun')      { o.text = '🔫 Gun';                     }
+    if (o.value === 'gang')     { o.text = '🏴 Add to Gang';             }
+    if (o.value === 'business') { o.text = '🏢 Give Business Money';     }
+  });
   catSel.value = 'item';
   onGiveCategoryChange();
   document.getElementById('item-give-modal').classList.add('open');
@@ -2418,9 +2427,19 @@ async function openTakeItem(userId, username) {
   document.getElementById('give-confirm-btn').textContent = 'Take';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
 
-  // Show ALL same categories as Give — nothing hidden
+  // Show all categories but relabel and hide options that don't apply to taking
   const catSel = document.getElementById('give-category');
-  [...catSel.options].forEach(o => { o.hidden = false; });
+  [...catSel.options].forEach(o => {
+    o.hidden = false;
+    // Rename give-specific labels to take equivalents
+    if (o.value === 'item')     { o.text = '🎒 Store Item';         }
+    if (o.value === 'money')    { o.text = '💵 Money';              }
+    if (o.value === 'tokens')   { o.text = '🪙 Pet Tokens';         }
+    if (o.value === 'petlevel') { o.text = '⭐ Pet Level';          }
+    if (o.value === 'gun')      { o.text = '🔫 Gun';                }
+    if (o.value === 'gang')     { o.hidden = true; }  // can't "take" gang membership
+    if (o.value === 'business') { o.text = '🏢 Business Money';     }
+  });
   catSel.value = 'money';
   onGiveCategoryChange();
 
