@@ -1232,7 +1232,36 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ---- coin commands ----
+  // ---- overview ----
+  if (commandName === 'overview' || commandName === 'stats' || commandName === 'serverstats') {
+    const overviewCmd = require('./commands/moderation/overview.js');
+    return overviewCmd.executePrefix(message);
+  }
+
+  // ---- pay ----
+  if (commandName === 'pay') {
+    if (needsAccount()) return;
+    const target = message.mentions.users.first();
+    const amount = parseInt(args[1]);
+    if (!target || !amount || amount < 1) return message.reply(`Usage: \`${prefix}pay @user <amount>\``);
+    if (target.id === message.author.id) return message.reply("You can't pay yourself.");
+    const { hasAccount: ha } = require('./utils/db');
+    if (!ha(target.id)) return message.reply(`<@${target.id}> doesn't have an account yet.`);
+    const sndr = getOrCreateUser(message.author.id);
+    if (sndr.wallet < amount) return message.reply(`You only have **$${sndr.wallet.toLocaleString()}** in your wallet.`);
+    sndr.wallet -= amount;
+    saveUser(message.author.id, sndr);
+    const rcvr = getOrCreateUser(target.id);
+    rcvr.wallet += amount;
+    saveUser(target.id, rcvr);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setTitle('💸 Payment Sent').setDescription(`You sent **$${amount.toLocaleString()}** to <@${target.id}>!`).addFields({ name:'Your Wallet', value:`$${sndr.wallet.toLocaleString()}`, inline:true },{ name:'Their Wallet', value:`$${rcvr.wallet.toLocaleString()}`, inline:true })] });
+  }
+
+  // ---- wire / give / sell ----
+  if (['wire','give','sell'].includes(commandName)) {
+    return message.reply(`Use \`/${commandName}\` slash command — requires user mention autocomplete.`);
+  }
+
   if (['coincreate','rugpull','coinrug','coinclose','coincontrol','coinpump','liquidate','coincollect'].includes(commandName)) {
     const cmdMap = {
       coincreate:  './commands/economy/coincreate.js',
