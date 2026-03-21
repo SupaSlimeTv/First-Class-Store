@@ -117,7 +117,7 @@ module.exports = {
       pet.hunger    = Math.min(100, (pet.hunger||100) + 40);
       pet.xp        = (pet.xp||0) + 10;
       pet.lastFed   = now;
-      savePet(userId, pet);
+      await savePet(userId, pet);
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setTitle('🍖 Fed!').setDescription(`${pet.emoji} **${pet.name}** devoured the food! 🍖 Hunger: ${pet.hunger}/100 · +10 XP`)] });
     }
 
@@ -159,7 +159,7 @@ module.exports = {
         const stats  = calcPetStats(pet);
         const dmg    = Math.floor(stats.hp * 0.15);
         pet.hp       = Math.max(1, (pet.hp||stats.hp) - dmg);
-        savePet(userId, pet);
+        await savePet(userId, pet);
         return interaction.reply({ embeds:[new EmbedBuilder()
           .setColor(0xff8800)
           .setTitle(`${mission.emoji} Mission Failed!`)
@@ -179,7 +179,7 @@ module.exports = {
         pet.level++;
         leveled = true;
       }
-      savePet(userId, pet);
+      await savePet(userId, pet);
 
       const embed = new EmbedBuilder()
         .setColor(0x2ecc71)
@@ -219,7 +219,7 @@ module.exports = {
         const stats = calcPetStats(pet);
         pet.hp      = Math.min(stats.hp + 50 * (curLevel+1), stats.hp + 50 * (curLevel+1));
       }
-      savePet(userId, pet);
+      await savePet(userId, pet);
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0xf5c518)
@@ -235,7 +235,7 @@ module.exports = {
     // ── GUARD ──
     if (sub === 'guard') {
       pet.isGuarding = !pet.isGuarding;
-      savePet(userId, pet);
+      await savePet(userId, pet);
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(pet.isGuarding ? 0x2ecc71 : 0x888888)
         .setTitle(pet.isGuarding ? '🛡️ Guard Mode ON' : '😴 Guard Mode OFF')
@@ -256,7 +256,7 @@ module.exports = {
       user.wallet  -= amount;
       pet.hp        = Math.min(stats.hp, (pet.hp||0) + healAmt);
       saveUser(userId, user);
-      savePet(userId, pet);
+      await savePet(userId, pet);
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setTitle('💊 Healed!').setDescription(`Spent **$${amount.toLocaleString()}** healing ${pet.emoji} **${pet.name}**!`).addFields({ name:'❤️ HP', value:`${pet.hp}/${stats.hp}`, inline:true })] });
     }
 
@@ -264,7 +264,7 @@ module.exports = {
     if (sub === 'rename') {
       const newName = interaction.options.getString('name').slice(0,30);
       pet.name      = newName;
-      savePet(userId, pet);
+      await savePet(userId, pet);
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x5865f2).setDescription(`${pet.emoji} Your pet has been renamed to **${newName}**!`)] });
     }
 
@@ -280,7 +280,7 @@ module.exports = {
       pet.xp    = 0;
       const newStats = calcPetStats(pet);
       pet.hp    = newStats.hp;
-      savePet(userId, pet);
+      await savePet(userId, pet);
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0xf5c518)
         .setTitle('✨ EVOLVED!')
@@ -305,7 +305,7 @@ module.exports = {
       col.on('collect', async btn => {
         col.stop();
         if (btn.customId === 'pet_release_no') return btn.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Release cancelled.')], components:[] });
-        deletePet(userId);
+        await deletePet(userId);
         await btn.update({ embeds:[new EmbedBuilder().setColor(0x888888).setTitle('🌿 Released').setDescription(`**${pet.emoji} ${pet.name}** was released. They looked back once, then disappeared.`)], components:[] });
       });
     }

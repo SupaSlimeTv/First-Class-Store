@@ -67,7 +67,7 @@ module.exports = {
           // Blocked by defender's pet
           const dmgToAttacker = Math.floor(defStats.power * 0.3);
           myPet.hp = Math.max(0, (myPet.hp||myStats.hp) - dmgToAttacker);
-          savePet(userId, myPet);
+          await savePet(userId, myPet);
 
           return interaction.reply({ embeds: [new EmbedBuilder()
             .setColor(0xff8800)
@@ -82,7 +82,7 @@ module.exports = {
       const stealPct = 0.05 + (myStats.power / 1000);
       const stolen   = Math.floor(victim.wallet * Math.min(0.30, stealPct));
       if (stolen < 1) {
-        savePet(userId, myPet);
+        await savePet(userId, myPet);
         return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription(`${myPet.emoji} **${myPet.name}** attacked <@${target.id}> but they had nothing worth stealing.`)] });
       }
 
@@ -96,7 +96,7 @@ module.exports = {
       myPet.xp   = (myPet.xp||0) + 25;
       myPet.wins  = (myPet.wins||0) + 1;
       if (myPet.xp >= xpForLevel(myPet.level)) { myPet.xp -= xpForLevel(myPet.level); myPet.level++; }
-      savePet(userId, myPet);
+      await savePet(userId, myPet);
 
       // Add some heat
       await addHeat(userId, 5, 'pet_attack');
@@ -154,8 +154,8 @@ module.exports = {
         enemyPet.wins   = (enemyPet.wins||0) + 1;
       }
 
-      savePet(userId, myPet);
-      savePet(target.id, enemyPet);
+      await savePet(userId, myPet);
+      await savePet(target.id, enemyPet);
 
       await interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(won ? COLORS.SUCCESS : COLORS.ERROR)

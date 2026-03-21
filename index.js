@@ -74,6 +74,10 @@ client.once('ready', async () => {
   const { preloadGunCache } = require('./utils/gunDb');
   await preloadGunCache();
 
+  // Load pet cache from MongoDB
+  const { preloadPetCache } = require('./utils/petDb');
+  await preloadPetCache();
+
   // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');

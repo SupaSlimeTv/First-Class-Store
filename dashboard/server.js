@@ -889,6 +889,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     await require('../utils/gunDb').preloadGunCache();
     await require('../utils/gangDb').preloadGangCache();
     await require('../utils/bizDb').preloadBizCache();
+    await require('../utils/petDb').preloadPetCache();
     console.log('📦 Dashboard caches loaded');
   } catch(e) { console.error('Dashboard cache preload error:', e.message); }
 });

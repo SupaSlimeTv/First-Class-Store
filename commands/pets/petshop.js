@@ -110,7 +110,7 @@ module.exports = {
         adoptedAt:    Date.now(),
         isProtecting: false,
       };
-      savePet(interaction.user.id, pet);
+      await savePet(interaction.user.id, pet);
 
       await btn.update({ embeds: [new EmbedBuilder()
         .setColor(TIER_COLORS[petType.tier] || 0x5865f2)
