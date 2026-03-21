@@ -245,7 +245,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <input class="search" placeholder="Filter by name or ID..." oninput="filterUsers(this.value)" id="user-search">
         </div>
         <table>
-          <thead><tr><th>#</th><th>User</th><th>Account</th><th>Wallet</th><th>Bank</th><th>Total</th><th>Status</th><th>Items</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>User</th><th>Account</th><th>Wallet</th><th>Bank</th><th>Total</th><th>Civil Role</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="users-tbody"><tr><td colspan="9" class="empty-cell">Loading...</td></tr></tbody>
         </table>
         <!-- PAGINATION -->
@@ -1524,6 +1524,16 @@ function filterUsers(q) {
   renderUsers(filteredUsers);
 }
 
+function phoneEmoji(type) {
+  return { burner:'📵', standard:'📱', flagship:'📲', creator:'🎙️' }[type] || '📱';
+}
+function phoneLabel(type) {
+  return { burner:'Burner', standard:'Phone', flagship:'Flagship', creator:'Creator' }[type] || type;
+}
+function tierEmoji(tier) {
+  return { newcomer:'🌱', creator:'📱', influencer:'🔥', celebrity:'⭐', superstar:'💎', icon:'👑' }[tier] || '📱';
+}
+
 function renderUsers(list) {
   filteredUsers = list;
   const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
@@ -1547,11 +1557,22 @@ function renderUsers(list) {
       const walletCell = u.hasAccount ? `<input class="iinput" value="${u.wallet}" onblur="upd('${u.id}',this.value,null)" onkeydown="if(event.key==='Enter')this.blur()">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
       const bankCell   = u.hasAccount ? `<input class="iinput" value="${u.bank}" onblur="upd('${u.id}',null,this.value)" onkeydown="if(event.key==='Enter')this.blur()">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
       const totalCell  = u.hasAccount ? `<span class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</span>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
-      const itemBtns   = u.hasAccount
+
+      // ── Civil Role badges ──────────────────────────────────
+      const civilRoles = [];
+      if (u.gangId || u.gangName)          civilRoles.push(`<span class="tag t-red" style="font-size:9px">🏴 Gang</span>`);
+      if (u.businessName)                  civilRoles.push(`<span class="tag" style="font-size:9px;background:rgba(255,107,53,.15);color:#ff6b35;border:1px solid rgba(255,107,53,.3)">🏢 Biz</span>`);
+      if (u.phoneType)                     civilRoles.push(`<span class="tag t-blue" style="font-size:9px">${phoneEmoji(u.phoneType)} ${phoneLabel(u.phoneType)}</span>`);
+      if (u.influencerTier && u.influencerTier !== 'nobody') civilRoles.push(`<span class="tag" style="font-size:9px;background:rgba(245,197,24,.15);color:#f5c518;border:1px solid rgba(245,197,24,.3)">${tierEmoji(u.influencerTier)}</span>`);
+      if (!civilRoles.length)              civilRoles.push(`<span class="tag t-muted" style="font-size:9px">👤 Civilian</span>`);
+      const civilCell = civilRoles.join(' ');
+
+      const itemBtns = u.hasAccount
         ? `<button class="btn btn-ghost btn-sm" onclick="viewInventory('${u.id}','${u.username}')">🎒 Inv</button>
            <button class="btn btn-ghost btn-sm" onclick="openGiveItem('${u.id}','${u.username}')">Give</button>
            <button class="btn btn-danger btn-sm" onclick="openTakeItem('${u.id}','${u.username}')">Take</button>`
         : `<span style="color:var(--muted);font-size:11px">—</span>`;
+
       return `<tr>
         <td class="mono" style="color:var(--muted)">${rank}</td>
         <td><div style="display:flex;align-items:center">${avatar}<div><div style="font-weight:600;font-size:13px">${u.username}</div><div class="mono" style="font-size:10px;color:var(--muted)">${u.id}</div></div></div></td>
@@ -1559,9 +1580,9 @@ function renderUsers(list) {
         <td>${walletCell}</td>
         <td>${bankCell}</td>
         <td>${totalCell}</td>
+        <td style="min-width:80px">${civilCell}</td>
         <td>${banned ? `<span class="tag t-red">🔇 ${bm}m</span>` : `<span class="tag t-green">Active</span>`}</td>
-        <td style="display:flex;gap:4px;flex-wrap:wrap">${itemBtns}</td>
-        <td>${banned ? `<button class="btn btn-ghost btn-sm" onclick="unban('${u.id}')">Unban</button>` : ''}</td>
+        <td style="display:flex;gap:4px;flex-wrap:wrap">${itemBtns}${banned ? `<button class="btn btn-ghost btn-sm" onclick="unban('${u.id}')">Unban</button>` : ''}</td>
       </tr>`;
     }).join('');
   }

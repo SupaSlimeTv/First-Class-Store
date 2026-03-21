@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = {
   purgeActive: false, purgeRoleId: null, modRoles: {}, prefix: '!',
   roleIncome: {}, restrictedRoleId: null, robCooldownMinutes: 5,
   protectedRoles: [], purgeChannelId: null, shotTimeoutMinutes: 5,
-  prisonRoleId: null, prisonChannelId: null, prisonCategoryId: null,
+  prisonRoleId: null, prisonChannelId: null, prisonCategoryId: null, solitaryRoleId: null,
   lottery: { active: true, ticketPrice: 100, intervalHours: 24 },
 };
 

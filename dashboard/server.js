@@ -192,21 +192,45 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
     const members = await fetchBotAPI(`/guilds/${guildId}/members?limit=1000`);
     if (!Array.isArray(members)) return res.json([]);
 
+    const { getPhone, getStatusTier } = require('../utils/phoneDb');
+    const { getBusiness }             = require('../utils/bizDb');
+    const { getGangByMember }         = require('../utils/gangDb');
+
     const list = members
       .filter(m => m.user && !m.user.bot)
       .map(m => {
         const u    = m.user;
         const data = allUsers[u.id] || {};
+
+        // Phone/influencer
+        const phone    = getPhone(u.id);
+        const phoneTier= phone ? getStatusTier(phone.status||0) : null;
+
+        // Business
+        const biz      = getBusiness(u.id);
+
+        // Gang
+        const gang     = getGangByMember(u.id);
+
         return {
-          id:         u.id,
-          username:   m.nick || u.global_name || u.username || u.id,
-          avatar:     u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64` : null,
-          hasAccount: !!allUsers[u.id],
-          wallet:     data.wallet  || 0,
-          bank:       data.bank    || 0,
-          total:      (data.wallet || 0) + (data.bank || 0),
-          bannedUntil:data.bannedUntil || null,
-          inventory:  data.inventory   || [],
+          id:              u.id,
+          username:        m.nick || u.global_name || u.username || u.id,
+          avatar:          u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64` : null,
+          hasAccount:      !!allUsers[u.id],
+          wallet:          data.wallet  || 0,
+          bank:            data.bank    || 0,
+          total:           (data.wallet || 0) + (data.bank || 0),
+          bannedUntil:     data.bannedUntil || null,
+          inventory:       data.inventory   || [],
+          // Civil role data
+          phoneType:       phone?.type || null,
+          influencerTier:  phoneTier?.id || null,
+          influencerLabel: phoneTier?.label || null,
+          businessName:    biz?.name || null,
+          businessType:    biz?.type || null,
+          gangName:        gang?.name || null,
+          gangId:          gang?.id   || null,
+          isGangLeader:    gang?.leaderId === u.id,
         };
       })
       .sort((a, b) => {

@@ -1244,6 +1244,30 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
+  // ---- solitary ----
+  if (commandName === 'solitary' || commandName === 'sol') {
+    if (!message.member.permissions.has('ManageMessages')) return message.reply('❌ You need **Manage Messages** permission.');
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}solitary @user <reason>\``);
+    const { getConfig } = require('./utils/db');
+    const config = getConfig(message.guild.id);
+    if (!config.solitaryRoleId) return message.reply('Solitary role not set up. Run `/jailcreate` first.');
+    const member = await message.guild.members.fetch(target.id).catch(() => null);
+    if (!member) return message.reply('User not found.');
+    const solitaryRole = message.guild.roles.cache.get(config.solitaryRoleId);
+    const prisonerRole = message.guild.roles.cache.get(config.prisonRoleId);
+    const inSolitary   = member.roles.cache.has(solitaryRole?.id);
+    if (inSolitary) {
+      await member.roles.remove(solitaryRole);
+      if (prisonerRole) await member.roles.add(prisonerRole);
+      return message.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setDescription(`<@${target.id}> released from solitary.`)] });
+    } else {
+      if (prisonerRole) await member.roles.remove(prisonerRole).catch(()=>{});
+      await member.roles.add(solitaryRole);
+      return message.reply({ embeds:[new EmbedBuilder().setColor(0xff8800).setDescription(`🔕 <@${target.id}> placed in solitary.`)] });
+    }
+  }
+
   // ---- jailcreate ----
   if (commandName === 'jailcreate') {
     return message.reply('Use `/jailcreate` slash command — requires bot permissions to create channels and roles.');
