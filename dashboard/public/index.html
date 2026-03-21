@@ -2390,10 +2390,36 @@ let giveTakeMode = 'give';
 let giveTakeUserId = '';
 
 function onGiveCategoryChange() {
-  const cat = document.getElementById('give-category').value;
+  const cat  = document.getElementById('give-category').value;
+  const take = giveTakeMode === 'take';
   ['item','money','tokens','petlevel','gun','gang','business'].forEach(s => {
     document.getElementById(`give-${s}-section`).style.display = cat===s?'block':'none';
   });
+
+  // Swap labels/hints based on give vs take mode
+  if (take) {
+    const lbl = { money:'Amount to Take ($)', tokens:'Pet Tokens to Remove', petlevel:'Levels to Remove', business:'Amount to Take from Business ($)' };
+    const hint = { money:'Deducted from their wallet.', tokens:'Removes tokens from their pet.', petlevel:'Reduces the pet level by this amount.', business:"Deducted from the user's business bank." };
+    Object.entries(lbl).forEach(([id, text]) => {
+      const el = document.querySelector(`#give-${id}-section .flabel`);
+      if (el) el.textContent = text;
+    });
+    Object.entries(hint).forEach(([id, text]) => {
+      const el = document.querySelector(`#give-${id}-section .hint`);
+      if (el) el.textContent = text;
+    });
+  } else {
+    const lbl  = { money:'Amount ($)', tokens:'Pet Tokens', petlevel:'Set Pet Level To', business:'Amount to Add to Business Bank ($)' };
+    const hint = { money:'Money goes directly to their wallet.', tokens:'Tokens are used to upgrade pet stats.', petlevel:"Directly sets the pet's level.", business:"Adds money to the user's business bank." };
+    Object.entries(lbl).forEach(([id, text]) => {
+      const el = document.querySelector(`#give-${id}-section .flabel`);
+      if (el) el.textContent = text;
+    });
+    Object.entries(hint).forEach(([id, text]) => {
+      const el = document.querySelector(`#give-${id}-section .hint`);
+      if (el) el.textContent = text;
+    });
+  }
 }
 
 async function openGiveItem(userId, username) {
