@@ -134,12 +134,29 @@ function addBot(guildId, name) {
 async function removeBot(guildId, name, event) {
   event.preventDefault();
   event.stopPropagation();
-  if (!confirm('Remove the bot from "' + name + '"?\n\nEconomy data stays saved.')) return;
+  var btn = event.target;
+  // First click — turn red and show "Sure?"
+  if (btn.dataset.confirm !== '1') {
+    btn.dataset.confirm = '1';
+    btn.textContent = '?';
+    btn.style.background = 'rgba(255,59,59,.6)';
+    btn.title = 'Click again to confirm';
+    setTimeout(function() {
+      btn.dataset.confirm = '0';
+      btn.textContent = '✕';
+      btn.style.background = '';
+      btn.title = 'Remove bot from server';
+    }, 3000);
+    return;
+  }
+  // Second click — actually remove
+  btn.textContent = '…';
+  btn.disabled = true;
   try {
     var r = await fetch('/api/' + guildId + '/leave', { method: 'POST', credentials: 'include' }).then(r => r.json());
-    if (r.success) { alert('Bot removed from ' + name + '.'); load(); }
-    else alert(r.error || 'Failed to remove bot.');
-  } catch(e) { alert('Error: ' + e.message); }
+    if (r.success) { load(); }
+    else { btn.textContent = '✕'; btn.disabled = false; alert(r.error || 'Failed to remove bot.'); }
+  } catch(e) { btn.textContent = '✕'; btn.disabled = false; }
 }
 
 load();

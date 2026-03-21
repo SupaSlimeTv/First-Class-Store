@@ -1009,7 +1009,16 @@ app.get('/api/:guildId/audit-log', requireGuildAuth, async (req, res) => {
 app.post('/api/:guildId/leave', requireGuildAuth, async (req, res) => {
   try {
     await writeAudit(req.guildId, req.session.user?.id, 'bot_removed', {});
-    const result = await fetchBotAPI(`/users/@me/guilds/${req.guildId}`, 'DELETE');
+    // Correct endpoint: bot leaves a guild via DELETE /users/@me/guilds/:id
+    // This requires using the bot client directly, not the REST API
+    const botClient = require('../index.client');
+    if (botClient) {
+      const guild = botClient.guilds.cache.get(req.guildId);
+      if (guild) await guild.leave();
+    } else {
+      // Fallback via REST
+      await fetchBotAPI(`/users/@me/guilds/${req.guildId}`, 'DELETE');
+    }
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
