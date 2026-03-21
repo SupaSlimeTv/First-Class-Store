@@ -698,6 +698,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <option value="gun">🔫 Gun</option>
           <option value="gang">🏴 Add to Gang</option>
           <option value="business">🏢 Give Business Money</option>
+          <option value="phonestatus">📱 Phone Status</option>
+          <option value="phonefollowers">👥 Phone Followers</option>
         </select>
       </div>
       <!-- Store item -->
@@ -739,6 +741,16 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <label class="flabel">Amount to Add to Business Bank ($)</label>
         <input class="finput" id="give-business-amount" type="number" min="1" placeholder="5000">
         <div class="hint">Adds money directly to this user's business bank. User must own a business.</div>
+      </div>
+      <div id="give-phonestatus-section" class="fg" style="display:none">
+        <label class="flabel">Status Points</label>
+        <input class="finput" id="give-phonestatus-amount" type="number" min="1" placeholder="1000">
+        <div class="hint">Adds influencer status points to the user's phone. User must own a phone.</div>
+      </div>
+      <div id="give-phonefollowers-section" class="fg" style="display:none">
+        <label class="flabel">Followers</label>
+        <input class="finput" id="give-phonefollowers-amount" type="number" min="1" placeholder="500">
+        <div class="hint">Adds followers to the user's phone. User must own a phone.</div>
       </div>
       <div class="hint" id="give-modal-hint" style="margin-top:8px"></div>
     </div>
@@ -827,6 +839,23 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <option value="true">✅ Enabled</option>
             <option value="false">❌ Disabled</option>
           </select>
+        </div>
+      </div>
+      <!-- CATEGORY FLAGS -->
+      <div class="grid2" style="margin-top:4px">
+        <div class="fg" style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
+          <input type="checkbox" id="m-isdrug" style="width:16px;height:16px;accent-color:#ff3b3b;flex-shrink:0">
+          <div>
+            <label for="m-isdrug" style="font-weight:700;cursor:pointer">💊 Drug Item</label>
+            <div style="font-size:11px;color:var(--muted)">Police can detect this. Users caught holding it get arrested.</div>
+          </div>
+        </div>
+        <div class="fg" style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
+          <input type="checkbox" id="m-isweapon" style="width:16px;height:16px;accent-color:#ff8800;flex-shrink:0">
+          <div>
+            <label for="m-isweapon" style="font-weight:700;cursor:pointer">🔪 Weapon Item</label>
+            <div style="font-size:11px;color:var(--muted)">Flagged as a weapon for moderation purposes.</div>
+          </div>
         </div>
       </div>
       <div class="grid2">
@@ -1683,6 +1712,8 @@ function clearForm(){
    'm-shield-blocks','m-shield-dur','m-mg-amount','m-mg-time','m-mg-fine','m-eb-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('m-type').value='useable';
   document.getElementById('m-enabled').value='true';
+  const drugEl = document.getElementById('m-isdrug'); if(drugEl) drugEl.checked=false;
+  const weapEl = document.getElementById('m-isweapon'); if(weapEl) weapEl.checked=false;
   document.getElementById('m-reusable').value='false';
   document.getElementById('m-effect-type').value='';
   document.getElementById('m-drain-type').value='percent';
@@ -1703,6 +1734,8 @@ function openEdit(id){
   document.getElementById('m-price').value=item.price;
   document.getElementById('m-type').value=item.type||'useable';
   document.getElementById('m-enabled').value=item.enabled?'true':'false';
+  const drugEl2 = document.getElementById('m-isdrug'); if(drugEl2) drugEl2.checked=!!item.isDrug;
+  const weapEl2 = document.getElementById('m-isweapon'); if(weapEl2) weapEl2.checked=!!item.isWeapon;
   document.getElementById('m-reusable').value=item.reusable?'true':'false';
   document.getElementById('m-role').value=item.roleReward||'';
   onTypeChange();
@@ -1935,7 +1968,7 @@ async function saveItem(){
     }
   }
   const trigger=document.getElementById('m-trigger').value||'use';
-  const body={name,description:document.getElementById('m-desc').value.trim(),price,type,reusable:document.getElementById('m-reusable').value==='true',roleReward:document.getElementById('m-role').value.trim()||null,enabled:document.getElementById('m-enabled').value==='true',effect,trigger,requirements:buildRequirements()};
+  const body={name,description:document.getElementById('m-desc').value.trim(),price,type,reusable:document.getElementById('m-reusable').value==='true',roleReward:document.getElementById('m-role').value.trim()||null,enabled:document.getElementById('m-enabled').value==='true',effect,trigger,requirements:buildRequirements(),isDrug:!!(document.getElementById('m-isdrug')?.checked),isWeapon:!!(document.getElementById('m-isweapon')?.checked)};
   const r=editId?await api('PUT',`/api/store/${editId}`,body):await api('POST','/api/store',body);
   if(r.success){toast(editId?'Updated':'Item added','ok');closeModal();refresh();}
   else toast(r.error||'Save failed','err');
@@ -2344,6 +2377,8 @@ async function viewInventory(userId, username) {
         <div style="font-weight:700;font-size:14px">${item.reusable ? '♻️' : '🗑️'} ${item.name}</div>
         ${item.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${item.description}</div>` : ''}
         ${item.effect ? `<div style="margin-top:4px"><span class="tag t-cyan">${EFX[item.effect]||'⚡'} ${item.effect.replace(/_/g,' ')}</span></div>` : ''}
+        ${item.isDrug ? `<span class="tag t-red" style="font-size:9px">💊 DRUG</span>` : ''}
+        ${item.isWeapon ? `<span class="tag" style="font-size:9px;background:rgba(255,136,0,.15);color:#ff8800;border:1px solid rgba(255,136,0,.3)">🔪 WEAPON</span>` : ''}
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--gold)">×${item.count}</div>
@@ -2420,33 +2455,22 @@ let giveTakeUserId = '';
 function onGiveCategoryChange() {
   const cat  = document.getElementById('give-category').value;
   const take = giveTakeMode === 'take';
-  ['item','money','tokens','petlevel','gun','gang','business'].forEach(s => {
-    document.getElementById(`give-${s}-section`).style.display = cat===s?'block':'none';
+  ['item','money','tokens','petlevel','gun','gang','business','phonestatus','phonefollowers'].forEach(s => {
+    const el = document.getElementById(`give-${s}-section`);
+    if (el) el.style.display = cat===s?'block':'none';
   });
 
   // Swap labels/hints based on give vs take mode
   if (take) {
-    const lbl = { money:'Amount to Take ($)', tokens:'Pet Tokens to Remove', petlevel:'Levels to Remove', business:'Amount to Take from Business ($)' };
-    const hint = { money:'Deducted from their wallet.', tokens:'Removes tokens from their pet.', petlevel:'Reduces the pet level by this amount.', business:"Deducted from the user's business bank." };
-    Object.entries(lbl).forEach(([id, text]) => {
-      const el = document.querySelector(`#give-${id}-section .flabel`);
-      if (el) el.textContent = text;
-    });
-    Object.entries(hint).forEach(([id, text]) => {
-      const el = document.querySelector(`#give-${id}-section .hint`);
-      if (el) el.textContent = text;
-    });
+    const lbl  = { money:'Amount to Take ($)', tokens:'Pet Tokens to Remove', petlevel:'Levels to Remove', business:'Amount to Take from Business ($)', phonestatus:'Status Points to Remove', phonefollowers:'Followers to Remove' };
+    const hint = { money:'Deducted from their wallet.', tokens:'Removes tokens from their pet.', petlevel:'Reduces the pet level by this amount.', business:"Deducted from the user's business bank.", phonestatus:'Removes status points from their phone.', phonefollowers:'Removes followers from their phone.' };
+    Object.entries(lbl).forEach(([id, text]) => { const el = document.querySelector(`#give-${id}-section .flabel`); if (el) el.textContent = text; });
+    Object.entries(hint).forEach(([id, text]) => { const el = document.querySelector(`#give-${id}-section .hint`); if (el) el.textContent = text; });
   } else {
-    const lbl  = { money:'Amount ($)', tokens:'Pet Tokens', petlevel:'Set Pet Level To', business:'Amount to Add to Business Bank ($)' };
-    const hint = { money:'Money goes directly to their wallet.', tokens:'Tokens are used to upgrade pet stats.', petlevel:"Directly sets the pet's level.", business:"Adds money to the user's business bank." };
-    Object.entries(lbl).forEach(([id, text]) => {
-      const el = document.querySelector(`#give-${id}-section .flabel`);
-      if (el) el.textContent = text;
-    });
-    Object.entries(hint).forEach(([id, text]) => {
-      const el = document.querySelector(`#give-${id}-section .hint`);
-      if (el) el.textContent = text;
-    });
+    const lbl  = { money:'Amount ($)', tokens:'Pet Tokens', petlevel:'Set Pet Level To', business:'Amount to Add to Business Bank ($)', phonestatus:'Status Points', phonefollowers:'Followers' };
+    const hint = { money:'Money goes directly to their wallet.', tokens:'Tokens are used to upgrade pet stats.', petlevel:"Directly sets the pet's level.", business:"Adds money to the user's business bank.", phonestatus:"Adds influencer status to the user's phone.", phonefollowers:"Adds followers to the user's phone." };
+    Object.entries(lbl).forEach(([id, text]) => { const el = document.querySelector(`#give-${id}-section .flabel`); if (el) el.textContent = text; });
+    Object.entries(hint).forEach(([id, text]) => { const el = document.querySelector(`#give-${id}-section .hint`); if (el) el.textContent = text; });
   }
 }
 
@@ -2467,6 +2491,8 @@ async function openGiveItem(userId, username) {
     if (o.value === 'gun')      { o.text = '🔫 Gun';                     }
     if (o.value === 'gang')     { o.text = '🏴 Add to Gang';             }
     if (o.value === 'business') { o.text = '🏢 Give Business Money';     }
+    if (o.value === 'phonestatus') { o.text = '📱 Phone Status';           }
+    if (o.value === 'phonefollowers') { o.text = '👥 Phone Followers';     }
   });
   catSel.value = 'item';
   onGiveCategoryChange();
@@ -2493,6 +2519,8 @@ async function openTakeItem(userId, username) {
     if (o.value === 'gun')      { o.text = '🔫 Gun';                }
     if (o.value === 'gang')     { o.hidden = true; }  // can't "take" gang membership
     if (o.value === 'business') { o.text = '🏢 Business Money';     }
+    if (o.value === 'phonestatus') { o.text = '📱 Take Phone Status';  }
+    if (o.value === 'phonefollowers') { o.text = '👥 Take Followers';  }
   });
   catSel.value = 'money';
   onGiveCategoryChange();
@@ -2644,6 +2672,18 @@ async function confirmGiveTake() {
     if (amount < 1) return toast('Enter a valid amount','err');
     const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/business-money`, { amount });
     if (r.success) { toast(`$${amount.toLocaleString()} added to business!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'phonestatus') {
+    const amount = parseInt(document.getElementById('give-phonestatus-amount').value)||0;
+    if (amount < 1) return toast('Enter a valid amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/phone-status`, { amount });
+    if (r.success) { toast(`${amount.toLocaleString()} status points given!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'phonefollowers') {
+    const amount = parseInt(document.getElementById('give-phonefollowers-amount').value)||0;
+    if (amount < 1) return toast('Enter a valid amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/phone-followers`, { amount });
+    if (r.success) { toast(`${amount.toLocaleString()} followers given!`,'ok'); closeGiveTakeModal(); }
     else toast(r.error||'Failed','err');
   }
 }

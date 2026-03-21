@@ -265,6 +265,34 @@ app.post('/api/:guildId/users/:id/pet-level', requireGuildAuth, async (req, res)
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── PHONE / INFLUENCER GIVE-TAKE ──────────────────────────
+app.post('/api/:guildId/users/:id/phone-status', requireGuildAuth, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (amount == null) return res.status(400).json({ error: 'amount required' });
+    const { getPhone, savePhone } = require('../utils/phoneDb');
+    const phone = getPhone(req.params.id);
+    if (!phone) return res.status(404).json({ error: 'User does not have a phone' });
+    phone.status = Math.max(0, (phone.status||0) + parseInt(amount));
+    await savePhone(req.params.id, phone);
+    await writeAudit(req.guildId, req.session.user?.id, amount > 0 ? 'give_status' : 'take_status', { amount: Math.abs(amount), target: `<@${req.params.id}>` });
+    res.json({ success: true, status: phone.status });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/phone-followers', requireGuildAuth, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (amount == null) return res.status(400).json({ error: 'amount required' });
+    const { getPhone, savePhone } = require('../utils/phoneDb');
+    const phone = getPhone(req.params.id);
+    if (!phone) return res.status(404).json({ error: 'User does not have a phone' });
+    phone.followers = Math.max(0, (phone.followers||0) + parseInt(amount));
+    await savePhone(req.params.id, phone);
+    res.json({ success: true, followers: phone.followers });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/:guildId/users/:id/money', requireGuildAuth, async (req, res) => {
   const user = db.getOrCreateUser(req.params.id);
   const { wallet, bank, addWallet, announce, announceType } = req.body;
@@ -956,15 +984,8 @@ app.get('/api/:guildId/audit-log', requireGuildAuth, async (req, res) => {
 // ── BOT LEAVE ─────────────────────────────────────────────
 app.post('/api/:guildId/leave', requireGuildAuth, async (req, res) => {
   try {
-    // Only guild owner can kick bot
-    const guildInfo = await fetchBotAPI(`/guilds/${req.guildId}`);
-    if (!guildInfo) return res.status(404).json({ error: 'Guild not found' });
-    if (guildInfo.owner_id !== req.session.user.id) {
-      return res.status(403).json({ error: 'Only the server owner can remove the bot.' });
-    }
-    await writeAudit(req.guildId, req.session.user.id, 'bot_removed', { guildName: guildInfo.name });
-    // Leave guild via bot
-    await fetchBotAPI(`/users/@me/guilds/${req.guildId}`, 'DELETE');
+    await writeAudit(req.guildId, req.session.user?.id, 'bot_removed', {});
+    const result = await fetchBotAPI(`/users/@me/guilds/${req.guildId}`, 'DELETE');
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

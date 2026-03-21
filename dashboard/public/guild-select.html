@@ -26,7 +26,7 @@ h1{font-size:24px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;c
 .guild-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,59,59,.04) 0%,transparent 60%);opacity:0;transition:.15s}
 .guild-card:hover{border-color:#ff3b3b;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .guild-card:hover::before{opacity:1}
-.guild-card .badge{position:absolute;top:10px;right:10px;background:rgba(46,204,113,.15);color:#2ecc71;border:1px solid rgba(46,204,113,.3);border-radius:4px;font-size:9px;font-weight:700;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em}
+.guild-card .badge{position:absolute;bottom:10px;left:10px;background:rgba(46,204,113,.15);color:#2ecc71;border:1px solid rgba(46,204,113,.3);border-radius:4px;font-size:9px;font-weight:700;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em}
 /* Add bot card */
 .add-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:18px;display:flex;align-items:center;gap:14px;transition:all .15s;color:inherit;position:relative;overflow:hidden}
 .add-card:hover{border-color:#5865f2;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -104,7 +104,7 @@ async function load() {
             <div class="guild-id">${g.id}</div>
           </div>
         </a>
-        ${g.isOwner ? `<button class="remove-btn" onclick="removeBot('${g.id}','${g.name}',event)" title="Remove bot from server">✕</button>` : ''}
+        `<button class="remove-btn" onclick="removeBot('${g.id}','${g.name}',event)" title="Remove bot from server">✕</button>`
       </div>`).join('');
   }
   html += `</div></div>`;
@@ -145,7 +145,7 @@ async function removeBot(guildId, name, event) {
     alert(`Bot removed from ${name}. Refresh to update the list.`);
     load();
   } else {
-    alert(r.error || 'Failed to remove bot. Make sure you are the server owner.');
+    alert(r.error || 'Failed to remove bot. Make sure the bot has enough permissions.');
   }
 }
 

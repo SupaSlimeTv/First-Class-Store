@@ -78,6 +78,10 @@ client.once('ready', async () => {
   const { preloadPetCache } = require('./utils/petDb');
   await preloadPetCache();
 
+  // Load phone cache from MongoDB
+  const { preloadPhoneCache } = require('./utils/phoneDb');
+  await preloadPhoneCache();
+
   // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');
@@ -1268,6 +1272,15 @@ client.on('messageCreate', async (message) => {
   if (commandName === 'overview' || commandName === 'stats' || commandName === 'serverstats') {
     const overviewCmd = require('./commands/moderation/overview.js');
     return overviewCmd.executePrefix(message);
+  }
+
+  // ---- phone / phoneshop ----
+  if (commandName === 'phoneshop' || commandName === 'phones') {
+    const cmd = require('./commands/economy/phoneshop.js');
+    return cmd.executePrefix ? cmd.executePrefix(message, args) : message.reply('Use `/phoneshop` to browse phones.');
+  }
+  if (commandName === 'phone' || commandName === 'post' || commandName === 'insta' || commandName === 'tweet') {
+    return message.reply(`Use \`/phone\` slash command — phone actions require subcommand selection.`);
   }
 
   // ---- pay ----

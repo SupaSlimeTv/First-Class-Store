@@ -1,0 +1,371 @@
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { getOrCreateUser, saveUser, getStore, hasAccount, getConfig } = require('../../utils/db');
+const { getPhone, savePhone, getAllPhones, PLATFORMS, PHONE_TYPES, STATUS_TIERS, getStatusTier, getNextStatusTier, SPONSOR_DEALS, defaultPhone } = require('../../utils/phoneDb');
+const { noAccount } = require('../../utils/accountCheck');
+const { COLORS } = require('../../utils/embeds');
+
+const fmtMoney = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + Math.round(n).toLocaleString() : '$' + n;
+const fmtNum   = n => n >= 1e6 ? (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? (n/1e3).toFixed(1) + 'K' : n.toString();
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('phone')
+    .setDescription('📱 Post, build your brand, call police, check stats.')
+    .addSubcommand(s => s.setName('buy').setDescription('Buy a phone')
+      .addStringOption(o => o.setName('type').setDescription('Phone type').setRequired(true)
+        .addChoices(...Object.entries(PHONE_TYPES).map(([id,t])=>({ name:`${t.emoji} ${t.name} — $${t.cost.toLocaleString()}`, value:id })))))
+    .addSubcommand(s => s.setName('post').setDescription('Post on social media')
+      .addStringOption(o => o.setName('platform').setDescription('Platform').setRequired(true)
+        .addChoices(...Object.entries(PLATFORMS).map(([id,p])=>({ name:`${p.emoji} ${p.name}`, value:id }))))
+      .addStringOption(o => o.setName('content').setDescription('Your post content. Mention a coin ticker to shout it out!').setRequired(false).setMaxLength(200)))
+    .addSubcommand(s => s.setName('status').setDescription('View your influencer status and stats'))
+    .addSubcommand(s => s.setName('leaderboard').setDescription('Top influencers by status'))
+    .addSubcommand(s => s.setName('sponsors').setDescription('View and collect sponsor deals'))
+    .addSubcommand(s => s.setName('calpolice').setDescription('Call police on a user (false reports = YOU get jailed)')
+      .addUserOption(o => o.setName('user').setDescription('Who to report').setRequired(true))
+      .addStringOption(o => o.setName('reason').setDescription('What are you reporting?').setRequired(true).setMaxLength(200))),
+
+  async execute(interaction) {
+    if (await noAccount(interaction)) return;
+    const sub = interaction.options.getSubcommand();
+    const userId = interaction.user.id;
+
+    // ── BUY ─────────────────────────────────────────────────
+    if (sub === 'buy') {
+      const typeId = interaction.options.getString('type');
+      const pType  = PHONE_TYPES[typeId];
+      if (getPhone(userId)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription('You already have a phone. Upgrade it using `/phone buy` with a better tier — this replaces your current phone but keeps your status and followers.')
+      ], ephemeral:true });
+
+      const user = getOrCreateUser(userId);
+      if (user.wallet < pType.cost) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`You need **${fmtMoney(pType.cost)}** but only have **${fmtMoney(user.wallet)}**.`)
+      ], ephemeral:true });
+
+      user.wallet -= pType.cost;
+      saveUser(userId, user);
+      const phone = defaultPhone(typeId);
+      await savePhone(userId, phone);
+
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x5865f2)
+        .setTitle(`${pType.emoji} ${pType.name} Activated!`)
+        .setDescription(`*${pType.desc}*\n\nYour influencer career starts now. Post consistently to build **Status** and unlock bigger deals.\n\n**Status determines everything:**\n✨ Hype multiplier\n💰 Sponsorship payouts\n📣 Coin shoutout power\n👥 NPC fan loyalty`)
+        .addFields(
+          { name:'📸 Flexgram',  value:'`/phone post platform:flexgram`',  inline:true },
+          { name:'🐦 Chirp',     value:'`/phone post platform:chirp`',     inline:true },
+          { name:'🎮 Streamz',   value:'`/phone post platform:streamz`',   inline:true },
+          { name:'📊 Stats',     value:'`/phone status`',                  inline:true },
+          { name:'🤝 Sponsors',  value:'`/phone sponsors`',                inline:true },
+          { name:'💵 Wallet',    value:fmtMoney(user.wallet),              inline:true },
+        )
+      ]});
+    }
+
+    // ── STATUS ───────────────────────────────────────────────
+    if (sub === 'status') {
+      const phone = getPhone(userId);
+      if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No phone yet. Buy one with `/phone buy`.')], ephemeral:true });
+
+      const tier     = getStatusTier(phone.status || 0);
+      const nextTier = getNextStatusTier(phone.status || 0);
+      const pType    = PHONE_TYPES[phone.type] || PHONE_TYPES.burner;
+      const activeSponsor = (phone.sponsorDeals||[]).filter(s=>s.active).length;
+      const progressPct = nextTier ? Math.min(100, Math.round(((phone.status||0) - tier.minStatus) / (nextTier.minStatus - tier.minStatus) * 100)) : 100;
+      const bar = '█'.repeat(Math.floor(progressPct/10)) + '░'.repeat(10 - Math.floor(progressPct/10));
+
+      // Platform cooldowns
+      const platformLines = Object.entries(PLATFORMS).map(([id,p]) => {
+        const last = phone.lastPost?.[id] || 0;
+        const ready = Date.now() - last > p.cooldownMs;
+        const left  = ready ? 0 : Math.ceil((p.cooldownMs - (Date.now()-last))/60000);
+        return `${p.emoji} **${p.name}** — ${ready ? '✅ Ready' : `⏳ ${left}m`}`;
+      }).join('\n');
+
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(tier.color)
+        .setTitle(`${pType.emoji} ${interaction.user.username} — ${tier.label}`)
+        .setDescription(`*${fmtNum(tier.fanCount)} NPC fans follow you faithfully.*`)
+        .addFields(
+          { name:'🏆 Status',        value:`${(phone.status||0).toLocaleString()} pts`,   inline:true },
+          { name:'👥 Followers',     value:fmtNum(phone.followers||0),                    inline:true },
+          { name:'✨ Total Hype',    value:(phone.hype||0).toLocaleString(),               inline:true },
+          { name:'💰 Total Earned',  value:fmtMoney(phone.totalEarned||0),                inline:true },
+          { name:'📝 Total Posts',   value:(phone.totalPosts||0).toString(),               inline:true },
+          { name:'🤝 Active Deals',  value:activeSponsor.toString(),                       inline:true },
+          { name:'📱 Phone',         value:`${pType.emoji} ${pType.name}`,                 inline:true },
+          { name:'🔥 Streak',        value:`${phone.streak||0} day${phone.streak!==1?'s':''}`, inline:true },
+          { name:'💎 Status Mult',   value:`${tier.mult}×`,                               inline:true },
+          { name:'📣 Platforms',     value:platformLines,                                  inline:false },
+          { name:nextTier ? `Next: ${nextTier.label}` : '👑 Max Status Reached',
+            value:nextTier ? `\`[${bar}] ${progressPct}%\`\n${(nextTier.minStatus-(phone.status||0)).toLocaleString()} status needed` : `You are at the pinnacle.`,
+            inline:false },
+        )
+        .setFooter({ text:`Coin shoutout power: ${tier.coinHypeMult}× · Sponsor slots: ${tier.sponsorSlots}` })
+      ]});
+    }
+
+    // ── POST ─────────────────────────────────────────────────
+    if (sub === 'post') {
+      const phone = getPhone(userId);
+      if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No phone. Buy one with `/phone buy`.')], ephemeral:true });
+
+      const platformId = interaction.options.getString('platform');
+      const content    = interaction.options.getString('content') || '';
+      const platform   = PLATFORMS[platformId];
+      const pType      = PHONE_TYPES[phone.type] || PHONE_TYPES.burner;
+      const tier       = getStatusTier(phone.status || 0);
+
+      // Cooldown check
+      const lastPost = phone.lastPost?.[platformId] || 0;
+      if (Date.now() - lastPost < platform.cooldownMs) {
+        const mins = Math.ceil((platform.cooldownMs - (Date.now()-lastPost)) / 60000);
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`${platform.emoji} **${platform.name}** cooldown: **${mins} more minutes**.`)
+        ], ephemeral:true });
+      }
+
+      await interaction.deferReply();
+
+      // ── Calculate earnings with status multiplier ──────────
+      const statusMult  = tier.mult;
+      const phoneBonus  = 1 + (pType.hypeBonus || 0);
+      const randFactor  = 0.6 + Math.random() * 0.8;
+
+      // Status gain this post
+      const statusGained = Math.floor(platform.statusGain * phoneBonus * randFactor);
+
+      // Hype
+      const baseHype  = Math.floor(platform.baseHype * statusMult * phoneBonus * randFactor);
+      // Money
+      const baseMoney = Math.floor(platform.baseMoney * statusMult * phoneBonus * randFactor);
+      // Followers
+      const followers = Math.floor((baseHype / 8) * (0.5 + Math.random()));
+
+      // Viral chance scales with status and phone
+      const viralChance = 0.04 + (tier.mult - 1) * 0.02 + (pType.hypeBonus * 0.05);
+      const isViral     = Math.random() < viralChance;
+      const viralMult   = isViral ? (2 + Math.random() * (tier.mult)) : 1;
+
+      const finalHype    = Math.floor(baseHype * viralMult);
+      const finalMoney   = Math.floor(baseMoney * viralMult);
+      const finalFollowers = Math.floor(followers * viralMult);
+      const finalStatus  = Math.floor(statusGained * viralMult);
+
+      // Streak bonus
+      const today = new Date().toDateString();
+      const wasStreakDay = phone.lastStreakDay === new Date(Date.now() - 86400000).toDateString();
+      if (wasStreakDay) phone.streak = (phone.streak || 0) + 1;
+      else if (phone.lastStreakDay !== today) phone.streak = 1;
+      phone.lastStreakDay = today;
+      const streakBonus = Math.min(2.0, 1 + (phone.streak - 1) * 0.05); // up to 2x at 20 day streak
+
+      const realMoney    = Math.floor(finalMoney * streakBonus);
+      const realStatus   = Math.floor(finalStatus * streakBonus);
+
+      // Update phone
+      phone.status     = (phone.status || 0) + realStatus;
+      phone.hype       = (phone.hype || 0) + finalHype;
+      phone.followers  = (phone.followers || 0) + finalFollowers;
+      phone.totalPosts = (phone.totalPosts || 0) + 1;
+      phone.totalEarned= (phone.totalEarned || 0) + realMoney;
+      phone.lastPost   = { ...(phone.lastPost||{}), [platformId]: Date.now() };
+      phone.influence  = Math.min(100, (phone.influence||0) + finalHype / 200);
+
+      // ── Coin shoutout ──────────────────────────────────────
+      let coinMsg = '';
+      if (content) {
+        const tickers = [...new Set((content.toUpperCase().match(/\b[A-Z][A-Z0-9]{2,7}\b/g)||[]))];
+        const { col } = require('../../utils/mongo');
+        for (const ticker of tickers.slice(0,2)) {
+          const cc = await col('customCoins');
+          const coin = await cc.findOne({ _id: ticker }).catch(()=>null);
+          if (coin) {
+            // Hype boost proportional to Status tier
+            const coinHype   = Math.floor(finalHype * tier.coinHypeMult);
+            const fanDemand  = Math.floor(tier.fanCount * (0.1 + Math.random() * 0.2)); // % of fans invest
+            coinMsg += `\n📣 Shouted out **${coin.emoji} ${coin.name}** — +**${coinHype.toLocaleString()}** coin hype! (**${fmtNum(fanDemand)} fans** are checking it out)`;
+
+            // Boost coin price slightly
+            try {
+              const pc   = await col('stockPrices');
+              const pdoc = await pc.findOne({ _id: 'prices' });
+              if (pdoc && pdoc[ticker]) {
+                const boost = 1 + (tier.coinHypeMult * 0.02); // up to 30% price boost for Icon
+                pdoc[ticker] = Math.min(pdoc[ticker] * boost, pdoc[ticker] * 1.5);
+                await pc.replaceOne({ _id:'prices' }, pdoc);
+              }
+            } catch {}
+
+            // DM coin owner
+            if (coin.ownerId) {
+              interaction.client.users.fetch(coin.ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
+                .setColor(0xf5c518)
+                .setTitle('📣 Coin Shoutout!')
+                .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted out **${coin.name}** on ${platform.name}!\n\n+${coinHype.toLocaleString()} hype · ${fmtNum(fanDemand)} fans interested · Price boosted`)
+              ]}).catch(()=>{})).catch(()=>{});
+            }
+            break;
+          }
+        }
+      }
+
+      // ── Sponsor check ─────────────────────────────────────
+      let sponsorMsg = '';
+      const newTier = getStatusTier(phone.status);
+      if (newTier.id !== tier.id) {
+        // Just ranked up — give sponsor deal
+        const deals = SPONSOR_DEALS[newTier.id] || [];
+        if (deals.length && (phone.sponsorDeals||[]).filter(s=>s.active).length < newTier.sponsorSlots) {
+          const deal = { ...deals[Math.floor(Math.random()*deals.length)], active:true, createdAt:Date.now() };
+          phone.sponsorDeals = [...(phone.sponsorDeals||[]), deal];
+          sponsorMsg = `\n\n🎊 **STATUS UP! → ${newTier.label}**\n🤝 New sponsor unlocked: **${deal.name}** — $${deal.payout.toLocaleString()}! Collect with \`/phone sponsors\``;
+        } else {
+          sponsorMsg = `\n\n🎊 **STATUS UP! → ${newTier.label}**\n${fmtNum(newTier.fanCount)} NPC fans now follow you!`;
+        }
+      }
+
+      // Pay the user
+      const user = getOrCreateUser(userId);
+      user.wallet += realMoney;
+      saveUser(userId, user);
+      await savePhone(userId, phone);
+
+      const viralLine = isViral ? '\n\n🚀 **THIS WENT VIRAL!!**' : '';
+      const streakLine = phone.streak > 1 ? ` · 🔥 ${phone.streak}-day streak (+${Math.round((streakBonus-1)*100)}%)` : '';
+
+      return interaction.editReply({ embeds:[new EmbedBuilder()
+        .setColor(isViral ? 0xf5c518 : newTier.color || 0x5865f2)
+        .setTitle(`${platform.emoji} Posted on ${platform.name}${isViral ? ' 🚀 VIRAL!' : ''}`)
+        .setDescription(`${content ? `*"${content}"*\n\n` : ''}${viralLine}${coinMsg}${sponsorMsg}`)
+        .addFields(
+          { name:'🏆 Status +',      value:`+${realStatus.toLocaleString()} → **${phone.status.toLocaleString()}**`, inline:true },
+          { name:'✨ Hype +',        value:`+${finalHype.toLocaleString()}`,                                          inline:true },
+          { name:'👥 Followers +',   value:`+${finalFollowers.toLocaleString()}`,                                     inline:true },
+          { name:'💵 Earned',        value:`+${fmtMoney(realMoney)}${streakLine}`,                                    inline:true },
+          { name:'💎 Status Mult',   value:`${newTier.mult}×`,                                                        inline:true },
+          { name:'💰 Wallet',        value:fmtMoney(user.wallet),                                                     inline:true },
+        )
+        .setFooter({ text:`${newTier.label} · Next post in ${Math.ceil(platform.cooldownMs/60000)}min` })
+      ]});
+    }
+
+    // ── LEADERBOARD ──────────────────────────────────────────
+    if (sub === 'leaderboard') {
+      const all = getAllPhones();
+      const sorted = Object.entries(all)
+        .map(([id, p]) => ({ id, status:p.status||0, followers:p.followers||0, tier:getStatusTier(p.status||0), type:PHONE_TYPES[p.type]||PHONE_TYPES.burner }))
+        .sort((a,b) => b.status - a.status)
+        .slice(0, 10);
+
+      if (!sorted.length) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x5865f2).setDescription('No influencers yet.')], ephemeral:true });
+
+      const medals = ['🥇','🥈','🥉'];
+      const lines  = sorted.map((p,i) => `${medals[i]||`**${i+1}.**`} <@${p.id}> ${p.tier.label} — **${p.status.toLocaleString()}** status · ${fmtNum(p.followers)} followers`);
+
+      return interaction.reply({ embeds:[new EmbedBuilder()
+        .setColor(0xf5c518)
+        .setTitle('📱 Influencer Leaderboard')
+        .setDescription(lines.join('\n'))
+      ]});
+    }
+
+    // ── SPONSORS ─────────────────────────────────────────────
+    if (sub === 'sponsors') {
+      const phone = getPhone(userId);
+      if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No phone. Buy one with `/phone buy`.')], ephemeral:true });
+
+      const tier    = getStatusTier(phone.status || 0);
+      const active  = (phone.sponsorDeals||[]).filter(s=>s.active);
+      const history = (phone.sponsorDeals||[]).filter(s=>!s.active).slice(-5);
+
+      if (!active.length) {
+        const nextSponsorTier = STATUS_TIERS.find(t => t.id !== 'nobody' && t.minStatus > (phone.status||0));
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x5865f2)
+          .setTitle('🤝 Sponsor Deals')
+          .setDescription(`You have no active sponsor deals.\n\nYour current status (**${tier.label}**) allows **${tier.sponsorSlots} sponsor slot${tier.sponsorSlots!==1?'s':''}**.\n${nextSponsorTier ? `Reach **${nextSponsorTier.label}** (${nextSponsorTier.minStatus.toLocaleString()} status) to unlock better deals.` : ''}`)
+          .addFields(history.length ? [{ name:'📜 Recent (collected)', value:history.map(s=>`${s.name} — ${fmtMoney(s.payout)}`).join('\n'), inline:false }] : [])
+        ], ephemeral:true });
+      }
+
+      // Collect all active
+      let total = 0;
+      phone.sponsorDeals = (phone.sponsorDeals||[]).map(s => {
+        if (s.active) { total += s.payout; return { ...s, active:false, collectedAt:Date.now() }; }
+        return s;
+      });
+      const user = getOrCreateUser(userId);
+      user.wallet += total;
+      phone.totalEarned = (phone.totalEarned||0) + total;
+      saveUser(userId, user);
+      await savePhone(userId, phone);
+
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+        .setTitle('🤝 Deals Collected!')
+        .setDescription(active.map(s=>`${s.name} — **${fmtMoney(s.payout)}**`).join('\n'))
+        .addFields(
+          { name:'💰 Total',      value:fmtMoney(total),          inline:true },
+          { name:'💵 New Wallet', value:fmtMoney(user.wallet),    inline:true },
+          { name:'🏆 Status',     value:`${(phone.status||0).toLocaleString()} pts (${tier.label})`, inline:true },
+        )
+      ]});
+    }
+
+    // ── CALL POLICE ──────────────────────────────────────────
+    if (sub === 'calpolice') {
+      const phone = getPhone(userId);
+      if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('You need a phone to call police. Buy one with `/phone buy`.')], ephemeral:true });
+
+      const target = interaction.options.getUser('user');
+      const reason = interaction.options.getString('reason');
+
+      if (target.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You can't report yourself.")], ephemeral:true });
+
+      const CALL_CD = 30 * 60 * 1000;
+      if (phone.callCooldown && Date.now() - phone.callCooldown < CALL_CD) {
+        const mins = Math.ceil((CALL_CD-(Date.now()-phone.callCooldown))/60000);
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Police call cooldown: **${mins} more minutes**.`)], ephemeral:true });
+      }
+
+      phone.callCooldown = Date.now();
+      await savePhone(userId, phone);
+      await interaction.deferReply();
+
+      const { getPoliceRecord, savePoliceRecord } = require('../../utils/gangDb');
+      const store       = getStore();
+      const targetUser  = getOrCreateUser(target.id);
+      const targetRec   = getPoliceRecord(target.id);
+      const drugItems   = (store.items||[]).filter(i => i.isDrug);
+      const hasDrugs    = drugItems.some(d => (targetUser.inventory||[]).includes(d.id));
+      const heat        = targetRec.heat || 0;
+      const convicted   = hasDrugs || heat >= 40 || (targetRec.arrests||0) >= 2;
+      const config      = getConfig(interaction.guild.id);
+
+      if (convicted) {
+        const jailMins = 5 + Math.floor(Math.random()*10);
+        if (config.prisonRoleId && config.prisonChannelId) {
+          const { jailUser } = require('../moderation/jail');
+          await jailUser(interaction.guild, target.id, jailMins, `Police report: ${reason}`, config, null);
+        } else {
+          targetRec.jailUntil = Date.now() + jailMins * 60000;
+          await savePoliceRecord(target.id, targetRec);
+        }
+        targetRec.heat = Math.min(100, heat + 15);
+        await savePoliceRecord(target.id, targetRec);
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
+          .setTitle('🚔 Suspect Arrested!')
+          .setDescription(`Police investigated <@${target.id}> and found **evidence**.\n\n**Report:** ${reason}\n**Sentence:** ${jailMins} min\n**Evidence:** ${hasDrugs?'💊 Drugs in possession':heat>=40?'🌡️ High heat level':'📋 Prior arrests'}`)
+        ]});
+      } else {
+        const jailMins = 3 + Math.floor(Math.random()*5);
+        if (config.prisonRoleId && config.prisonChannelId) {
+          const { jailUser } = require('../moderation/jail');
+          await jailUser(interaction.guild, userId, jailMins, 'False police report', config, null);
+        }
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+          .setTitle('🚔 False Report!')
+          .setDescription(`Police investigated <@${target.id}> and found **nothing**.\n<@${userId}> was arrested for **filing a false report** (${jailMins} min).\n\n⚠️ Think before you call.`)
+        ]});
+      }
+    }
+  },
+};
