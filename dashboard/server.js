@@ -174,33 +174,41 @@ app.get('/api/:guildId/stats', requireGuildAuth, async (req, res) => {
 // ── USERS ─────────────────────────────────────────────────────
 
 app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
-  const guildId    = req.guildId;
-  const accountUsers = db.getAllUsers();
-  const memberMap  = {};
-  for (const [id, data] of Object.entries(accountUsers)) {
-    memberMap[id] = { id, username: id, avatar: null, hasAccount: true, ...data };
-  }
+  const guildId = req.guildId;
+  const allUsers = db.getAllUsers();
+
   try {
+    // Fetch current guild members — only show people actually in the server
     const members = await fetchBotAPI(`/guilds/${guildId}/members?limit=1000`);
-    if (Array.isArray(members)) {
-      for (const member of members) {
-        if (!member.user || member.user.bot) continue;
-        const u = member.user;
-        if (!memberMap[u.id]) {
-          memberMap[u.id] = { id:u.id, username:member.nick||u.global_name||u.username||u.id, avatar:u.avatar?`https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64`:null, hasAccount:false, wallet:0, bank:0, total:0 };
-        } else {
-          memberMap[u.id].username = member.nick || u.global_name || u.username || u.id;
-          memberMap[u.id].avatar   = u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64` : null;
-        }
-      }
-    }
-  } catch {}
-  const list = Object.values(memberMap).map(m => ({
-    id:m.id, username:m.username||m.id, avatar:m.avatar||null, hasAccount:m.hasAccount||false,
-    wallet:m.wallet||0, bank:m.bank||0, total:(m.wallet||0)+(m.bank||0), bannedUntil:m.bannedUntil||null,
-    inventory:m.inventory||[],
-  })).sort((a,b)=>{ if(a.hasAccount&&!b.hasAccount)return -1; if(!a.hasAccount&&b.hasAccount)return 1; return b.total-a.total; });
-  res.json(list);
+    if (!Array.isArray(members)) return res.json([]);
+
+    const list = members
+      .filter(m => m.user && !m.user.bot)
+      .map(m => {
+        const u    = m.user;
+        const data = allUsers[u.id] || {};
+        return {
+          id:         u.id,
+          username:   m.nick || u.global_name || u.username || u.id,
+          avatar:     u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64` : null,
+          hasAccount: !!allUsers[u.id],
+          wallet:     data.wallet  || 0,
+          bank:       data.bank    || 0,
+          total:      (data.wallet || 0) + (data.bank || 0),
+          bannedUntil:data.bannedUntil || null,
+          inventory:  data.inventory   || [],
+        };
+      })
+      .sort((a, b) => {
+        if (a.hasAccount && !b.hasAccount) return -1;
+        if (!a.hasAccount && b.hasAccount) return 1;
+        return b.total - a.total;
+      });
+
+    res.json(list);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/:guildId/users/:id/give-gun', requireGuildAuth, async (req, res) => {
