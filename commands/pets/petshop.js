@@ -115,8 +115,19 @@ module.exports = {
       await btn.update({ embeds: [new EmbedBuilder()
         .setColor(TIER_COLORS[petType.tier] || 0x5865f2)
         .setTitle(`${petType.emoji} Welcome, ${petType.name}!`)
-        .setDescription(`You adopted a **${petType.name}**!\n\n*${petType.desc}*\n\nUse \`/pet feed\` to keep it fed.\nUse \`/pet play\` to build happiness and bond.\nUse \`/pet attack @user\` to defend yourself.`)
-        .addFields({ name:'💵 Wallet', value:`$${user.wallet.toLocaleString()}`, inline:true })
+        .setDescription(`You adopted a **${petType.name}**!\n\n*${petType.desc}*`)
+        .addFields(
+          { name:'🍖 Feed',        value:'`/pet feed` — feed using Pet Food from the shop. Keeps hunger up.',                                   inline:true },
+          { name:'🎮 Play',        value:'`/pet play` — boost happiness and build bond with your pet.',                                          inline:true },
+          { name:'🗺️ Mission',     value:'`/pet mission` — send on a mission to earn **XP + Pet Tokens**.',                                     inline:true },
+          { name:'⬆️ Upgrade',     value:'`/pet upgrade <stat>` — spend tokens on ❤️ Health · 🛡️ Defense · 🧠 Intelligence · ⚔️ Attack.',      inline:true },
+          { name:'🛡️ Guard',       value:'`/pet guard` — toggle guard mode. Pet intercepts attacks & shots aimed at you.',                      inline:true },
+          { name:'⚔️ Attack',      value:'`/pet attack @user` — attack someone with your pet.',                                                  inline:true },
+          { name:'✨ Evolve',       value:'`/pet evolve` — evolve your pet once it hits the required level.',                                     inline:true },
+          { name:'📊 Status',      value:'`/pet` — view your pet\'s stats, hunger, happiness, XP, guard mode and tokens.',                    inline:true },
+          { name:'💵 Wallet',       value:`$${user.wallet.toLocaleString()}`,                                                                    inline:true },
+        )
+        .setFooter({ text: `Rarity: ${petType.rarity} · Tier ${petType.tier} · Use /petshop to see all pets` })
       ], components:[] });
     });
   },

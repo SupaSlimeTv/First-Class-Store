@@ -796,16 +796,51 @@ client.on('messageCreate', async (message) => {
       .setColor(0xff6b35)
       .setTitle(`${pet.emoji} ${pet.name}`)
       .addFields(
-        { name:'❤️ HP',       value:`${pet.hp||stats.hp}/${stats.hp}`,       inline:true },
-        { name:'🍖 Hunger',   value:`${pet.hunger||100}/100`,                  inline:true },
-        { name:'💕 Happiness',value:`${pet.happiness||100}/100`,               inline:true },
-        { name:'🔗 Bond',     value:`${pet.bond||0}/100`,                      inline:true },
-        { name:'⭐ Level',    value:`${pet.level} · XP: ${pet.xp||0}/${xpNext}`, inline:true },
-        { name:'⚔️ Power',   value:stats.power.toString(),                     inline:true },
-        { name:'🏆 Record',  value:`${pet.wins||0}W/${pet.losses||0}L`,        inline:true },
+        { name:'❤️ HP',        value:`${pet.hp||stats.hp}/${stats.hp}`,              inline:true },
+        { name:'🍖 Hunger',    value:`${pet.hunger||100}/100`,                         inline:true },
+        { name:'💕 Happiness', value:`${pet.happiness||100}/100`,                      inline:true },
+        { name:'🔗 Bond',      value:`${pet.bond||0}/100`,                             inline:true },
+        { name:'⭐ Level',     value:`${pet.level} · XP: ${pet.xp||0}/${xpNext}`,     inline:true },
+        { name:'⚔️ Power',    value:stats.power.toString(),                            inline:true },
+        { name:'🏆 Record',   value:`${pet.wins||0}W/${pet.losses||0}L`,              inline:true },
+        { name:'🛡️ Guard',    value: pet.guardMode ? '✅ Active' : '❌ Off',          inline:true },
+        { name:'🪙 Tokens',   value:`${pet.tokens||0}`,                               inline:true },
       )
-      .setFooter({ text:`Use ${prefix}petfeed · ${prefix}petplay · ${prefix}petheal <amt>` })
+      .setFooter({ text:`${prefix}petfeed · ${prefix}petplay · ${prefix}petmission · ${prefix}petupgrade · ${prefix}petguard · ${prefix}petevolve` })
     ]});
+  }
+
+  // ---- petmission / pm ----
+  if (commandName === 'petmission' || commandName === 'pm') {
+    if (needsAccount()) return;
+    return message.reply(`Use \`/pet mission\` — missions require slash command to pick mission type. Type \`/pet\` and choose **mission** from the subcommand list.`);
+  }
+
+  // ---- petupgrade / pu ----
+  if (commandName === 'petupgrade' || commandName === 'pu') {
+    if (needsAccount()) return;
+    const stat = args[0]?.toLowerCase();
+    if (!stat || !['health','defense','intelligence','attack'].includes(stat)) {
+      return message.reply(`Usage: \`${prefix}petupgrade <health|defense|intelligence|attack>\`\n\nSpend Pet Tokens to upgrade your pet's stats. Use \`${prefix}pet\` to see your token balance.`);
+    }
+    return message.reply(`Use \`/pet upgrade stat:${stat}\` — upgrades require the slash command. Type \`/pet\` and choose **upgrade**.`);
+  }
+
+  // ---- petguard / pg ----
+  if (commandName === 'petguard' || commandName === 'pg') {
+    if (needsAccount()) return;
+    const { getPet, savePet } = require('./utils/petDb');
+    const pet = getPet(message.author.id);
+    if (!pet) return message.reply(`No pet! Use \`${prefix}petshop\` to adopt one.`);
+    pet.guardMode = !pet.guardMode;
+    await savePet(message.author.id, pet);
+    return message.reply(`${pet.emoji} **${pet.name}** guard mode is now **${pet.guardMode ? '✅ ON — will defend you from attacks' : '❌ OFF'}**.`);
+  }
+
+  // ---- petevolve / pe ----
+  if (commandName === 'petevolve' || commandName === 'pe') {
+    if (needsAccount()) return;
+    return message.reply(`Use \`/pet evolve\` — evolutions require the slash command.`);
   }
 
   // ---- petfeed ----

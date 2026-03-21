@@ -2268,17 +2268,47 @@ async function viewInventory(userId, username) {
   document.getElementById('inv-modal-body').innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px">Loading...</div>';
   document.getElementById('inv-modal').classList.add('open');
 
-  const data = await api('GET', `/api/${GUILD}/users/${userId}/inventory`);
+  const data  = await api('GET', `/api/${GUILD}/users/${userId}/inventory`);
   const items = data.items || [];
   const guns  = data.guns  || [];
+  const pet   = data.pet   || null;
 
-  if (!items.length && !guns.length) {
+  if (!items.length && !guns.length && !pet) {
     document.getElementById('inv-modal-body').innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px">Inventory is empty.</div>';
     return;
   }
 
   const RARITY_CLR = { Common:'t-muted', Uncommon:'t-green', Rare:'t-blue', Epic:'t-purple', Legendary:'t-gold', Mythic:'t-red' };
   const EFX = { drain_wallet:'💸', drain_all:'💻', silence:'🔇', hitman:'🔫', gamble:'🎲', passive_income:'💰', shield:'🛡️', minigame_drain:'🖥️' };
+
+  const petHTML = pet ? `
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🐾 Pet</div>
+    <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${pet.emoji} ${pet.name} <span class="tag ${RARITY_CLR[pet.rarity]||'t-muted'}">${pet.rarity}</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Tier ${pet.tier} · Level ${pet.level} · ${pet.guardMode ? '🛡️ Guard ON' : '🛡️ Guard OFF'}</div>
+        <div style="margin-top:4px;display:flex;gap:4px">
+          <span class="tag t-red">❤️ HP ${pet.hp||'?'}</span>
+          <span class="tag t-muted">🍖 ${pet.hunger||100}/100</span>
+          <span class="tag t-purple">🪙 ${pet.tokens||0} tokens</span>
+        </div>
+      </div>
+    </div>` : '';
+
+  const gunsHTML = guns.map(g => `
+    <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${g.emoji} ${g.name} ${g.hasSwitch ? '<span class="tag t-red" style="font-size:10px">🔩 Switch</span>' : ''}</div>
+        ${g.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${g.description}</div>` : ''}
+        <div style="margin-top:4px;display:flex;gap:4px">
+          <span class="tag ${RARITY_CLR[g.rarity]||'t-muted'}">${g.rarity}</span>
+          <span class="tag t-blue">📦 ${g.ammo} rounds</span>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:10px;color:var(--muted)">$${(g.price||0).toLocaleString()}</div>
+      </div>
+    </div>`).join('');
 
   const itemsHTML = items.map(item => `
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -2293,25 +2323,10 @@ async function viewInventory(userId, username) {
       </div>
     </div>`).join('');
 
-  const gunsHTML = guns.map(g => `
-    <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <div style="flex:1">
-        <div style="font-weight:700;font-size:14px">${g.emoji} ${g.name} ${g.hasSwitch ? '<span class="tag t-red" style="font-size:10px">🔩 Switch</span>' : ''}</div>
-        ${g.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${g.description}</div>` : ''}
-        <div style="margin-top:4px;display:flex;gap:4px">
-          <span class="tag ${RARITY_CLR[g.rarity]||'t-muted'}">${g.rarity}</span>
-          <span class="tag t-muted">🔫 Gun</span>
-          <span class="tag t-blue">📦 ${g.ammo} rounds</span>
-        </div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:10px;color:var(--muted)">$${(g.price||0).toLocaleString()}</div>
-      </div>
-    </div>`).join('');
-
   document.getElementById('inv-modal-body').innerHTML =
-    (guns.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔫 Weapons</div>${gunsHTML}` : '') +
-    (items.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:${guns.length?'16px':'0'}">🎒 Items</div>${itemsHTML}` : '');
+    petHTML +
+    (guns.length  ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔫 Weapons</div>${gunsHTML}` : '') +
+    (items.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:${(pet||guns.length)?'16px':'0'}">🎒 Items</div>${itemsHTML}` : '');
 }
 
 // ════════════════════════════════════════════════
@@ -2403,13 +2418,12 @@ async function openTakeItem(userId, username) {
   document.getElementById('give-confirm-btn').textContent = 'Take';
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
 
-  // For take mode — only show item and gun categories, hide the rest
+  // For take mode — only hide options that don't make sense to take
   const catSel = document.getElementById('give-category');
-  // Temporarily hide give-only options
   [...catSel.options].forEach(o => {
-    o.hidden = ['money','tokens','petlevel','gang','business'].includes(o.value);
+    o.hidden = ['tokens','petlevel','gang','business'].includes(o.value);
   });
-  catSel.value = 'item';
+  catSel.value = 'money';
   onGiveCategoryChange();
 
   // Load user's actual inventory

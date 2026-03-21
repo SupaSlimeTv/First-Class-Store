@@ -318,7 +318,22 @@ app.get('/api/:guildId/users/:id/inventory', requireGuildAuth, async (req, res) 
       hasSwitch: gun.hasSwitch, count: 1, isGun: true };
   }).filter(Boolean);
 
-  res.json({ items, guns });
+  // Pet
+  const { getPet, PET_TYPES } = require('../utils/petDb');
+  const petData = getPet(req.params.id);
+  let pet = null;
+  if (petData) {
+    const pType = PET_TYPES[petData.type] || {};
+    pet = {
+      name: petData.name, type: petData.type, emoji: pType.emoji || '🐾',
+      rarity: pType.rarity || 'Common', tier: pType.tier || 1,
+      level: petData.level || 1, hp: petData.hp, hunger: petData.hunger,
+      happiness: petData.happiness, tokens: petData.tokens || 0,
+      guardMode: petData.guardMode || false,
+    };
+  }
+
+  res.json({ items, guns, pet });
 });
 
 app.post('/api/:guildId/users/:id/give-item', requireGuildAuth, async (req, res) => {
