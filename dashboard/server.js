@@ -125,18 +125,23 @@ app.get('/auth/me',     requireAuth, (req, res) => res.json(req.session.user));
 app.get('/api/my-guilds', requireAuth, async (req, res) => {
   try {
     const userGuilds  = await fetchDiscordAPI('/users/@me/guilds', req.session.accessToken);
-    if (!userGuilds) return res.json([]);
+    if (!userGuilds) return res.json({ botGuilds: [], addableGuilds: [] });
     const botGuilds   = await fetchBotAPI('/users/@me/guilds');
     const botGuildIds = new Set((botGuilds || []).map(g => g.id));
-    const adminGuilds = userGuilds.filter(g => {
-      if (!botGuildIds.has(g.id)) return false;
-      return g.owner || (BigInt(g.permissions || 0) & 0x8n) === 0x8n;
-    }).map(g => ({
-      id:   g.id,
-      name: g.name,
+
+    const adminGuilds = userGuilds.filter(g => g.owner || (BigInt(g.permissions || 0) & 0x8n) === 0x8n);
+
+    const botPresent  = adminGuilds.filter(g => botGuildIds.has(g.id)).map(g => ({
+      id: g.id, name: g.name,
       icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : null,
     }));
-    res.json(adminGuilds);
+
+    const addable = adminGuilds.filter(g => !botGuildIds.has(g.id)).map(g => ({
+      id: g.id, name: g.name,
+      icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : null,
+    }));
+
+    res.json({ botGuilds: botPresent, addableGuilds: addable, clientId: process.env.CLIENT_ID || '' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

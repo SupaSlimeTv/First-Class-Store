@@ -7,76 +7,128 @@
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#08080b;color:#e0e0ee;font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+body{background:#08080b;color:#e0e0ee;font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 24px}
 body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none}
-.header{text-align:center;margin-bottom:36px}
-.logo{font-size:32px;margin-bottom:6px}
-h1{font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.sub{font-size:13px;color:#60607a;margin-top:4px}
-.user-bar{display:flex;align-items:center;gap:10px;background:#0f0f14;border:1px solid #262630;border-radius:8px;padding:10px 16px;margin-bottom:32px;font-size:13px}
+.header{text-align:center;margin-bottom:32px}
+.logo{font-size:36px;margin-bottom:8px}
+h1{font-size:24px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#fff}
+.sub{font-size:13px;color:#60607a;margin-top:6px}
+.user-bar{display:flex;align-items:center;gap:10px;background:#0f0f14;border:1px solid #262630;border-radius:8px;padding:10px 16px;margin-bottom:36px;font-size:13px;max-width:860px;width:100%}
 .user-bar img{width:28px;height:28px;border-radius:50%}
-.user-bar a{color:#60607a;text-decoration:none;margin-left:auto;font-size:11px}
+.user-bar a{color:#60607a;text-decoration:none;margin-left:auto;font-size:11px;transition:.15s}
 .user-bar a:hover{color:#ff3b3b}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;width:100%;max-width:860px}
-.guild-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:20px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .15s;text-decoration:none;color:inherit}
-.guild-card:hover{border-color:#ff3b3b;background:rgba(255,59,59,.04);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
-.guild-icon{width:48px;height:48px;border-radius:12px;object-fit:cover;background:#1e1e28;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.guild-icon img{width:48px;height:48px;border-radius:12px}
-.guild-name{font-weight:700;font-size:15px;margin-bottom:2px}
+.section{width:100%;max-width:860px;margin-bottom:32px}
+.section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#40404a;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-label::after{content:'';flex:1;height:1px;background:#1e1e28}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+/* Active guild card */
+.guild-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .15s;text-decoration:none;color:inherit;position:relative;overflow:hidden}
+.guild-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,59,59,.04) 0%,transparent 60%);opacity:0;transition:.15s}
+.guild-card:hover{border-color:#ff3b3b;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.guild-card:hover::before{opacity:1}
+.guild-card .badge{position:absolute;top:10px;right:10px;background:rgba(46,204,113,.15);color:#2ecc71;border:1px solid rgba(46,204,113,.3);border-radius:4px;font-size:9px;font-weight:700;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em}
+/* Add bot card */
+.add-card{background:#0f0f14;border:1px solid #262630;border-radius:10px;padding:18px;display:flex;align-items:center;gap:14px;transition:all .15s;color:inherit;position:relative;overflow:hidden}
+.add-card:hover{border-color:#5865f2;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.add-btn{margin-left:auto;flex-shrink:0;background:#5865f2;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:.15s;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
+.add-btn:hover{background:#4752c4;transform:scale(1.05)}
+.guild-icon{width:48px;height:48px;border-radius:12px;background:#1e1e28;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;overflow:hidden;color:#fff}
+.guild-icon img{width:48px;height:48px;object-fit:cover}
+.guild-name{font-weight:700;font-size:15px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
 .guild-id{font-family:'JetBrains Mono',monospace;font-size:10px;color:#40404a}
-.empty{text-align:center;color:#40404a;font-size:14px;padding:48px}
-.empty strong{display:block;font-size:16px;color:#60607a;margin-bottom:8px}
+.empty{text-align:center;color:#40404a;font-size:14px;padding:32px;background:#0f0f14;border:1px solid #1e1e28;border-radius:10px}
 .loading{text-align:center;color:#60607a;padding:48px;font-size:14px}
 </style>
 </head>
 <body>
+
 <div class="header">
   <div class="logo">⚡</div>
-  <h1>Select a Server</h1>
-  <p class="sub">Choose which server to manage</p>
+  <h1>First Class Store</h1>
+  <p class="sub">Select a server to manage</p>
 </div>
 
 <div class="user-bar" id="user-bar">
   <span style="color:#60607a">Loading...</span>
 </div>
 
-<div id="guild-grid" class="grid">
+<div id="content" style="width:100%;max-width:860px">
   <div class="loading">Loading your servers...</div>
 </div>
 
 <script>
+const BOT_INVITE = `https://discord.com/oauth2/authorize?client_id=${location.hostname === 'localhost' ? 'YOUR_CLIENT_ID' : ''}&permissions=8&scope=bot%20applications.commands`;
+
 async function load() {
-  // Get user info
   const me = await fetch('/auth/me').then(r => r.ok ? r.json() : null);
   if (!me) { location.href = '/login.html'; return; }
 
-  const bar = document.getElementById('user-bar');
-  bar.innerHTML = `
-    ${me.avatar ? `<img src="https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=32">` : ''}
+  // Fetch client ID from meta if possible
+  const clientIdMeta = document.querySelector('meta[name="client-id"]');
+  const inviteUrl = (guildId) => `https://discord.com/oauth2/authorize?client_id=${window._clientId||''}&permissions=8&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
+
+  document.getElementById('user-bar').innerHTML = `
+    ${me.avatar ? `<img src="https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=32">` : '⚡'}
     <span>Logged in as <strong>${me.username}</strong></span>
     <a href="/auth/logout">Logout</a>
   `;
 
-  // Get guilds
-  const guilds = await fetch('/api/my-guilds').then(r => r.ok ? r.json() : []);
-  const grid   = document.getElementById('guild-grid');
+  const data = await fetch('/api/my-guilds').then(r => r.ok ? r.json() : { botGuilds:[], addableGuilds:[] });
+  // Support old array format too
+  const botGuilds    = Array.isArray(data) ? data : (data.botGuilds || []);
+  const addableGuilds= Array.isArray(data) ? [] :  (data.addableGuilds || []);
+  const cid          = data.clientId || '';
+  window._clientId   = cid;
 
-  if (!guilds.length) {
-    grid.innerHTML = `<div class="empty"><strong>No servers found</strong>Make sure the bot is in your server and you have Administrator permission.</div>`;
-    return;
+  const content = document.getElementById('content');
+
+  let html = '';
+
+  // ── Servers with bot ───────────────────────────────────────
+  html += `<div class="section">
+    <div class="section-label">🟢 Manage — Bot is in these servers</div>
+    <div class="grid">`;
+
+  if (!botGuilds.length) {
+    html += `<div class="empty">No managed servers yet. Add the bot to a server below.</div>`;
+  } else {
+    html += botGuilds.map(g => `
+      <a class="guild-card" href="/dashboard/${g.id}">
+        <div class="badge">Manage</div>
+        <div class="guild-icon">${g.icon ? `<img src="${g.icon}">` : g.name.charAt(0).toUpperCase()}</div>
+        <div>
+          <div class="guild-name">${g.name}</div>
+          <div class="guild-id">${g.id}</div>
+        </div>
+      </a>`).join('');
+  }
+  html += `</div></div>`;
+
+  // ── Servers without bot ────────────────────────────────────
+  if (addableGuilds.length) {
+    html += `<div class="section">
+      <div class="section-label">➕ Add Bot — You have admin in these servers</div>
+      <div class="grid">`;
+    html += addableGuilds.map(g => `
+      <div class="add-card">
+        <div class="guild-icon">${g.icon ? `<img src="${g.icon}">` : g.name.charAt(0).toUpperCase()}</div>
+        <div style="min-width:0">
+          <div class="guild-name">${g.name}</div>
+          <div class="guild-id">${g.id}</div>
+        </div>
+        <button class="add-btn" onclick="addBot('${g.id}','${g.name}')">+ Add Bot</button>
+      </div>`).join('');
+    html += `</div></div>`;
   }
 
-  grid.innerHTML = guilds.map(g => `
-    <a class="guild-card" href="/dashboard/${g.id}">
-      <div class="guild-icon">
-        ${g.icon ? `<img src="${g.icon}" alt="">` : g.name.charAt(0).toUpperCase()}
-      </div>
-      <div>
-        <div class="guild-name">${g.name}</div>
-        <div class="guild-id">${g.id}</div>
-      </div>
-    </a>
-  `).join('');
+  content.innerHTML = html;
+}
+
+function addBot(guildId, name) {
+  const cid = window._clientId;
+  if (!cid) { alert('Bot client ID not loaded. Please try refreshing.'); return; }
+  const url = `https://discord.com/oauth2/authorize?client_id=${cid}&permissions=8&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
+  window.open(url, '_blank', 'width=500,height=700');
 }
 
 load();
