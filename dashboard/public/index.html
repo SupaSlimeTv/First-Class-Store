@@ -2181,15 +2181,18 @@ async function viewInventory(userId, username) {
   document.getElementById('inv-modal').classList.add('open');
 
   const data = await api('GET', `/api/${GUILD}/users/${userId}/inventory`);
+  const items = data.items || [];
+  const guns  = data.guns  || [];
 
-  if (!data.items || !data.items.length) {
+  if (!items.length && !guns.length) {
     document.getElementById('inv-modal-body').innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px">Inventory is empty.</div>';
     return;
   }
 
+  const RARITY_CLR = { Common:'t-muted', Uncommon:'t-green', Rare:'t-blue', Epic:'t-purple', Legendary:'t-gold', Mythic:'t-red' };
   const EFX = { drain_wallet:'💸', drain_all:'💻', silence:'🔇', hitman:'🔫', gamble:'🎲', passive_income:'💰', shield:'🛡️', minigame_drain:'🖥️' };
 
-  document.getElementById('inv-modal-body').innerHTML = data.items.map(item => `
+  const itemsHTML = items.map(item => `
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
       <div style="flex:1">
         <div style="font-weight:700;font-size:14px">${item.reusable ? '♻️' : '🗑️'} ${item.name}</div>
@@ -2200,8 +2203,27 @@ async function viewInventory(userId, username) {
         <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--gold)">×${item.count}</div>
         <div style="font-size:10px;color:var(--muted)">${item.id}</div>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
+
+  const gunsHTML = guns.map(g => `
+    <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${g.emoji} ${g.name} ${g.hasSwitch ? '<span class="tag t-red" style="font-size:10px">🔩 Switch</span>' : ''}</div>
+        ${g.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${g.description}</div>` : ''}
+        <div style="margin-top:4px;display:flex;gap:4px">
+          <span class="tag ${RARITY_CLR[g.rarity]||'t-muted'}">${g.rarity}</span>
+          <span class="tag t-muted">🔫 Gun</span>
+          <span class="tag t-blue">📦 ${g.ammo} rounds</span>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:10px;color:var(--muted)">$${(g.price||0).toLocaleString()}</div>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('inv-modal-body').innerHTML =
+    (guns.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔫 Weapons</div>${gunsHTML}` : '') +
+    (items.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:${guns.length?'16px':'0'}">🎒 Items</div>${itemsHTML}` : '');
 }
 
 // ════════════════════════════════════════════════
@@ -2271,7 +2293,7 @@ function onGiveCategoryChange() {
   });
 }
 
-function openGiveItem(userId, username) {
+async function openGiveItem(userId, username) {
   giveTakeMode   = 'give';
   giveTakeUserId = userId;
   document.getElementById('give-modal-title').textContent = `Give to ${username}`;
@@ -2279,11 +2301,11 @@ function openGiveItem(userId, username) {
   document.getElementById('give-confirm-btn').className   = 'btn btn-gold';
   document.getElementById('give-category').value = 'item';
   onGiveCategoryChange();
-  populateGiveSelect();
   document.getElementById('item-give-modal').classList.add('open');
+  await populateGiveSelect();
 }
 
-function openTakeItem(userId, username) {
+async function openTakeItem(userId, username) {
   giveTakeMode   = 'take';
   giveTakeUserId = userId;
   document.getElementById('give-modal-title').textContent = `Take from ${username}`;
@@ -2291,17 +2313,26 @@ function openTakeItem(userId, username) {
   document.getElementById('give-confirm-btn').className   = 'btn btn-danger';
   document.getElementById('give-category').value = 'item';
   onGiveCategoryChange();
-  populateGiveSelect();
   document.getElementById('item-give-modal').classList.add('open');
+  await populateGiveSelect();
 }
 
-function populateGiveSelect() {
+async function populateGiveSelect() {
   // Store items
   const sel  = document.getElementById('give-item-select');
   sel.innerHTML = '<option value="">— Choose an item —</option>' + (S.store||[]).map(i=>`<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
-  // Guns
+
+  // Guns — fetch live so we don't depend on gun shop tab being visited first
   const gunSel = document.getElementById('give-gun-select');
-  gunSel.innerHTML = '<option value="">— Choose a gun —</option>' + (_gunShopCache||[]).map(g=>`<option value="${g.id}">${g.emoji} ${g.name}</option>`).join('');
+  try {
+    const shopData = await api('GET', `/api/${GUILD}/guns/shop`);
+    const guns = shopData.guns || _gunShopCache || [];
+    if (guns.length) _gunShopCache = guns;
+    gunSel.innerHTML = '<option value="">— Choose a gun —</option>' + guns.map(g=>`<option value="${g.id}">${g.emoji} ${g.name}</option>`).join('');
+  } catch {
+    gunSel.innerHTML = '<option value="">— Choose a gun —</option>' + (_gunShopCache||[]).map(g=>`<option value="${g.id}">${g.emoji} ${g.name}</option>`).join('');
+  }
+
   // Gangs — fetch live
   api('GET',`/api/${GUILD}/gangs`).then(data=>{
     const gangs = data.gangs || [];
@@ -2422,10 +2453,17 @@ async function loadBusinesses() {
     document.getElementById('biz-employees').textContent = totalEmployees;
     document.getElementById('biz-maxlevel').textContent  = 'Lv ' + maxLevel;
 
+    // Resolve all owner IDs and employee IDs to display names
+    const allIds = [...new Set([
+      ...list.map(b => b.ownerId),
+      ...list.flatMap(b => (b.employees||[]).map(e => e.userId))
+    ].filter(Boolean))];
+    await resolveNames(allIds);
+
     tb.innerHTML = list.map((biz, i) => {
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
-      const pct   = Math.round((biz.level / biz.maxLevel) * 100);
-      const empNames = biz.employees.map(e => `<@${e.userId}>`).join(', ') || '—';
+      const medal    = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      const pct      = Math.round((biz.level / biz.maxLevel) * 100);
+      const empNames = biz.employees.map(e => resolveName(e.userId)).join(', ') || '—';
       return `<tr>
         <td style="font-weight:700;color:var(--gold)">${medal}</td>
         <td>
@@ -2506,9 +2544,18 @@ const _nameCache = {};
 
 async function resolveNames(ids) {
   const unknown = [...new Set(ids)].filter(id => id && !_nameCache[id]);
-  if (unknown.length) {
+  // First check S.users which is already loaded
+  if (unknown.length && S.users && S.users.length) {
+    for (const id of unknown) {
+      const u = S.users.find(u => u.id === id);
+      if (u && u.username) _nameCache[id] = u.username;
+    }
+  }
+  // Then fetch any still unknown from Discord
+  const stillUnknown = unknown.filter(id => !_nameCache[id]);
+  if (stillUnknown.length) {
     try {
-      const result = await api('POST', `/api/${GUILD}/users/resolve`, { ids: unknown });
+      const result = await api('POST', `/api/${GUILD}/users/resolve`, { ids: stillUnknown });
       Object.assign(_nameCache, result);
     } catch {}
   }

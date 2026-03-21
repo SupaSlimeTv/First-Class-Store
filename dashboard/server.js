@@ -297,6 +297,8 @@ app.post('/api/:guildId/users/:id/unban', requireGuildAuth, async (req, res) => 
 app.get('/api/:guildId/users/:id/inventory', requireGuildAuth, async (req, res) => {
   const user  = db.getUser(req.params.id);
   const store = db.getStore();
+
+  // Store items
   const items = (user?.inventory || []).reduce((acc, id) => {
     const item = (store.items||[]).find(i => i.id === id);
     if (!item) return acc;
@@ -304,7 +306,19 @@ app.get('/api/:guildId/users/:id/inventory', requireGuildAuth, async (req, res) 
     if (ex) ex.count++; else acc.push({ ...item, count: 1 });
     return acc;
   }, []);
-  res.json({ items });
+
+  // Gun inventory
+  const { getGunInventory, getGunById } = require('../utils/gunDb');
+  const gunInv = getGunInventory(req.params.id);
+  const guns = gunInv.map(entry => {
+    const gun = getGunById(entry.gunId);
+    if (!gun) return null;
+    return { id: entry.gunId, name: gun.name, description: gun.desc, emoji: gun.emoji,
+      type: 'gun', rarity: gun.rarity, ammo: entry.ammo, price: gun.price,
+      hasSwitch: gun.hasSwitch, count: 1, isGun: true };
+  }).filter(Boolean);
+
+  res.json({ items, guns });
 });
 
 app.post('/api/:guildId/users/:id/give-item', requireGuildAuth, async (req, res) => {
