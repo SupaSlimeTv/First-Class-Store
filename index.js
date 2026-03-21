@@ -1193,8 +1193,8 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ---- coincreate / rugpull / coincontrol ----
-  if (['coincreate','rugpull','coinrug','coinclose','coincontrol','coinpump'].includes(commandName)) {
+  // ---- coin commands ----
+  if (['coincreate','rugpull','coinrug','coinclose','coincontrol','coinpump','liquidate','coincollect'].includes(commandName)) {
     const cmdMap = {
       coincreate:  './commands/economy/coincreate.js',
       rugpull:     './commands/economy/rugpull.js',
@@ -1202,10 +1202,10 @@ client.on('messageCreate', async (message) => {
       coinclose:   './commands/economy/rugpull.js',
       coincontrol: './commands/economy/coincontrol.js',
       coinpump:    './commands/economy/coincontrol.js',
+      liquidate:   './commands/economy/liquidate.js',
+      coincollect: './commands/economy/liquidate.js',
     };
-    const cmd = require(cmdMap[commandName]);
-    if (cmd?.executePrefix) return cmd.executePrefix(message, args);
-    return message.reply(`Use \`/\` slash command for this: \`/${commandName}\``);
+    return message.reply(`Use \`/${cmdMap[commandName] ? commandName : 'coincreate'}\` slash command — these commands require autocomplete to work properly.`);
   }
 
 });

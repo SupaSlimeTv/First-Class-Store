@@ -1301,7 +1301,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div class="fg"><label class="flabel">Ticker ID (auto)</label><input class="finput" id="coin-m-id" placeholder="e.g. SUPA" maxlength="8" style="text-transform:uppercase"></div>
       </div>
       <div class="grid2">
-        <div class="fg"><label class="flabel">Emoji</label><input class="finput" id="coin-m-emoji" placeholder="🪙" maxlength="4"></div>
+        <div class="fg">
+          <label class="flabel">Emoji</label>
+          <div style="display:flex;gap:6px;position:relative">
+            <input class="finput" id="coin-m-emoji" placeholder="🪙" maxlength="4" style="flex:1">
+            <button type="button" onclick="openCoinEmojiPicker()" class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:18px;padding:6px 12px" title="Pick emoji">🎨</button>
+            <div id="coin-emoji-picker" style="display:none;position:absolute;top:100%;right:0;z-index:999;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px;width:300px;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+          </div>
+        </div>
         <div class="fg"><label class="flabel">Color</label><input class="finput" id="coin-m-color" type="color" value="#f5c518" style="height:42px;padding:4px"></div>
       </div>
       <div class="fg"><label class="flabel">Description</label><input class="finput" id="coin-m-desc" placeholder="e.g. The coin that changes everything."></div>
@@ -3108,6 +3115,37 @@ function pickGunEmoji(emoji) {
 // ════════════════════════════════════════════════
 // CUSTOM COIN MANAGEMENT
 // ════════════════════════════════════════════════
+
+const COIN_EMOJI_CATEGORIES = [
+  { label:'Crypto / Money',  emojis:['🪙','💰','💎','💵','💴','💶','💷','🏦','📈','📉','💹','🤑'] },
+  { label:'Animals / Memes', emojis:['🐕','🐸','🐶','🦊','🐱','🦁','🐻','🦅','🚀','🌙','⭐','💫'] },
+  { label:'Symbols',         emojis:['⚡','🔥','❄️','🌊','💣','☠️','💀','🎯','🎰','🃏','🎲','🔮'] },
+  { label:'Objects',         emojis:['🖥️','📱','🤖','💾','🔑','🔒','🏆','👑','💍','🪤','🧪','⚗️'] },
+];
+
+function openCoinEmojiPicker() {
+  const picker = document.getElementById('coin-emoji-picker');
+  if (!picker) return;
+  if (picker.style.display === 'block') { picker.style.display='none'; return; }
+  if (!picker.innerHTML) {
+    picker.innerHTML = COIN_EMOJI_CATEGORIES.map(cat=>`
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${cat.label}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${cat.emojis.map(e=>`<button type="button" onclick="pickCoinEmoji('${e}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:18px;cursor:pointer;transition:.1s" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='var(--bg3)'">${e}</button>`).join('')}
+        </div>
+      </div>`).join('');
+  }
+  picker.style.display = 'block';
+  setTimeout(()=>document.addEventListener('click', function h(e){ if(!picker.contains(e.target)&&e.target.id!=='coin-m-emoji'){picker.style.display='none';document.removeEventListener('click',h);} }), 50);
+}
+
+function pickCoinEmoji(emoji) {
+  const el = document.getElementById('coin-m-emoji');
+  if (el) el.value = emoji;
+  const picker = document.getElementById('coin-emoji-picker');
+  if (picker) picker.style.display = 'none';
+}
 
 function openAddCoin() {
   ['coin-m-name','coin-m-id','coin-m-emoji','coin-m-desc','coin-m-price'].forEach(id => {
