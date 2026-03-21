@@ -25,7 +25,7 @@ app.set('trust proxy', 1);
 app.use(session({
   secret:            process.env.SESSION_SECRET || 'fcs_secret_key_2026',
   resave:            true,
-  saveUninitialized: false,
+  saveUninitialized: true,
   cookie:            { secure: true, sameSite: 'none', maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
 
@@ -782,6 +782,77 @@ app.post('/api/:guildId/businesses/:userId/delete', requireGuildAuth, async (req
   try {
     const bizDb = require('../utils/bizDb');
     bizDb.deleteBusiness(req.params.userId);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── CUSTOM COINS ─────────────────────────────────────────
+
+app.get('/api/:guildId/coins', requireGuildAuth, async (req, res) => {
+  try {
+    const { col } = require('../utils/mongo');
+    const c    = await col('customCoins');
+    const docs = await c.find({}).toArray();
+    res.json(docs.map(d => { const o={...d,id:d._id}; delete o._id; return o; }));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/coins', requireGuildAuth, async (req, res) => {
+  try {
+    const { name, emoji, color, desc, volatility, tendency, startPrice, ownerId } = req.body;
+    if (!name) return res.status(400).json({ error: 'name required' });
+
+    const id = name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    if (!id) return res.status(400).json({ error: 'Invalid coin name' });
+
+    // Tendency -> drift/crash/moon values
+    const TENDENCY_PRESETS = {
+      balanced: { drift:0.001,  crashChance:0.05, moonChance:0.05, crashMag:0.50, moonMag:2.00 },
+      moon:     { drift:0.008,  crashChance:0.02, moonChance:0.12, crashMag:0.30, moonMag:4.00 },
+      rug:      { drift:-0.010, crashChance:0.12, moonChance:0.02, crashMag:0.80, moonMag:1.50 },
+      stable:   { drift:0.002,  crashChance:0.02, moonChance:0.02, crashMag:0.25, moonMag:1.50 },
+      volatile: { drift:0.000,  crashChance:0.08, moonChance:0.08, crashMag:0.65, moonMag:3.50 },
+    };
+
+    const VOL_MAP = { low:0.10, medium:0.25, high:0.40, extreme:0.55 };
+    const preset  = TENDENCY_PRESETS[tendency] || TENDENCY_PRESETS.balanced;
+    const vol     = VOL_MAP[volatility] || 0.25;
+
+    const profile = {
+      name, emoji: emoji||'🪙', color: color||'#f5c518', desc: desc||'A new memecoin.',
+      vol, ...preset, floor: 0.001, custom: true, ownerId: ownerId||null,
+      createdAt: Date.now(),
+    };
+
+    const { col } = require('../utils/mongo');
+    const c = await col('customCoins');
+    const existing = await c.findOne({ _id: id });
+    if (existing) return res.status(400).json({ error: `Coin ${id} already exists` });
+
+    await c.insertOne({ _id: id, ...profile });
+
+    // Register with live tick engine
+    try { const idx = require('../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
+
+    // Set starting price
+    const pc = await col('stockPrices');
+    const start = startPrice || (10 + Math.random() * 490);
+    const pdoc  = await pc.findOne({ _id: 'prices' });
+    const prices = pdoc ? { ...pdoc } : {};
+    delete prices._id;
+    prices[id] = start;
+    await pc.replaceOne({ _id:'prices' }, { _id:'prices', ...prices }, { upsert:true });
+
+    res.json({ success: true, id, profile });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
+  try {
+    const { col } = require('../utils/mongo');
+    const c = await col('customCoins');
+    await c.deleteOne({ _id: req.params.id });
+    try { const idx = require('../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

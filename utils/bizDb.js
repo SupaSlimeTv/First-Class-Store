@@ -54,6 +54,7 @@ const BIZ_TYPES = {
   techstartup: { name:'Tech Startup', emoji:'💻', baseIncome:450, baseCost:18000, upgradeCost:9000,  maxLevel:10, description:'Disrupt everything. Profit later.' },
   streetfood:  { name:'Street Food',  emoji:'🌮', baseIncome:120, baseCost:2000,  upgradeCost:1000,  maxLevel:10, description:'Best tacos in the server. No contest.' },
   gym:         { name:'Gym',          emoji:'🏋️',baseIncome:250, baseCost:6000,  upgradeCost:3000,  maxLevel:10, description:'Do you even lift? Your customers do.' },
+  cryptolab:   { name:'Crypto Lab',   emoji:'🖥️', baseIncome:400, baseCost:25000, upgradeCost:12000, maxLevel:10, description:'Launch your own memecoins. 3 max. Pump or dump — your call.' },
 };
 
 function calcIncome(biz) {

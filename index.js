@@ -1193,6 +1193,21 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
+  // ---- coincreate / rugpull / coincontrol ----
+  if (['coincreate','rugpull','coinrug','coinclose','coincontrol','coinpump'].includes(commandName)) {
+    const cmdMap = {
+      coincreate:  './commands/economy/coincreate.js',
+      rugpull:     './commands/economy/rugpull.js',
+      coinrug:     './commands/economy/rugpull.js',
+      coinclose:   './commands/economy/rugpull.js',
+      coincontrol: './commands/economy/coincontrol.js',
+      coinpump:    './commands/economy/coincontrol.js',
+    };
+    const cmd = require(cmdMap[commandName]);
+    if (cmd?.executePrefix) return cmd.executePrefix(message, args);
+    return message.reply(`Use \`/\` slash command for this: \`/${commandName}\``);
+  }
+
 });
 
 // ---- PURGE WATCHER ----
@@ -1241,75 +1256,111 @@ setInterval(tickPassiveIncome, 60_000);
 tickPassiveIncome();
 
 // ---- STOCK PRICE TICK ENGINE ----
-const stockFs   = require('fs');
-const stockPath = require('path');
-const PRICES_FILE  = stockPath.join(__dirname, 'data/stockPrices.json');
-const HISTORY_FILE = stockPath.join(__dirname, 'data/stockHistory.json');
+// ---- STOCK PRICE TICK ENGINE ----
+const stockMomentum = {};
 
-// Each coin has its own personality — volatility, drift, crash/moon chance
-const COIN_PROFILES = {
-  DOGE2:  { vol:0.18, drift:0.002,  crashChance:0.04, moonChance:0.05, crashMag:0.45, moonMag:1.80, floor:0.01,  name:'Doge 2.0'       },
-  PEPE:   { vol:0.30, drift:-0.001, crashChance:0.06, moonChance:0.04, crashMag:0.60, moonMag:2.50, floor:0.001, name:'PepeCoin'        },
-  RUGPUL: { vol:0.45, drift:-0.008, crashChance:0.10, moonChance:0.03, crashMag:0.80, moonMag:3.00, floor:0.001, name:'RugPull Finance'  },
-  MOON:   { vol:0.25, drift:0.005,  crashChance:0.03, moonChance:0.08, crashMag:0.40, moonMag:4.00, floor:0.01,  name:'MoonShot'        },
-  BODEN:  { vol:0.12, drift:0.001,  crashChance:0.02, moonChance:0.02, crashMag:0.30, moonMag:1.40, floor:0.10,  name:'BodenBucks'      },
-  CHAD:   { vol:0.35, drift:0.003,  crashChance:0.05, moonChance:0.07, crashMag:0.55, moonMag:3.50, floor:0.001, name:'ChadToken'       },
+// Built-in default coins
+const DEFAULT_COIN_PROFILES = {
+  DOGE2:  { vol:0.18, drift:0.002,  crashChance:0.04, moonChance:0.05, crashMag:0.45, moonMag:1.80, floor:0.01,  name:'Doge 2.0',       emoji:'🐕', color:'#f5c518', desc:'Such wow. Much gains. Very moon.' },
+  PEPE:   { vol:0.30, drift:-0.001, crashChance:0.06, moonChance:0.04, crashMag:0.60, moonMag:2.50, floor:0.001, name:'PepeCoin',        emoji:'🐸', color:'#2ecc71', desc:"Feels good man. Until it doesn't." },
+  RUGPUL: { vol:0.45, drift:-0.008, crashChance:0.10, moonChance:0.03, crashMag:0.80, moonMag:3.00, floor:0.001, name:'RugPull Finance',  emoji:'🪤', color:'#ff3b3b', desc:'This is fine. Everything is fine.' },
+  MOON:   { vol:0.25, drift:0.005,  crashChance:0.03, moonChance:0.08, crashMag:0.40, moonMag:4.00, floor:0.01,  name:'MoonShot',        emoji:'🚀', color:'#00d2ff', desc:'To the moon. Or the floor.' },
+  BODEN:  { vol:0.12, drift:0.001,  crashChance:0.02, moonChance:0.02, crashMag:0.30, moonMag:1.40, floor:0.10,  name:'BodenBucks',      emoji:'🦅', color:'#9b59b6', desc:'Not financial advice. Literally ever.' },
+  CHAD:   { vol:0.35, drift:0.003,  crashChance:0.05, moonChance:0.07, crashMag:0.55, moonMag:3.50, floor:0.001, name:'ChadToken',       emoji:'💪', color:'#ff6b35', desc:'Alpha moves only.' },
 };
 
-// Momentum tracker — coins build momentum over ticks
-const stockMomentum = { DOGE2:0, PEPE:0, RUGPUL:0, MOON:0, BODEN:0, CHAD:0 };
+let COIN_PROFILES = { ...DEFAULT_COIN_PROFILES };
 
-function tickStockPrices() {
-  let prices  = {};
-  let history = {};
-  try { prices  = JSON.parse(stockFs.readFileSync(PRICES_FILE,  'utf8')); } catch {}
-  try { history = JSON.parse(stockFs.readFileSync(HISTORY_FILE, 'utf8')); } catch {}
-
-  Object.entries(COIN_PROFILES).forEach(([id, profile]) => {
-    const current = prices[id] || (10 + Math.random() * 490);
-
-    // Random event rolls first
-    const crashRoll = Math.random();
-    const moonRoll  = Math.random();
-
-    let multiplier = 1;
-
-    if (crashRoll < profile.crashChance) {
-      // CRASH — lose crashMag% of value
-      const crashAmt = profile.crashMag * (0.5 + Math.random() * 0.5);
-      multiplier = 1 - crashAmt;
-      stockMomentum[id] = -0.3; // strong negative momentum after crash
-    } else if (moonRoll < profile.moonChance) {
-      // MOON — gain moonMag% of value
-      const moonAmt = (profile.moonMag - 1) * (0.4 + Math.random() * 0.8);
-      multiplier = 1 + moonAmt;
-      stockMomentum[id] = 0.3; // strong positive momentum after moon
-    } else {
-      // Normal tick — volatility + drift + momentum
-      const noise    = (Math.random() - 0.5) * 2 * profile.vol;
-      const momentum = stockMomentum[id] * 0.6; // decay momentum each tick
-      multiplier = 1 + noise + profile.drift + momentum;
-      // Decay momentum
-      stockMomentum[id] *= 0.75;
-      // Add small random momentum kick
-      stockMomentum[id] += (Math.random() - 0.5) * 0.05;
-      stockMomentum[id]  = Math.max(-0.5, Math.min(0.5, stockMomentum[id]));
+// Load custom coins from MongoDB
+async function loadCustomCoins() {
+  try {
+    const { col } = require('./utils/mongo');
+    const c    = await col('customCoins');
+    const docs = await c.find({}).toArray();
+    for (const d of docs) {
+      const id = d._id;
+      COIN_PROFILES[id] = { ...d };
+      if (!stockMomentum[id]) stockMomentum[id] = 0;
     }
-
-    prices[id] = Math.max(profile.floor, current * multiplier);
-
-    // Keep last 1440 ticks (~4 hours at 10s intervals)
-    if (!history[id]) history[id] = [];
-    history[id].push(Math.round(prices[id] * 10000) / 10000);
-    if (history[id].length > 1440) history[id] = history[id].slice(-1440);
-  });
-
-  stockFs.writeFileSync(PRICES_FILE,  JSON.stringify(prices,  null, 2));
-  stockFs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+    if (docs.length) console.log(`📈 Loaded ${docs.length} custom coins`);
+  } catch(e) { console.error('loadCustomCoins error:', e.message); }
 }
 
-if (!stockFs.existsSync(PRICES_FILE)) tickStockPrices();
-setInterval(tickStockPrices, 10_000);
+function getCoinProfiles() { return COIN_PROFILES; }
+
+async function saveCustomCoin(id, profile) {
+  COIN_PROFILES[id] = profile;
+  if (!stockMomentum[id]) stockMomentum[id] = 0;
+  try {
+    const { col } = require('./utils/mongo');
+    const c = await col('customCoins');
+    await c.replaceOne({ _id: id }, { _id: id, ...profile }, { upsert: true });
+  } catch(e) { console.error('saveCustomCoin error:', e.message); }
+}
+
+async function deleteCustomCoin(id) {
+  delete COIN_PROFILES[id];
+  delete stockMomentum[id];
+  try {
+    const { col } = require('./utils/mongo');
+    const c = await col('customCoins');
+    await c.deleteOne({ _id: id });
+  } catch(e) { console.error('deleteCustomCoin error:', e.message); }
+}
+
+module.exports.getCoinProfiles  = getCoinProfiles;
+module.exports.saveCustomCoin   = saveCustomCoin;
+module.exports.deleteCustomCoin = deleteCustomCoin;
+
+function tickStockPrices() {
+  const { col } = require('./utils/mongo');
+
+  col('stockPrices').then(async pc => {
+    const doc = await pc.findOne({ _id: 'prices' }).catch(()=>null);
+    const prices = doc ? { ...doc } : {};
+    delete prices._id;
+
+    const hc = await col('stockHistory');
+    const hdoc = await hc.findOne({ _id: 'history' }).catch(()=>null);
+    const history = hdoc ? { ...hdoc } : {};
+    delete history._id;
+
+    Object.entries(COIN_PROFILES).forEach(([id, profile]) => {
+      if (!stockMomentum[id]) stockMomentum[id] = 0;
+      const current = prices[id] || (10 + Math.random() * 490);
+      const crashRoll = Math.random();
+      const moonRoll  = Math.random();
+      let multiplier = 1;
+
+      if (crashRoll < profile.crashChance) {
+        const crashAmt = profile.crashMag * (0.5 + Math.random() * 0.5);
+        multiplier = 1 - crashAmt;
+        stockMomentum[id] = -0.3;
+      } else if (moonRoll < profile.moonChance) {
+        const moonAmt = (profile.moonMag - 1) * (0.4 + Math.random() * 0.8);
+        multiplier = 1 + moonAmt;
+        stockMomentum[id] = 0.3;
+      } else {
+        const noise    = (Math.random() - 0.5) * 2 * profile.vol;
+        const momentum = stockMomentum[id] * 0.6;
+        multiplier = 1 + noise + profile.drift + momentum;
+        stockMomentum[id] *= 0.75;
+        stockMomentum[id] += (Math.random() - 0.5) * 0.05;
+        stockMomentum[id]  = Math.max(-0.5, Math.min(0.5, stockMomentum[id]));
+      }
+
+      prices[id] = Math.max(profile.floor, current * multiplier);
+      if (!history[id]) history[id] = [];
+      history[id].push(Math.round(prices[id] * 10000) / 10000);
+      if (history[id].length > 1440) history[id] = history[id].slice(-1440);
+    });
+
+    await pc.replaceOne({ _id:'prices' }, { _id:'prices', ...prices }, { upsert:true });
+    await hc.replaceOne({ _id:'history'}, { _id:'history',...history}, { upsert:true });
+  }).catch(()=>{});
+}
+
+loadCustomCoins().then(() => setInterval(tickStockPrices, 10_000));
 
 // ---- LOTTERY TICK ENGINE ----
 const LOTTERY_FILE = path.join(__dirname, 'data/lottery.json');

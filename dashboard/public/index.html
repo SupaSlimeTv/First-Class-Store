@@ -397,9 +397,27 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <!-- STOCK MARKET -->
     <div id="section-stocks" class="section">
       <p class="sub-txt">Hype-based memecoins that update every 10 seconds. Users invest with <strong>/invest</strong> and cash out with <strong>/cashout</strong>. Prices are purely random — nobody wins every time.</p>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0">📈 Live Prices</h3>
+        <button class="btn btn-gold btn-sm" onclick="openAddCoin()">+ Add Coin</button>
+      </div>
       <div id="stocks-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:20px"></div>
+
+      <!-- Custom coins management -->
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head">
+          <h3>🪙 Custom Coins</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadCustomCoins()">⟳ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Coin</th><th>ID</th><th>Tendency</th><th>Volatility</th><th>Creator</th><th>Actions</th></tr></thead>
+          <tbody id="custom-coins-tbody"><tr><td colspan="6" class="empty-cell">No custom coins yet.</td></tr></tbody>
+        </table>
+      </div>
+
       <div class="info-box">
-        <strong>How it works:</strong> Each coin has a hype score that drives its price. Every 10 seconds prices shift randomly ±5–25%. Users can invest any amount from their wallet and cash out at any time for the current value. No limits — full risk, full reward.<br><br>
+        <strong>How it works:</strong> Each coin has a hype score that drives its price. Every 10 seconds prices shift randomly. Users can invest any amount from their wallet and cash out at any time.<br><br>
         <strong>Commands:</strong> <code>/invest &lt;coin&gt; &lt;amount&gt;</code> · <code>/cashout &lt;coin&gt;</code> · <code>/portfolio</code>
       </div>
     </div>
@@ -1273,6 +1291,53 @@ tr:hover td{background:rgba(255,255,255,.015)}
   </div>
 </div>
 
+<!-- ADD COIN MODAL -->
+<div id="coin-modal" class="backdrop">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-top"><h3>🪙 Add Custom Coin</h3></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Coin Name *</label><input class="finput" id="coin-m-name" placeholder="e.g. SupaCoin" maxlength="20"></div>
+        <div class="fg"><label class="flabel">Ticker ID (auto)</label><input class="finput" id="coin-m-id" placeholder="e.g. SUPA" maxlength="8" style="text-transform:uppercase"></div>
+      </div>
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Emoji</label><input class="finput" id="coin-m-emoji" placeholder="🪙" maxlength="4"></div>
+        <div class="fg"><label class="flabel">Color</label><input class="finput" id="coin-m-color" type="color" value="#f5c518" style="height:42px;padding:4px"></div>
+      </div>
+      <div class="fg"><label class="flabel">Description</label><input class="finput" id="coin-m-desc" placeholder="e.g. The coin that changes everything."></div>
+      <div class="fg"><label class="flabel">Starting Price ($)</label><input class="finput" id="coin-m-price" type="number" min="0.001" step="0.01" placeholder="100"></div>
+      <div class="grid2">
+        <div class="fg">
+          <label class="flabel">📊 Volatility</label>
+          <select class="fselect" id="coin-m-vol">
+            <option value="low">🟢 Low — slow and steady</option>
+            <option value="medium" selected>🟡 Medium — normal swings</option>
+            <option value="high">🟠 High — wild rides</option>
+            <option value="extreme">🔴 Extreme — total chaos</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">📈 Tendency</label>
+          <select class="fselect" id="coin-m-tendency">
+            <option value="balanced" selected>⚖️ Balanced — 50/50</option>
+            <option value="moon">🚀 Moon — tends to pump</option>
+            <option value="rug">🪤 Rug — tends to crash</option>
+            <option value="stable">🏦 Stable — low movement</option>
+            <option value="volatile">💀 Volatile — random everything</option>
+          </select>
+        </div>
+      </div>
+      <div style="background:rgba(255,195,0,.08);border:1px solid rgba(255,195,0,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:#f5c518;margin-top:4px">
+        ⚠️ Coins are server-wide. Users in <strong>all servers</strong> can invest in this coin. You can delete it anytime.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('coin-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveCoin()">Launch Coin 🚀</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1321,6 +1386,7 @@ async function refresh(){
   await loadPets();
   await loadAIEntities();
   await loadGunShop();
+  await loadCustomCoins();
 
   // Load users separately so the list doesn't flash blank
   api('GET',`/api/${GUILD}/users`).then(users => {
@@ -3039,6 +3105,70 @@ function pickGunEmoji(emoji) {
 
 
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// CUSTOM COIN MANAGEMENT
+// ════════════════════════════════════════════════
+
+function openAddCoin() {
+  ['coin-m-name','coin-m-id','coin-m-emoji','coin-m-desc','coin-m-price'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('coin-m-vol').value      = 'medium';
+  document.getElementById('coin-m-tendency').value = 'balanced';
+  document.getElementById('coin-m-color').value    = '#f5c518';
+  document.getElementById('coin-modal').classList.add('open');
+  // Auto-generate ticker from name
+  const nameEl = document.getElementById('coin-m-name');
+  const idEl   = document.getElementById('coin-m-id');
+  nameEl.oninput = () => { idEl.value = nameEl.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8); };
+}
+
+async function saveCoin() {
+  const name     = document.getElementById('coin-m-name').value.trim();
+  const emoji    = document.getElementById('coin-m-emoji').value.trim() || '🪙';
+  const color    = document.getElementById('coin-m-color').value;
+  const desc     = document.getElementById('coin-m-desc').value.trim();
+  const price    = parseFloat(document.getElementById('coin-m-price').value) || 100;
+  const vol      = document.getElementById('coin-m-vol').value;
+  const tendency = document.getElementById('coin-m-tendency').value;
+  if (!name) return toast('Coin name required','err');
+  const r = await api('POST', `/api/${GUILD}/coins`, { name, emoji, color, desc, volatility:vol, tendency, startPrice:price });
+  if (r.success) {
+    toast(`🚀 ${name} (${r.id}) launched!`, 'ok');
+    document.getElementById('coin-modal').classList.remove('open');
+    await loadCustomCoins();
+  } else toast(r.error||'Failed','err');
+}
+
+async function loadCustomCoins() {
+  try {
+    const coins = await api('GET', `/api/${GUILD}/coins`);
+    const tb = document.getElementById('custom-coins-tbody');
+    if (!tb) return;
+    if (!coins.length) { tb.innerHTML='<tr><td colspan="6" class="empty-cell">No custom coins yet. Click + Add Coin to create one.</td></tr>'; return; }
+    await resolveNames(coins.filter(c=>c.ownerId).map(c=>c.ownerId));
+    const TEND_LABELS = { moon:'🚀 Moon', rug:'🪤 Rug', balanced:'⚖️ Balanced', stable:'🏦 Stable', volatile:'💀 Volatile' };
+    const volLabel = (v) => v<=0.12?'🟢 Low':v<=0.28?'🟡 Medium':v<=0.45?'🟠 High':'🔴 Extreme';
+    tb.innerHTML = coins.map(c => `<tr>
+      <td><span style="font-size:18px">${c.emoji}</span> <strong style="color:${c.color}">${c.name}</strong><div style="font-size:10px;color:var(--muted)">${c.desc||''}</div></td>
+      <td class="mono" style="color:var(--gold)">${c.id}</td>
+      <td>${TEND_LABELS[c.tendency]||'—'}</td>
+      <td>${volLabel(c.vol||0.25)}</td>
+      <td>${c.ownerId ? resolveName(c.ownerId) : '— Admin —'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCoin('${c.id}','${c.name}')">Delete</button></td>
+    </tr>`).join('');
+  } catch(e) { console.error('loadCustomCoins error:', e); }
+}
+
+async function deleteCoin(id, name) {
+  if (!confirm('Delete coin ' + name + ' (' + id + ')? All existing investments will be worth $0.')) return;
+  const r = await api('DELETE', `/api/${GUILD}/coins/${id}`);
+  if (r.success) { toast(name + ' deleted','ok'); await loadCustomCoins(); }
+  else toast(r.error||'Failed','err');
+}
+
+document.getElementById('coin-modal').addEventListener('click', function(e){ if(e.target===this) this.classList.remove('open'); });
+
 const COINS = [
   { id:'DOGE2',  name:'Doge 2.0',       emoji:'🐕', color:'#f5c518', desc:'Such wow. Much gains. Very moon.' },
   { id:'PEPE',   name:'PepeCoin',        emoji:'🐸', color:'#2ecc71', desc:"Feels good man. Until it doesn't." },
