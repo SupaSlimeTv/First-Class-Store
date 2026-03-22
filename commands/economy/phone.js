@@ -17,9 +17,12 @@ module.exports = {
     .addSubcommand(s => s.setName('post').setDescription('Post on social media')
       .addStringOption(o => o.setName('platform').setDescription('Platform').setRequired(true)
         .addChoices(...Object.entries(PLATFORMS).map(([id,p])=>({ name:`${p.emoji} ${p.name}`, value:id }))))
-      .addStringOption(o => o.setName('content').setDescription('Your post content. Mention a coin ticker to shout it out!').setRequired(false).setMaxLength(200)))
+      .addStringOption(o => o.setName('content').setDescription('What are you posting? (optional)').setRequired(false).setMaxLength(200)))
     .addSubcommand(s => s.setName('status').setDescription('View your influencer status and stats'))
     .addSubcommand(s => s.setName('leaderboard').setDescription('Top influencers by status'))
+    .addSubcommand(s => s.setName('shoutout').setDescription('🌟 Celebrity+ only — Shout out a coin to your fans. Boosts price & hype.')
+      .addStringOption(o => o.setName('coin').setDescription('Coin ticker to shout out (e.g. DOGE2)').setRequired(true).setMaxLength(10))
+      .addStringOption(o => o.setName('message').setDescription('What to say about the coin').setRequired(false).setMaxLength(200)))
     .addSubcommand(s => s.setName('sponsors').setDescription('View and collect sponsor deals'))
     .addSubcommand(s => s.setName('calpolice').setDescription('Call police on a user (false reports = YOU get jailed)')
       .addUserOption(o => o.setName('user').setDescription('Who to report').setRequired(true))
@@ -171,44 +174,6 @@ module.exports = {
       phone.lastPost   = { ...(phone.lastPost||{}), [platformId]: Date.now() };
       phone.influence  = Math.min(100, (phone.influence||0) + finalHype / 200);
 
-      // ── Coin shoutout ──────────────────────────────────────
-      let coinMsg = '';
-      if (content) {
-        const tickers = [...new Set((content.toUpperCase().match(/\b[A-Z][A-Z0-9]{2,7}\b/g)||[]))];
-        const { col } = require('../../utils/mongo');
-        for (const ticker of tickers.slice(0,2)) {
-          const cc = await col('customCoins');
-          const coin = await cc.findOne({ _id: ticker }).catch(()=>null);
-          if (coin) {
-            // Hype boost proportional to Status tier
-            const coinHype   = Math.floor(finalHype * tier.coinHypeMult);
-            const fanDemand  = Math.floor(tier.fanCount * (0.1 + Math.random() * 0.2)); // % of fans invest
-            coinMsg += `\n📣 Shouted out **${coin.emoji} ${coin.name}** — +**${coinHype.toLocaleString()}** coin hype! (**${fmtNum(fanDemand)} fans** are checking it out)`;
-
-            // Boost coin price slightly
-            try {
-              const pc   = await col('stockPrices');
-              const pdoc = await pc.findOne({ _id: 'prices' });
-              if (pdoc && pdoc[ticker]) {
-                const boost = 1 + (tier.coinHypeMult * 0.02); // up to 30% price boost for Icon
-                pdoc[ticker] = Math.min(pdoc[ticker] * boost, pdoc[ticker] * 1.5);
-                await pc.replaceOne({ _id:'prices' }, pdoc);
-              }
-            } catch {}
-
-            // DM coin owner
-            if (coin.ownerId) {
-              interaction.client.users.fetch(coin.ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
-                .setColor(0xf5c518)
-                .setTitle('📣 Coin Shoutout!')
-                .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted out **${coin.name}** on ${platform.name}!\n\n+${coinHype.toLocaleString()} hype · ${fmtNum(fanDemand)} fans interested · Price boosted`)
-              ]}).catch(()=>{})).catch(()=>{});
-            }
-            break;
-          }
-        }
-      }
-
       // ── Sponsor check ─────────────────────────────────────
       let sponsorMsg = '';
       const newTier = getStatusTier(phone.status);
@@ -236,7 +201,7 @@ module.exports = {
       return interaction.editReply({ embeds:[new EmbedBuilder()
         .setColor(isViral ? 0xf5c518 : newTier.color || 0x5865f2)
         .setTitle(`${platform.emoji} Posted on ${platform.name}${isViral ? ' 🚀 VIRAL!' : ''}`)
-        .setDescription(`${content ? `*"${content}"*\n\n` : ''}${viralLine}${coinMsg}${sponsorMsg}`)
+        .setDescription(`${content ? `*"${content}"*\n\n` : ''}${viralLine}${sponsorMsg}`)
         .addFields(
           { name:'🏆 Status +',      value:`+${realStatus.toLocaleString()} → **${phone.status.toLocaleString()}**`, inline:true },
           { name:'✨ Hype +',        value:`+${finalHype.toLocaleString()}`,                                          inline:true },
@@ -266,6 +231,92 @@ module.exports = {
         .setColor(0xf5c518)
         .setTitle('📱 Influencer Leaderboard')
         .setDescription(lines.join('\n'))
+      ]});
+    }
+
+    // ── SHOUTOUT ─────────────────────────────────────────────
+    if (sub === 'shoutout') {
+      const phone = getPhone(userId);
+      if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No phone. Buy one with `/phone buy`.')], ephemeral:true });
+
+      const tier = getStatusTier(phone.status || 0);
+
+      // Celebrity+ only
+      const REQUIRED_TIERS = ['celebrity','superstar','icon'];
+      if (!REQUIRED_TIERS.includes(tier.id)) {
+        const celebrityTier = STATUS_TIERS.find(t => t.id === 'celebrity');
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setTitle('⭐ Celebrity Required')
+          .setDescription(`Coin shoutouts are only available to **⭐ Celebrity** and above.\n\nYour current status: **${tier.label}**\n\nYou need **${((celebrityTier.minStatus - (phone.status||0)).toLocaleString())}** more status points to unlock shoutouts.\n\nKeep posting to level up!`)
+        ], ephemeral:true });
+      }
+
+      const ticker  = interaction.options.getString('coin').toUpperCase().trim();
+      const message = interaction.options.getString('message') || null;
+
+      await interaction.deferReply();
+
+      // Look up coin
+      const { col } = require('../../utils/mongo');
+      const cc   = await col('customCoins');
+      const coin = await cc.findOne({ _id: ticker }).catch(()=>null);
+
+      if (!coin) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`Coin **${ticker}** not found on the market. Check the ticker and try again.\n\nUse \`/market\` to see available coins.`)
+      ]});
+
+      // 30 min cooldown per coin per user (configurable via dashboard)
+      const { getConfig } = require('../../utils/db');
+      const config    = getConfig(interaction.guild.id);
+      const SHOUT_CD  = (config.shoutoutCooldownMins || 30) * 60 * 1000;
+      const lastShout = (phone.lastShoutout||{})[ticker] || 0;
+      if (Date.now() - lastShout < SHOUT_CD) {
+        const mins = Math.ceil((SHOUT_CD - (Date.now()-lastShout))/60000);
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`You already shouted out **${ticker}** recently. Wait **${mins}m** before shouting it out again.`)
+        ]});
+      }
+
+      // Calculate impact based on tier coinHypeMult + phone's custom multiplier
+      const customMult = phone.coinShoutoutMult || 1.0; // admin-adjustable
+      const coinHype   = Math.floor(5000 * tier.coinHypeMult * customMult);
+      const fanDemand  = Math.floor(tier.fanCount * (0.1 + Math.random() * 0.15));
+      const priceBoost = Math.min(1.5, 1 + (tier.coinHypeMult * customMult * 0.025));
+
+      // Boost coin price
+      try {
+        const pc   = await col('stockPrices');
+        const pdoc = await pc.findOne({ _id: 'prices' });
+        if (pdoc && pdoc[ticker]) {
+          pdoc[ticker] = pdoc[ticker] * priceBoost;
+          await pc.replaceOne({ _id:'prices' }, pdoc);
+        }
+      } catch {}
+
+      // Update phone shoutout cooldown
+      phone.lastShoutout = { ...(phone.lastShoutout||{}), [ticker]: Date.now() };
+      await savePhone(userId, phone);
+
+      // DM coin owner
+      if (coin.ownerId && coin.ownerId !== userId) {
+        interaction.client.users.fetch(coin.ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
+          .setColor(0xf5c518)
+          .setTitle('📣 Your Coin Got Shouted Out!')
+          .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted out **${coin.emoji||''} ${coin.name}**!\n\n+${coinHype.toLocaleString()} hype · ${fmtNum(fanDemand)} fans now watching · Price boosted ${Math.round((priceBoost-1)*100)}%`)
+        ]}).catch(()=>{})).catch(()=>{});
+      }
+
+      return interaction.editReply({ embeds:[new EmbedBuilder()
+        .setColor(0xf5c518)
+        .setTitle(`📣 Shoutout — ${coin.emoji||'🪙'} ${coin.name}`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}**${fmtNum(tier.fanCount)} fans** just heard about **${coin.name}** from you.`)
+        .addFields(
+          { name:'✨ Coin Hype',      value:`+${coinHype.toLocaleString()}`,           inline:true },
+          { name:'👥 Fans Watching',  value:fmtNum(fanDemand),                         inline:true },
+          { name:'📈 Price Boost',    value:`+${Math.round((priceBoost-1)*100)}%`,     inline:true },
+          { name:'📣 Your Power',     value:`${tier.coinHypeMult}× base × ${customMult}× custom = **${(tier.coinHypeMult*customMult).toFixed(2)}×**`, inline:false },
+        )
+        .setFooter({ text:`${tier.label} · 30min cooldown per coin` })
       ]});
     }
 

@@ -133,6 +133,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="nav('police')" data-s="police"><span class="nav-icon">🚔</span>Police</div>
     <div class="nav-item" onclick="nav('purge')" data-s="purge"><span class="nav-icon">⬡</span>Purge</div>
     <div class="nav-item" onclick="nav('embeds')" data-s="embeds"><span class="nav-icon">✉️</span>Embeds</div>
+    <div class="nav-item" onclick="nav('drugs')" data-s="drugs"><span class="nav-icon">💊</span>Drug Market</div>
+    <div class="nav-item" onclick="nav('influencers')" data-s="influencers"><span class="nav-icon">📱</span>Influencers</div>
   </nav>
   <div id="purge-badge" class="purge-badge">● PURGE ACTIVE</div>
 </aside>
@@ -754,8 +756,107 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
     </div>
 
+    <!-- INFLUENCERS -->
+    <div id="section-influencers" class="section">
+      <p class="sub-txt">All influencers in this server. View status, followers, hype, brand deals, and adjust their shoutout cooldown and coin power.</p>
+
+      <!-- Stats row -->
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Total Influencers</div><div class="stat-val c-blue" id="inf-count">—</div></div>
+        <div class="stat-card"><div class="stat-label">Top Status</div><div class="stat-val c-gold" id="inf-top-status">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Followers</div><div class="stat-val" id="inf-total-followers">—</div></div>
+        <div class="stat-card"><div class="stat-label">Active Deals</div><div class="stat-val c-green" id="inf-active-deals">—</div></div>
+      </div>
+
+      <!-- Shoutout global cooldown -->
+      <div class="purge-panel owner-only" style="margin-bottom:14px">
+        <div class="purge-info">
+          <h3>⏱️ Shoutout Cooldown</h3>
+          <p>Global cooldown between coin shoutouts per influencer per coin. Default is 30 minutes.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <input id="shoutout-cd-input" type="number" min="1" max="1440" step="1" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="30">
+          <div style="font-size:12px;color:var(--muted)">min</div>
+          <button class="btn btn-primary" onclick="saveShoutoutCooldown()">Save</button>
+        </div>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-head">
+          <h3>📱 Server Influencers</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadInfluencers()">⟳ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Rank</th><th>User</th><th>Status Tier</th><th>Status Pts</th><th>Followers</th><th>Hype</th><th>Posts</th><th>Active Deals</th><th>Shoutout Power</th><th>Actions</th></tr></thead>
+          <tbody id="influencers-tbody"><tr><td colspan="10" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Active Sponsorships panel -->
+      <div class="tbl-wrap" style="margin-top:20px">
+        <div class="tbl-head">
+          <h3>🤝 Active Business Sponsorships</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadSponsorships()">⟳ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Business Owner</th><th>Influencer</th><th>Revenue Boost</th><th>Payout</th><th>Expires</th></tr></thead>
+          <tbody id="sponsorships-tbody"><tr><td colspan="5" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DRUG MARKET -->
+    <div id="section-drugs" class="section">      <p class="sub-txt">Define drugs available in the market. Users with burner phones can order them cross-border. Drugs are separate from the item store but can be linked to store items via the item ID.</p>
+
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head">
+          <h3>💊 Drug Market</h3>
+          <button class="btn btn-primary btn-sm" onclick="openDrugModal()">+ Add Drug</button>
+        </div>
+        <table>
+          <thead><tr><th>Drug</th><th>Price/Unit</th><th>Effect</th><th>Store Item ID</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="drugs-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </div>
+</div>
+
+<!-- DRUG MODAL -->
+<div id="drug-modal" class="backdrop">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-top"><h3 id="drug-modal-title">Add Drug</h3></div>
+    <div class="modal-body">
+      <input type="hidden" id="drug-edit-id">
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Emoji</label><input class="finput" id="drug-emoji" placeholder="💊" maxlength="4"></div>
+        <div class="fg"><label class="flabel">Name *</label><input class="finput" id="drug-name" placeholder="e.g. Blue Dream"></div>
+      </div>
+      <div class="fg"><label class="flabel">Description</label><input class="finput" id="drug-desc" placeholder="What it does, flavor text..."></div>
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Price per Unit ($) *</label><input class="finput" type="number" id="drug-price" min="1" placeholder="500"></div>
+        <div class="fg"><label class="flabel">Store Item ID (for delivery)</label><input class="finput" id="drug-store-id" placeholder="e.g. blue-dream"></div>
+      </div>
+      <div class="fg">
+        <label class="flabel">Effect (when used)</label>
+        <input class="finput" id="drug-effect" placeholder="e.g. +20% rob success for 30min, silence immunity, etc.">
+        <div class="hint">Describe the in-game effect. This is display text — wire actual effects through the store item.</div>
+      </div>
+      <div class="grid2">
+        <div class="fg"><label class="flabel">Border Bust Chance (%)</label><input class="finput" type="number" id="drug-bust" min="0" max="100" placeholder="15" value="15"></div>
+        <div class="fg" style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-top:20px">
+          <input type="checkbox" id="drug-available" checked style="width:16px;height:16px;accent-color:#2ecc71;flex-shrink:0">
+          <label for="drug-available" style="font-weight:700;cursor:pointer">Available on market</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDrugModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDrug()">Save Drug</button>
+    </div>
+  </div>
 </div>
 
 <!-- INVENTORY VIEWER MODAL -->
@@ -793,6 +894,9 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <option value="business">🏢 Give Business Money</option>
           <option value="phonestatus">📱 Phone Status</option>
           <option value="phonefollowers">👥 Phone Followers</option>
+          <option value="phonehype">✨ Phone Hype</option>
+          <option value="phonedeals">🤝 Sponsor Deals (grant active deal)</option>
+          <option value="phoneshoutout">📣 Coin Shoutout Power (multiplier)</option>
         </select>
       </div>
       <!-- Store item -->
@@ -844,6 +948,30 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <label class="flabel">Followers</label>
         <input class="finput" id="give-phonefollowers-amount" type="number" min="1" placeholder="500">
         <div class="hint">Adds followers to the user's phone. User must own a phone.</div>
+      </div>
+      <div id="give-phonehype-section" class="fg" style="display:none">
+        <label class="flabel">Hype Points</label>
+        <input class="finput" id="give-phonehype-amount" type="number" min="1" placeholder="1000">
+        <div class="hint">Adds hype to the user's phone. Hype contributes to status growth.</div>
+      </div>
+      <div id="give-phoneshoutout-section" class="fg" style="display:none">
+        <label class="flabel">Coin Shoutout Power Multiplier</label>
+        <select class="fselect" id="give-phoneshoutout-mult">
+          <option value="0.5">0.5× — Reduced (50% power)</option>
+          <option value="1.0" selected>1.0× — Normal (default)</option>
+          <option value="1.5">1.5× — Boosted</option>
+          <option value="2.0">2.0× — Double power</option>
+          <option value="3.0">3.0× — Triple power</option>
+          <option value="5.0">5.0× — God tier</option>
+          <option value="0.1">0.1× — Nerfed (10% power)</option>
+        </select>
+        <div class="hint">Sets how powerful this user's coin shoutouts are. Stacks with their status tier multiplier.</div>
+      </div>
+        <label class="flabel">Deal Name</label>
+        <input class="finput" id="give-phonedeals-name" placeholder="e.g. 🎵 Music Sponsor">
+        <label class="flabel" style="margin-top:8px">Payout ($)</label>
+        <input class="finput" id="give-phonedeals-payout" type="number" min="1" placeholder="5000">
+        <div class="hint">Grants a custom active sponsor deal. User collects it with <code>/phone sponsors</code>.</div>
       </div>
       <div class="hint" id="give-modal-hint" style="margin-top:8px"></div>
     </div>
@@ -1545,8 +1673,10 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop',embeds:'✉️ Embed Builder'}[n]||n;
-  if (n === 'embeds') loadEmbedChannels();
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop',embeds:'✉️ Embed Builder',drugs:'💊 Drug Market',influencers:'📱 Influencers'}[n]||n;
+  if (n === 'embeds')      loadEmbedChannels();
+  if (n === 'drugs')       loadDrugs();
+  if (n === 'influencers') { loadInfluencers(); loadSponsorships(); }
 }
 
 async function api(m,u,b){
@@ -2488,14 +2618,15 @@ async function viewInventory(userId, username) {
   const items = data.items || [];
   const guns  = data.guns  || [];
   const pet   = data.pet   || null;
+  const phone = data.phone || null;
 
-  if (!items.length && !guns.length && !pet) {
+  if (!items.length && !guns.length && !pet && !phone) {
     document.getElementById('inv-modal-body').innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px">Inventory is empty.</div>';
     return;
   }
 
   const RARITY_CLR = { Common:'t-muted', Uncommon:'t-green', Rare:'t-blue', Epic:'t-purple', Legendary:'t-gold', Mythic:'t-red' };
-  const EFX = { drain_wallet:'💸', drain_all:'💻', silence:'🔇', hitman:'🔫', gamble:'🎲', passive_income:'💰', shield:'🛡️', minigame_drain:'🖥️' };
+  const EFX = { drain_wallet:'💸', drain_all:'💻', silence:'🔇', hitman:'🔫', gamble:'🎲', passive_income:'💰', shield:'🛡️', minigame_drain:'🖥️', emp:'⚡' };
 
   const petHTML = pet ? `
     <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🐾 Pet</div>
@@ -2507,6 +2638,38 @@ async function viewInventory(userId, username) {
           <span class="tag t-red">❤️ HP ${pet.hp||'?'}</span>
           <span class="tag t-muted">🍖 ${pet.hunger||100}/100</span>
           <span class="tag t-purple">🪙 ${pet.tokens||0} tokens</span>
+        </div>
+      </div>
+    </div>` : '';
+
+  const phoneHTML = phone ? `
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📱 Phone</div>
+    <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:14px">${phone.emoji} ${phone.name} <span class="tag t-blue" style="font-size:10px">${phone.tier}</span></div>
+      <div style="margin-top:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+        <div style="background:var(--bg4);border-radius:4px;padding:6px 8px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Status</div>
+          <div style="font-weight:700;color:var(--gold)">${(phone.status||0).toLocaleString()}</div>
+        </div>
+        <div style="background:var(--bg4);border-radius:4px;padding:6px 8px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Followers</div>
+          <div style="font-weight:700">${(phone.followers||0).toLocaleString()}</div>
+        </div>
+        <div style="background:var(--bg4);border-radius:4px;padding:6px 8px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Hype</div>
+          <div style="font-weight:700;color:#5865f2">${(phone.hype||0).toLocaleString()}</div>
+        </div>
+        <div style="background:var(--bg4);border-radius:4px;padding:6px 8px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Posts</div>
+          <div style="font-weight:700">${phone.totalPosts||0}</div>
+        </div>
+        <div style="background:var(--bg4);border-radius:4px;padding:6px 8px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Streak</div>
+          <div style="font-weight:700">🔥 ${phone.streak||0}d</div>
+        </div>
+        <div style="background:var(--bg4);border-radius:4px;padding:6px 8px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Deals</div>
+          <div style="font-weight:700;color:#2ecc71">${phone.activeSponsorDeals||0} active</div>
         </div>
       </div>
     </div>` : '';
@@ -2531,7 +2694,7 @@ async function viewInventory(userId, username) {
       <div style="flex:1">
         <div style="font-weight:700;font-size:14px">${item.reusable ? '♻️' : '🗑️'} ${item.name}</div>
         ${item.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${item.description}</div>` : ''}
-        ${item.effect ? `<div style="margin-top:4px"><span class="tag t-cyan">${EFX[item.effect]||'⚡'} ${item.effect.replace(/_/g,' ')}</span></div>` : ''}
+        ${item.effect ? `<div style="margin-top:4px"><span class="tag t-cyan">${EFX[item.effect?.type||item.effect]||'⚡'} ${(item.effect?.type||item.effect||'').replace(/_/g,' ')}</span></div>` : ''}
         ${item.isDrug ? `<span class="tag t-red" style="font-size:9px">💊 DRUG</span>` : ''}
         ${item.isWeapon ? `<span class="tag" style="font-size:9px;background:rgba(255,136,0,.15);color:#ff8800;border:1px solid rgba(255,136,0,.3)">🔪 WEAPON</span>` : ''}
       </div>
@@ -2542,9 +2705,10 @@ async function viewInventory(userId, username) {
     </div>`).join('');
 
   document.getElementById('inv-modal-body').innerHTML =
+    phoneHTML +
     petHTML +
     (guns.length  ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔫 Weapons</div>${gunsHTML}` : '') +
-    (items.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:${(pet||guns.length)?'16px':'0'}">🎒 Items</div>${itemsHTML}` : '');
+    (items.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:${(phone||pet||guns.length)?'4px':'0'}">🎒 Items</div>${itemsHTML}` : '');
 }
 
 // ════════════════════════════════════════════════
@@ -2610,7 +2774,7 @@ let giveTakeUserId = '';
 function onGiveCategoryChange() {
   const cat  = document.getElementById('give-category').value;
   const take = giveTakeMode === 'take';
-  ['item','money','tokens','petlevel','gun','gang','business','phonestatus','phonefollowers'].forEach(s => {
+  ['item','money','tokens','petlevel','gun','gang','business','phonestatus','phonefollowers','phonehype','phonedeals','phoneshoutout'].forEach(s => {
     const el = document.getElementById(`give-${s}-section`);
     if (el) el.style.display = cat===s?'block':'none';
   });
@@ -2840,6 +3004,24 @@ async function confirmGiveTake() {
     const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/phone-followers`, { amount });
     if (r.success) { toast(`${amount.toLocaleString()} followers given!`,'ok'); closeGiveTakeModal(); }
     else toast(r.error||'Failed','err');
+  } else if (cat === 'phonehype') {
+    const amount = parseInt(document.getElementById('give-phonehype-amount').value)||0;
+    if (amount < 1) return toast('Enter a valid amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/phone-hype`, { amount: giveTakeMode==='take' ? -amount : amount });
+    if (r.success) { toast(`${giveTakeMode==='take'?'Took':'Gave'} ${amount.toLocaleString()} hype!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'phonedeals') {
+    const name   = document.getElementById('give-phonedeals-name').value.trim();
+    const payout = parseInt(document.getElementById('give-phonedeals-payout').value)||0;
+    if (!name || payout < 1) return toast('Enter deal name and payout','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/phone-deal`, { name, payout });
+    if (r.success) { toast(`Sponsor deal "${name}" granted!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'phoneshoutout') {
+    const mult = parseFloat(document.getElementById('give-phoneshoutout-mult').value);
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/phone-shoutout-mult`, { mult });
+    if (r.success) { toast(`Coin shoutout power set to ${mult}×!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
   }
 }
 
@@ -3035,6 +3217,14 @@ const ACTION_LABELS = {
   revive_player:    (d) => `revived ${d.target||'a player'}`,
   rob_cooldown:     (d) => `set rob cooldown to **${d.value} min**`,
   shot_timeout:     (d) => `set shot timeout to **${d.value} min**`,
+  give_status:      (d) => `gave **${(d.amount||0).toLocaleString()}** status to ${d.target||'a user'}`,
+  take_status:      (d) => `took **${(d.amount||0).toLocaleString()}** status from ${d.target||'a user'}`,
+  give_hype:        (d) => `gave **${(d.amount||0).toLocaleString()}** hype to ${d.target||'a user'}`,
+  take_hype:        (d) => `took **${(d.amount||0).toLocaleString()}** hype from ${d.target||'a user'}`,
+  give_deal:        (d) => `granted sponsor deal **${d.name||''}** ($${(d.payout||0).toLocaleString()}) to ${d.target||'a user'}`,
+  shoutout_cooldown:(d) => `set shoutout cooldown to **${d.value} min**`,
+  wipe_shoutout_cd: (d) => `wiped shoutout cooldown for ${d.target||'a user'}`,
+  edit_shoutout_power:(d)=> `set shoutout power to **${d.mult}×** for ${d.target||'a user'}`,
 };
 
 async function loadAuditLog() {
@@ -3061,6 +3251,169 @@ async function loadAuditLog() {
     body.innerHTML = `<div style="padding:16px;text-align:center;color:var(--muted)">Failed to load audit log.</div>`;
   }
 }
+
+// ════════════════════════════════════════════════
+// INFLUENCERS
+// ════════════════════════════════════════════════
+
+const TIER_COLORS = {
+  nobody:     '#888888', newcomer:  '#2ecc71', creator:   '#3498db',
+  influencer: '#f5c518', celebrity: '#ff6b35', superstar: '#ff3b3b', icon: '#9b59b6',
+};
+
+function fmtFollowers(n) {
+  return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : String(n);
+}
+
+async function loadInfluencers() {
+  const tb = document.getElementById('influencers-tbody');
+  if (tb) tb.innerHTML = '<tr><td colspan="10" class="empty-cell">Loading...</td></tr>';
+
+  const data = await api('GET', `/api/${GUILD}/influencers`).catch(()=>({ influencers:[] }));
+  const list = data.influencers || [];
+
+  // Stats
+  document.getElementById('inf-count').textContent           = list.length;
+  document.getElementById('inf-top-status').textContent      = list[0] ? list[0].status.toLocaleString() : '—';
+  document.getElementById('inf-total-followers').textContent = fmtFollowers(list.reduce((s,i)=>s+(i.followers||0),0));
+  document.getElementById('inf-active-deals').textContent    = list.reduce((s,i)=>s+(i.activeDeals||0),0);
+
+  // Load shoutout cooldown
+  const config = await api('GET', `/api/${GUILD}/config`).catch(()=>({}));
+  const cdEl = document.getElementById('shoutout-cd-input');
+  if (cdEl) cdEl.value = config.shoutoutCooldownMins || 30;
+
+  if (!tb) return;
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="10" class="empty-cell">No influencers found.</td></tr>'; return; }
+
+  await resolveNames(list.map(i => i.userId).filter(Boolean));
+
+  tb.innerHTML = list.map((inf, idx) => {
+    const tierColor = TIER_COLORS[inf.tierId] || '#888';
+    const name      = resolveName(inf.userId);
+    return `<tr>
+      <td class="mono" style="color:var(--muted)">${idx+1}</td>
+      <td><span style="font-weight:600">${name}</span><div class="mono" style="font-size:10px;color:var(--muted)">${inf.userId}</div></td>
+      <td><span style="color:${tierColor};font-weight:700">${inf.tier}</span></td>
+      <td class="mono c-gold">${(inf.status||0).toLocaleString()}</td>
+      <td>${fmtFollowers(inf.followers||0)}</td>
+      <td class="mono" style="color:#5865f2">${(inf.hype||0).toLocaleString()}</td>
+      <td>${inf.totalPosts||0}</td>
+      <td>${inf.activeDeals ? `<span class="tag t-green">${inf.activeDeals} active</span>` : '<span class="tag t-muted">0</span>'}</td>
+      <td>
+        <span class="tag ${inf.shoutoutMult > 1 ? 't-gold' : inf.shoutoutMult < 1 ? 't-red' : 't-muted'}">${(inf.shoutoutMult||1).toFixed(1)}×</span>
+      </td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="openGiveItem('${inf.userId}','${name}')">Give/Take</button>
+        <button class="btn btn-ghost btn-sm" onclick="wipeShoutoutCD('${inf.userId}')">↺ CD</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadSponsorships() {
+  const tb = document.getElementById('sponsorships-tbody');
+  if (!tb) return;
+  const data = await api('GET', `/api/${GUILD}/sponsorships`).catch(()=>({ deals:[] }));
+  const deals = data.deals || [];
+  if (!deals.length) { tb.innerHTML = '<tr><td colspan="5" class="empty-cell">No active sponsorships.</td></tr>'; return; }
+
+  await resolveNames([...new Set(deals.flatMap(d=>[d.ownerId,d.influencerId]))]);
+
+  tb.innerHTML = deals.map(d => {
+    const left = Math.max(0, Math.ceil((d.expiresAt - Date.now()) / 3600000));
+    return `<tr>
+      <td>${resolveName(d.ownerId)}</td>
+      <td>${resolveName(d.influencerId)}</td>
+      <td><span class="tag t-green">+${Math.round((d.boost||0)*100)}% rev/hr</span></td>
+      <td class="mono c-gold">$${(d.payout||0).toLocaleString()}</td>
+      <td>${left > 0 ? `⏳ ${left}h left` : '<span class="tag t-muted">Expired</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function saveShoutoutCooldown() {
+  const val = parseInt(document.getElementById('shoutout-cd-input').value)||30;
+  const r   = await api('POST', `/api/${GUILD}/config/shoutout-cooldown`, { value: val });
+  if (r.success) toast(`Shoutout cooldown set to ${val}min`, 'ok');
+  else toast(r.error||'Failed', 'err');
+}
+
+async function wipeShoutoutCD(userId) {
+  const r = await api('POST', `/api/${GUILD}/users/${userId}/wipe-shoutout-cd`);
+  if (r.success) { toast('Shoutout cooldown wiped', 'ok'); }
+  else toast(r.error||'Failed', 'err');
+}
+
+// ════════════════════════════════════════════════
+// DRUG MARKET
+// ════════════════════════════════════════════════
+
+async function loadDrugs() {
+  const drugs = await api('GET', `/api/drugs`).catch(()=>[]);
+  const tb    = document.getElementById('drugs-tbody');
+  if (!tb) return;
+  if (!drugs.length) { tb.innerHTML = '<tr><td colspan="6" class="empty-cell">No drugs defined yet. Add one above.</td></tr>'; return; }
+  tb.innerHTML = drugs.map(d => `<tr>
+    <td><span style="font-size:18px">${d.emoji||'💊'}</span> <strong>${d.name}</strong><div style="font-size:11px;color:var(--muted)">${d.description||''}</div></td>
+    <td class="mono c-gold">$${(d.price||0).toLocaleString()}</td>
+    <td style="font-size:11px;color:var(--muted)">${d.effect||'—'}</td>
+    <td><span class="tag t-muted" style="font-size:10px">${d.storeItemId||'—'}</span></td>
+    <td>${d.available ? '<span class="tag t-green">✅ Active</span>' : '<span class="tag t-muted">❌ Off</span>'}</td>
+    <td style="display:flex;gap:4px">
+      <button class="btn btn-ghost btn-sm" onclick="openDrugModal(${JSON.stringify(d).replace(/"/g,'&quot;')})">Edit</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteDrug('${d.id}')">Del</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openDrugModal(drug) {
+  document.getElementById('drug-modal-title').textContent = drug ? 'Edit Drug' : 'Add Drug';
+  document.getElementById('drug-edit-id').value   = drug?.id    || '';
+  document.getElementById('drug-emoji').value     = drug?.emoji || '💊';
+  document.getElementById('drug-name').value      = drug?.name  || '';
+  document.getElementById('drug-desc').value      = drug?.description || '';
+  document.getElementById('drug-price').value     = drug?.price || '';
+  document.getElementById('drug-store-id').value  = drug?.storeItemId || '';
+  document.getElementById('drug-effect').value    = drug?.effect || '';
+  document.getElementById('drug-bust').value      = drug?.bustChance != null ? Math.round((drug.bustChance||0.15)*100) : 15;
+  document.getElementById('drug-available').checked = drug?.available !== false;
+  document.getElementById('drug-modal').classList.add('open');
+}
+
+function closeDrugModal() { document.getElementById('drug-modal').classList.remove('open'); }
+
+async function saveDrug() {
+  const id      = document.getElementById('drug-edit-id').value;
+  const name    = document.getElementById('drug-name').value.trim();
+  const price   = parseInt(document.getElementById('drug-price').value)||0;
+  if (!name || !price) return toast('Name and price are required','err');
+
+  const payload = {
+    id:          id || name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''),
+    name,
+    emoji:       document.getElementById('drug-emoji').value.trim() || '💊',
+    description: document.getElementById('drug-desc').value.trim(),
+    price,
+    storeItemId: document.getElementById('drug-store-id').value.trim() || null,
+    effect:      document.getElementById('drug-effect').value.trim(),
+    bustChance:  (parseInt(document.getElementById('drug-bust').value)||15) / 100,
+    available:   document.getElementById('drug-available').checked,
+  };
+
+  const r = await api(id ? 'PUT' : 'POST', `/api/drugs${id ? '/'+id : ''}`, payload);
+  if (r.success) { toast(id ? 'Drug updated' : 'Drug added','ok'); closeDrugModal(); await loadDrugs(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function deleteDrug(id) {
+  if (!confirm('Delete this drug from the market?')) return;
+  const r = await api('DELETE', `/api/drugs/${id}`);
+  if (r.success) { toast('Drug removed','ok'); await loadDrugs(); }
+  else toast(r.error||'Failed','err');
+}
+
+document.getElementById('drug-modal').addEventListener('click', function(e){ if(e.target===this) closeDrugModal(); });
 
 // ════════════════════════════════════════════════
 // EMBED BUILDER

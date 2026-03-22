@@ -317,6 +317,48 @@ app.post('/api/:guildId/users/:id/phone-followers', requireGuildAuth, async (req
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/:guildId/users/:id/phone-hype', requireGuildAuth, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (amount == null) return res.status(400).json({ error: 'amount required' });
+    const { getPhone, savePhone } = require('../utils/phoneDb');
+    const phone = getPhone(req.params.id);
+    if (!phone) return res.status(404).json({ error: 'User does not have a phone' });
+    phone.hype = Math.max(0, (phone.hype||0) + parseInt(amount));
+    await savePhone(req.params.id, phone);
+    await writeAudit(req.guildId, req.session.user?.id, amount > 0 ? 'give_hype' : 'take_hype', { amount: Math.abs(amount), target: `<@${req.params.id}>` });
+    res.json({ success: true, hype: phone.hype });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/phone-deal', requireGuildAuth, async (req, res) => {
+  try {
+    const { name, payout } = req.body;
+    if (!name || !payout) return res.status(400).json({ error: 'name and payout required' });
+    const { getPhone, savePhone } = require('../utils/phoneDb');
+    const phone = getPhone(req.params.id);
+    if (!phone) return res.status(404).json({ error: 'User does not have a phone' });
+    phone.sponsorDeals = [...(phone.sponsorDeals||[]), { name, payout: parseInt(payout), active: true, createdAt: Date.now(), adminGranted: true }];
+    await savePhone(req.params.id, phone);
+    await writeAudit(req.guildId, req.session.user?.id, 'give_deal', { name, payout, target: `<@${req.params.id}>` });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/phone-shoutout-mult', requireGuildAuth, async (req, res) => {
+  try {
+    const { mult } = req.body;
+    if (mult == null) return res.status(400).json({ error: 'mult required' });
+    const { getPhone, savePhone } = require('../utils/phoneDb');
+    const phone = getPhone(req.params.id);
+    if (!phone) return res.status(404).json({ error: 'User does not have a phone' });
+    phone.coinShoutoutMult = Math.max(0.1, parseFloat(mult));
+    await savePhone(req.params.id, phone);
+    await writeAudit(req.guildId, req.session.user?.id, 'edit_shoutout_power', { mult: phone.coinShoutoutMult, target: `<@${req.params.id}>` });
+    res.json({ success: true, mult: phone.coinShoutoutMult });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/:guildId/users/:id/money', requireGuildAuth, async (req, res) => {
   const user = db.getOrCreateUser(req.params.id);
   const { wallet, bank, addWallet, announce, announceType } = req.body;
@@ -407,7 +449,25 @@ app.get('/api/:guildId/users/:id/inventory', requireGuildAuth, async (req, res) 
     };
   }
 
-  res.json({ items, guns, pet });
+  // Phone
+  const { getPhone, PHONE_TYPES, getStatusTier } = require('../utils/phoneDb');
+  const phoneData = getPhone(req.params.id);
+  let phone = null;
+  if (phoneData) {
+    const pType = PHONE_TYPES[phoneData.type] || PHONE_TYPES.standard;
+    const tier  = getStatusTier(phoneData.status || 0);
+    phone = {
+      type: phoneData.type, name: pType.name, emoji: pType.emoji,
+      status: phoneData.status || 0, tier: tier.label,
+      followers: phoneData.followers || 0, hype: phoneData.hype || 0,
+      totalPosts: phoneData.totalPosts || 0,
+      totalEarned: phoneData.totalEarned || 0,
+      activeSponsorDeals: (phoneData.sponsorDeals||[]).filter(s=>s.active).length,
+      streak: phoneData.streak || 0,
+    };
+  }
+
+  res.json({ items, guns, pet, phone });
 });
 
 app.post('/api/:guildId/users/:id/give-item', requireGuildAuth, async (req, res) => {
@@ -990,6 +1050,107 @@ app.post('/api/:guildId/config/jail', requireGuildAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── INFLUENCER DASHBOARD ──────────────────────────────────────
+app.get('/api/:guildId/influencers', requireGuildAuth, async (req, res) => {
+  try {
+    const { getAllPhones, getStatusTier, PHONE_TYPES } = require('../utils/phoneDb');
+    const all     = getAllPhones();
+    const members = await fetchBotAPI(`/guilds/${req.guildId}/members?limit=1000`);
+    const memberIds = new Set((members||[]).map(m => m.user?.id).filter(Boolean));
+
+    const list = Object.entries(all)
+      .filter(([id]) => memberIds.has(id))
+      .map(([id, p]) => {
+        const tier = getStatusTier(p.status||0);
+        return {
+          userId:      id,
+          tier:        tier.label,
+          tierId:      tier.id,
+          status:      p.status||0,
+          followers:   p.followers||0,
+          hype:        p.hype||0,
+          totalPosts:  p.totalPosts||0,
+          totalEarned: p.totalEarned||0,
+          activeDeals: (p.sponsorDeals||[]).filter(s=>s.active).length,
+          shoutoutMult:p.coinShoutoutMult||1,
+          streak:      p.streak||0,
+        };
+      })
+      .sort((a,b) => b.status - a.status);
+
+    res.json({ influencers: list });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/:guildId/sponsorships', requireGuildAuth, async (req, res) => {
+  try {
+    const { col } = require('../utils/mongo');
+    const c    = await col('bizSponsorships');
+    const docs = await c.find({}).toArray();
+    const now  = Date.now();
+    const deals = docs.flatMap(d =>
+      (d.deals||[]).filter(s => s.expiresAt > now).map(s => ({
+        ownerId:      d._id,
+        influencerId: s.influencerId,
+        boost:        s.boost,
+        payout:       s.payout,
+        expiresAt:    s.expiresAt,
+      }))
+    );
+    res.json({ deals });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/config/shoutout-cooldown', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.shoutoutCooldownMins = parseInt(req.body.value)||30;
+  db.saveConfig(req.guildId, config);
+  await writeAudit(req.guildId, req.session.user?.id, 'shoutout_cooldown', { value: config.shoutoutCooldownMins });
+  res.json({ success: true });
+});
+
+app.post('/api/:guildId/users/:id/wipe-shoutout-cd', requireGuildAuth, async (req, res) => {
+  try {
+    const { getPhone, savePhone } = require('../utils/phoneDb');
+    const phone = getPhone(req.params.id);
+    if (!phone) return res.status(404).json({ error: 'No phone' });
+    phone.lastShoutout = {};
+    await savePhone(req.params.id, phone);
+    await writeAudit(req.guildId, req.session.user?.id, 'wipe_shoutout_cd', { target: `<@${req.params.id}>` });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DRUG MARKET (Global) ──────────────────────────────────────
+app.get('/api/drugs', requireAuth, (req, res) => {
+  const { getDrugs } = require('../utils/drugDb');
+  res.json(getDrugs());
+});
+
+app.post('/api/drugs', requireAuth, async (req, res) => {
+  try {
+    const { saveDrug } = require('../utils/drugDb');
+    await saveDrug(req.body);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/drugs/:id', requireAuth, async (req, res) => {
+  try {
+    const { saveDrug } = require('../utils/drugDb');
+    await saveDrug({ ...req.body, id: req.params.id });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/drugs/:id', requireAuth, async (req, res) => {
+  try {
+    const { deleteDrug } = require('../utils/drugDb');
+    await deleteDrug(req.params.id);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── SEND EMBED ────────────────────────────────────────────────
 app.post('/api/:guildId/send-embed', requireGuildAuth, async (req, res) => {
   try {
@@ -1087,6 +1248,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     await require('../utils/phoneDb').preloadPhoneCache();
     await require('../utils/goonDb').preloadGoonCache();
     await require('../utils/bitcoinDb').preloadBitcoinCache();
+    await require('../utils/drugDb').preloadDrugCache();
     console.log('📦 Dashboard caches loaded');
   } catch(e) { console.error('Dashboard cache preload error:', e.message); }
 });
