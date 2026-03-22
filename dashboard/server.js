@@ -444,31 +444,35 @@ app.post('/api/:guildId/users/:id/take-gun', requireGuildAuth, async (req, res) 
 
 app.get('/api/store', requireAuth, (req, res) => res.json(db.getStore()));
 
-app.post('/api/store', requireAuth, (req, res) => {
+app.post('/api/store', requireAuth, async (req, res) => {
   const store = db.getStore();
-  const { name, description, price, type, roleReward, reusable, effect, requirements, enabled, trigger } = req.body;
+  const { name, description, price, type, roleReward, reusable, effect, requirements, enabled, trigger, isDrug, isWeapon } = req.body;
   if (!name || !price) return res.status(400).json({ error: 'name and price required' });
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
   if ((store.items||[]).find(i=>i.id===id)) return res.status(400).json({ error: `Item "${id}" already exists.` });
   store.items = store.items || [];
-  store.items.push({ id, name, description:description||'', price:parseInt(price)||100, type:type||'useable', reusable:reusable||false, roleReward:roleReward||null, effect:effect||null, requirements:requirements||null, enabled:enabled!==false, trigger:trigger||'use' });
+  store.items.push({ id, name, description:description||'', price:parseInt(price)||100, type:type||'useable', reusable:reusable||false, roleReward:roleReward||null, effect:effect||null, requirements:requirements||null, enabled:enabled!==false, trigger:trigger||'use', isDrug:!!isDrug, isWeapon:!!isWeapon });
   db.saveStore(store);
+  await writeAudit('global', req.session.user?.id, 'add_store_item', { name, id });
   res.json({ success: true });
 });
 
-app.put('/api/store/:id', requireAuth, (req, res) => {
+app.put('/api/store/:id', requireAuth, async (req, res) => {
   const store = db.getStore();
   const idx   = (store.items||[]).findIndex(i=>i.id===req.params.id);
   if (idx===-1) return res.status(404).json({ error: 'Item not found' });
   store.items[idx] = { ...store.items[idx], ...req.body, id: req.params.id };
   db.saveStore(store);
+  await writeAudit('global', req.session.user?.id, 'edit_store_item', { name: store.items[idx].name, id: req.params.id });
   res.json({ success: true, item: store.items[idx] });
 });
 
-app.delete('/api/store/:id', requireAuth, (req, res) => {
+app.delete('/api/store/:id', async (req, res) => {
   const store = db.getStore();
+  const item  = (store.items||[]).find(i=>i.id===req.params.id);
   store.items  = (store.items||[]).filter(i=>i.id!==req.params.id);
   db.saveStore(store);
+  await writeAudit('global', req.session.user?.id, 'delete_store_item', { name: item?.name||req.params.id, id: req.params.id });
   res.json({ success: true });
 });
 
@@ -476,7 +480,7 @@ app.delete('/api/store/:id', requireAuth, (req, res) => {
 
 app.get('/api/:guildId/config', requireGuildAuth, (req, res) => res.json(db.getConfig(req.guildId)));
 
-app.post('/api/:guildId/config/prefix', requireGuildAuth, (req, res) => {
+app.post('/api/:guildId/config/prefix', requireGuildAuth, async (req, res) => {
   const { prefix } = req.body;
   if (!prefix || prefix.length > 5) return res.status(400).json({ error: 'Prefix must be 1-5 chars' });
   const config = db.getConfig(req.guildId); config.prefix = prefix.trim();

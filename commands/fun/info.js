@@ -171,6 +171,7 @@ const PAGES = [
 ];
 
 module.exports = {
+  PAGES,
   data: new SlashCommandBuilder()
     .setName('info')
     .setDescription('Full guide — everything you can do on this server.'),
