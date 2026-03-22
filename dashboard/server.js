@@ -1124,6 +1124,22 @@ app.post('/api/:guildId/config/shoutout-cooldown', requireGuildAuth, async (req,
   res.json({ success: true });
 });
 
+app.post('/api/:guildId/config/promo-cooldown', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.promoCooldownMins = parseInt(req.body.value)||60;
+  db.saveConfig(req.guildId, config);
+  await writeAudit(req.guildId, req.session.user?.id, 'promo_cooldown', { value: config.promoCooldownMins });
+  res.json({ success: true });
+});
+
+app.post('/api/:guildId/config/hate-cooldown', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.hateCooldownMins = parseInt(req.body.value)||60;
+  db.saveConfig(req.guildId, config);
+  await writeAudit(req.guildId, req.session.user?.id, 'hate_cooldown', { value: config.hateCooldownMins });
+  res.json({ success: true });
+});
+
 app.post('/api/:guildId/users/:id/wipe-shoutout-cd', requireGuildAuth, async (req, res) => {
   try {
     const { getPhone, savePhone } = require('../utils/phoneDb');

@@ -772,12 +772,38 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div class="purge-panel owner-only" style="margin-bottom:14px">
         <div class="purge-info">
           <h3>⏱️ Shoutout Cooldown</h3>
-          <p>Global cooldown between coin shoutouts per influencer per coin. Default is 30 minutes.</p>
+          <p>Cooldown between coin shoutouts per influencer per coin. Default 30 min.</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <input id="shoutout-cd-input" type="number" min="1" max="1440" step="1" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="30">
+          <input id="shoutout-cd-input" type="number" min="1" max="1440" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="30">
           <div style="font-size:12px;color:var(--muted)">min</div>
           <button class="btn btn-primary" onclick="saveShoutoutCooldown()">Save</button>
+        </div>
+      </div>
+
+      <!-- Promo cooldown -->
+      <div class="purge-panel owner-only" style="margin-bottom:14px">
+        <div class="purge-info">
+          <h3>📣 Promo Cooldown</h3>
+          <p>Cooldown between creator promos per influencer per creator. Default 60 min.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <input id="promo-cd-input" type="number" min="1" max="1440" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="60">
+          <div style="font-size:12px;color:var(--muted)">min</div>
+          <button class="btn btn-primary" onclick="savePromoCooldown()">Save</button>
+        </div>
+      </div>
+
+      <!-- Hate cooldown -->
+      <div class="purge-panel owner-only" style="margin-bottom:14px">
+        <div class="purge-info">
+          <h3>💀 Hate Cooldown</h3>
+          <p>Cooldown between coin hate posts per Cultural Icon per coin. Default 60 min.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <input id="hate-cd-input" type="number" min="1" max="1440" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="60">
+          <div style="font-size:12px;color:var(--muted)">min</div>
+          <button class="btn btn-primary" onclick="saveHateCooldown()">Save</button>
         </div>
       </div>
 
@@ -3337,6 +3363,8 @@ const ACTION_LABELS = {
   take_hype:        (d) => `took **${(d.amount||0).toLocaleString()}** hype from ${d.target||'a user'}`,
   give_deal:        (d) => `granted sponsor deal **${d.name||''}** ($${(d.payout||0).toLocaleString()}) to ${d.target||'a user'}`,
   shoutout_cooldown:(d) => `set shoutout cooldown to **${d.value} min**`,
+  promo_cooldown:   (d) => `set promo cooldown to **${d.value} min**`,
+  hate_cooldown:    (d) => `set hate cooldown to **${d.value} min**`,
   wipe_shoutout_cd: (d) => `wiped shoutout cooldown for ${d.target||'a user'}`,
   edit_shoutout_power:(d)=> `set shoutout power to **${d.mult}×** for ${d.target||'a user'}`,
 };
@@ -3420,10 +3448,11 @@ async function loadInfluencers() {
   document.getElementById('inf-total-followers').textContent = fmtFollowers(list.reduce((s,i)=>s+(i.followers||0),0));
   document.getElementById('inf-active-deals').textContent    = list.reduce((s,i)=>s+(i.activeDeals||0),0);
 
-  // Load shoutout cooldown
+  // Load all cooldowns
   const config = await api('GET', `/api/${GUILD}/config`).catch(()=>({}));
-  const cdEl = document.getElementById('shoutout-cd-input');
-  if (cdEl) cdEl.value = config.shoutoutCooldownMins || 30;
+  const cdEl = document.getElementById('shoutout-cd-input');  if (cdEl)  cdEl.value  = config.shoutoutCooldownMins || 30;
+  const pEl  = document.getElementById('promo-cd-input');     if (pEl)   pEl.value   = config.promoCooldownMins   || 60;
+  const hEl  = document.getElementById('hate-cd-input');      if (hEl)   hEl.value   = config.hateCooldownMins    || 60;
 
   if (!tb) return;
   if (!list.length) { tb.innerHTML = '<tr><td colspan="10" class="empty-cell">No influencers found.</td></tr>'; return; }
@@ -3478,6 +3507,20 @@ async function saveShoutoutCooldown() {
   const val = parseInt(document.getElementById('shoutout-cd-input').value)||30;
   const r   = await api('POST', `/api/${GUILD}/config/shoutout-cooldown`, { value: val });
   if (r.success) toast(`Shoutout cooldown set to ${val}min`, 'ok');
+  else toast(r.error||'Failed', 'err');
+}
+
+async function savePromoCooldown() {
+  const val = parseInt(document.getElementById('promo-cd-input').value)||60;
+  const r   = await api('POST', `/api/${GUILD}/config/promo-cooldown`, { value: val });
+  if (r.success) toast(`Promo cooldown set to ${val}min`, 'ok');
+  else toast(r.error||'Failed', 'err');
+}
+
+async function saveHateCooldown() {
+  const val = parseInt(document.getElementById('hate-cd-input').value)||60;
+  const r   = await api('POST', `/api/${GUILD}/config/hate-cooldown`, { value: val });
+  if (r.success) toast(`Hate cooldown set to ${val}min`, 'ok');
   else toast(r.error||'Failed', 'err');
 }
 

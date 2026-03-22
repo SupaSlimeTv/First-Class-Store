@@ -23,6 +23,12 @@ module.exports = {
     .addSubcommand(s => s.setName('shoutout').setDescription('🌟 Celebrity+ only — Shout out a coin to your fans. Boosts price & hype.')
       .addStringOption(o => o.setName('coin').setDescription('Coin ticker to shout out (e.g. DOGE2)').setRequired(true).setMaxLength(10))
       .addStringOption(o => o.setName('message').setDescription('What to say about the coin').setRequired(false).setMaxLength(200)))
+    .addSubcommand(s => s.setName('promo').setDescription('📣 Influencer+ only — Promote another creator to boost their followers & hype.')
+      .addUserOption(o => o.setName('creator').setDescription('Creator to shout out').setRequired(true))
+      .addStringOption(o => o.setName('message').setDescription('What to say about them').setRequired(false).setMaxLength(200)))
+    .addSubcommand(s => s.setName('hate').setDescription('👑 Cultural Icon only — Trash a coin publicly. Crashes price & destroys hype.')
+      .addStringOption(o => o.setName('coin').setDescription('Coin ticker to hate on').setRequired(true).setMaxLength(10))
+      .addStringOption(o => o.setName('message').setDescription('What to say').setRequired(false).setMaxLength(200)))
     .addSubcommand(s => s.setName('sponsors').setDescription('View and collect sponsor deals'))
     .addSubcommand(s => s.setName('calpolice').setDescription('Call police on a user (false reports = YOU get jailed)')
       .addUserOption(o => o.setName('user').setDescription('Who to report').setRequired(true))
@@ -383,6 +389,195 @@ module.exports = {
           { name:'📣 Shoutout Power',   value:`${tier.coinHypeMult}× tier × ${customMult}× custom = **${totalPower.toFixed(1)}×**`, inline:true },
         )
         .setFooter({ text:`${tier.label} · Cooldown: ${config.shoutoutCooldownMins||30}min` })
+      ]});
+    }
+
+    // ── BIG THEM UP (creator shoutout) ───────────────────────
+    if (sub === 'promo') {
+      const phone = getPhone(userId);
+      if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No phone. Buy one with `/phone buy`.')], ephemeral:true });
+
+      const tier = getStatusTier(phone.status||0);
+
+      // Influencer+ required
+      const REQUIRED = ['influencer','celebrity','superstar','icon'];
+      if (!REQUIRED.includes(tier.id)) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setTitle('🔥 Influencer Required')
+          .setDescription(`Creator shoutouts require **🔥 Influencer** status or above.\n\nYour current status: **${tier.label}**\n\nKeep posting to level up!`)
+        ], ephemeral:true });
+      }
+
+      const creator = interaction.options.getUser('creator');
+      const message = interaction.options.getString('message') || null;
+
+      if (creator.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You can't big up yourself.")], ephemeral:true });
+
+      const creatorPhone = getPhone(creator.id);
+      if (!creatorPhone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${creator.id}> doesn't have a phone — they can't receive a shoutout.`)], ephemeral:true });
+
+      // Promo cooldown — configurable via dashboard
+      const { getConfig: gcPromo } = require('../../utils/db');
+      const cfgPromo = gcPromo(interaction.guild.id);
+      const BIG_CD   = (cfgPromo.promoCooldownMins || 60) * 60 * 1000;
+      const lastBig  = (phone.lastPromo||{})[creator.id] || 0;
+      if (Date.now() - lastBig < BIG_CD) {
+        const mins = Math.ceil((BIG_CD-(Date.now()-lastBig))/60000);
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You already bigged up <@${creator.id}> recently. Wait **${mins}m**.`)], ephemeral:true });
+      }
+
+      await interaction.deferReply();
+
+      const customMult     = phone.coinShoutoutMult || 1.0;
+      const totalPower     = tier.coinHypeMult * customMult;
+      const creatorTier    = getStatusTier(creatorPhone.status||0);
+
+      // Followers gained by creator — scales with shoutout power
+      const followersGained = Math.floor(tier.fanCount * (0.03 + Math.random() * 0.05));
+      // Hype gained
+      const hypeGained      = Math.floor(totalPower * 2000 * (0.7 + Math.random() * 0.6));
+      // Status boost
+      const statusGained    = Math.floor(totalPower * 50 * (0.8 + Math.random() * 0.4));
+
+      // Update creator's phone
+      creatorPhone.followers = (creatorPhone.followers||0) + followersGained;
+      creatorPhone.hype      = (creatorPhone.hype||0) + hypeGained;
+      creatorPhone.status    = (creatorPhone.status||0) + statusGained;
+      await savePhone(creator.id, creatorPhone);
+
+      // Update shoutout's phone cooldown
+      phone.lastPromo = { ...(phone.lastPromo||{}), [creator.id]: Date.now() };
+      await savePhone(userId, phone);
+
+      const newCreatorTier = getStatusTier(creatorPhone.status);
+      const tieredUp       = newCreatorTier.id !== creatorTier.id;
+
+      // DM the creator
+      creator.send({ embeds:[new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('📣 You Just Got Bigged Up!')
+        .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted you out!\n\n${message ? `*"${message}"*\n\n` : ''}+**${followersGained.toLocaleString()}** followers · +**${hypeGained.toLocaleString()}** hype · +**${statusGained.toLocaleString()}** status${tieredUp ? `\n\n🎊 **STATUS UP → ${newCreatorTier.label}!**` : ''}`)
+      ]}).catch(()=>{});
+
+      return interaction.editReply({ embeds:[new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle(`📣 Bigged Up — <@${creator.id}>`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}Your **${fmtNum(tier.fanCount)} fans** just discovered **${creator.username}**.${tieredUp ? `\n\n🎊 They hit **${newCreatorTier.label}**!` : ''}`)
+        .addFields(
+          { name:'👥 Followers Given',  value:`+${followersGained.toLocaleString()}`, inline:true },
+          { name:'✨ Hype Given',       value:`+${hypeGained.toLocaleString()}`,       inline:true },
+          { name:'🏆 Status Given',    value:`+${statusGained.toLocaleString()}`,     inline:true },
+          { name:'📣 Your Power',       value:`${totalPower.toFixed(1)}×`,             inline:true },
+        )
+        .setFooter({ text:`${tier.label} · 1hr cooldown per creator` })
+      ]});
+    }
+
+    // ── HATE (coin crash — Cultural Icon only) ─────────────────
+    if (sub === 'hate') {
+      const phone = getPhone(userId);
+      if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No phone. Buy one with `/phone buy`.')], ephemeral:true });
+
+      const tier = getStatusTier(phone.status||0);
+
+      // Cultural Icon only
+      if (tier.id !== 'icon') {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setTitle('👑 Cultural Icon Required')
+          .setDescription(`Only **👑 Cultural Icons** have enough influence to crash a coin.\n\nYour current status: **${tier.label}**\n\nReach **100,000 status points** to unlock this power.`)
+        ], ephemeral:true });
+      }
+
+      const ticker  = interaction.options.getString('coin').toUpperCase().trim();
+      const message = interaction.options.getString('message') || null;
+
+      // Hate cooldown — configurable via dashboard
+      const { getConfig: gcHate } = require('../../utils/db');
+      const cfgHate = gcHate(interaction.guild.id);
+      const HATE_CD  = (cfgHate.hateCooldownMins || 60) * 60 * 1000;
+      const lastHate = (phone.lastHate||{})[ticker] || 0;
+      if (Date.now() - lastHate < HATE_CD) {
+        const mins = Math.ceil((HATE_CD-(Date.now()-lastHate))/60000);
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Hate cooldown on **${ticker}**: **${mins}m** remaining.`)], ephemeral:true });
+      }
+
+      await interaction.deferReply();
+
+      const { col } = require('../../utils/mongo');
+      const cc   = await col('customCoins');
+      const coin = await cc.findOne({ _id: ticker }).catch(()=>null);
+
+      if (!coin) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`Coin **${ticker}** not found. Check the ticker with \`/market\`.`)
+      ]});
+
+      const customMult = phone.coinShoutoutMult || 1.0;
+      const totalPower = tier.coinHypeMult * customMult;
+
+      // Price crash — 👑 Icon can crash up to 85%
+      const crashPct   = Math.min(0.85, 0.40 + (totalPower * 0.03) + Math.random() * 0.10);
+      const priceMult  = 1 - crashPct;
+
+      // Fan panic selling — fans dump the coin
+      const panicSellers   = Math.floor(tier.fanCount * (0.06 + Math.random() * 0.08));
+      const avgDump        = Math.floor((100 + totalPower * 60) * (0.5 + Math.random() * 0.5));
+      const totalDumpVolume= panicSellers * avgDump;
+
+      // Hype destroyed
+      const hypeDestroyed  = Math.floor(totalPower * 6000 * (0.8 + Math.random() * 0.4));
+
+      // Apply crash
+      let oldPrice = 0;
+      let newPrice = 0;
+      try {
+        const pc   = await col('stockPrices');
+        const pdoc = await pc.findOne({ _id: 'prices' });
+        if (pdoc && pdoc[ticker] != null) {
+          oldPrice = pdoc[ticker];
+          newPrice = Math.max(0.0001, oldPrice * priceMult);
+          pdoc[ticker] = newPrice;
+          await pc.replaceOne({ _id:'prices' }, pdoc);
+        }
+      } catch {}
+
+      // Inject sell-off history
+      try {
+        const hc   = await col('stockHistory');
+        const hdoc = await hc.findOne({ _id: ticker }) || { _id: ticker, history:[] };
+        const now  = Date.now();
+        const crashEntries = Array.from({ length: 15 }, (_, i) => ({
+          t: now - (i * 20000),
+          p: oldPrice * (1 - crashPct * ((15-i)/15)),
+        }));
+        hdoc.history = [...(hdoc.history||[]).slice(-80), ...crashEntries];
+        await hc.replaceOne({ _id: ticker }, hdoc, { upsert: true });
+      } catch {}
+
+      // Update cooldown
+      phone.lastHate = { ...(phone.lastHate||{}), [ticker]: Date.now() };
+      await savePhone(userId, phone);
+
+      // DM coin owner
+      if (coin.ownerId) {
+        interaction.client.users.fetch(coin.ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
+          .setColor(0xff3b3b)
+          .setTitle('💀 Your Coin Got HATED On!')
+          .setDescription(`**${interaction.user.username}** (👑 Cultural Icon — ${fmtNum(tier.fanCount)} fans) publicly trashed **${coin.emoji||''} ${coin.name}**!\n\n📉 Price crashed **-${Math.round(crashPct*100)}%** ($${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)})\n🔥 Hype destroyed: -${hypeDestroyed.toLocaleString()}\n😱 ${fmtNum(panicSellers)} fans panic dumped`)
+        ]}).catch(()=>{})).catch(()=>{});
+      }
+
+      return interaction.editReply({ embeds:[new EmbedBuilder()
+        .setColor(0xff3b3b)
+        .setTitle(`💀 HATE POST — ${coin.emoji||'🪙'} ${coin.name} IS COOKED`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}👑 Your **${fmtNum(tier.fanCount)} fans** are dumping **${coin.name}** immediately.`)
+        .addFields(
+          { name:'📉 Price Crash',       value:`-${Math.round(crashPct*100)}% ($${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)})`, inline:false },
+          { name:'😱 Panic Sellers',     value:fmtNum(panicSellers),                   inline:true },
+          { name:'💸 Dump Volume',       value:`~$${totalDumpVolume.toLocaleString()}`, inline:true },
+          { name:'🔥 Hype Destroyed',    value:`-${hypeDestroyed.toLocaleString()}`,   inline:true },
+          { name:'📣 Your Power',        value:`${totalPower.toFixed(1)}×`,             inline:true },
+        )
+        .setFooter({ text:`👑 Cultural Icon only · ${cfgHate.hateCooldownMins||60}min cooldown per coin` })
       ]});
     }
 
