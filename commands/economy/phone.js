@@ -118,6 +118,8 @@ module.exports = {
       const pType      = PHONE_TYPES[phone.type] || PHONE_TYPES.burner;
       const tier       = getStatusTier(phone.status || 0);
 
+      if (!platform) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Invalid platform selected.')], ephemeral:true });
+
       // Cooldown check
       const lastPost = phone.lastPost?.[platformId] || 0;
       if (Date.now() - lastPost < platform.cooldownMs) {
@@ -266,7 +268,7 @@ module.exports = {
       ]});
 
       // 30 min cooldown per coin per user (configurable via dashboard)
-      const { getConfig } = require('../../utils/db');
+      const { getConfig, getOrCreateUser: gocUser, saveUser: sUser } = require('../../utils/db');
       const config    = getConfig(interaction.guild.id);
       const SHOUT_CD  = (config.shoutoutCooldownMins || 30) * 60 * 1000;
       const lastShout = (phone.lastShoutout||{})[ticker] || 0;
@@ -277,21 +279,64 @@ module.exports = {
         ]});
       }
 
-      // Calculate impact based on tier coinHypeMult + phone's custom multiplier
-      const customMult = phone.coinShoutoutMult || 1.0; // admin-adjustable
-      const coinHype   = Math.floor(5000 * tier.coinHypeMult * customMult);
-      const fanDemand  = Math.floor(tier.fanCount * (0.1 + Math.random() * 0.15));
-      const priceBoost = Math.min(1.5, 1 + (tier.coinHypeMult * customMult * 0.025));
+      // ── CALCULATE SHOUTOUT POWER ──────────────────────────────
+      const customMult  = phone.coinShoutoutMult || 1.0;
+      const totalPower  = tier.coinHypeMult * customMult;
 
-      // Boost coin price
+      // Price boost — scales massively with tier (up to 8× for Cultural Icon)
+      const priceBoost  = Math.min(8.0, 1 + (totalPower * 0.15));
+
+      // Fan investment — % of NPC fans "buy in" driving fake volume
+      const investingFans   = Math.floor(tier.fanCount * (0.08 + Math.random() * 0.12));
+      const avgFanInvestment= Math.floor((50 + totalPower * 80) * (0.7 + Math.random() * 0.6));
+      const totalFanVolume  = investingFans * avgFanInvestment;
+
+      // Hype generated
+      const coinHype = Math.floor(totalPower * 8000 * (0.8 + Math.random() * 0.4));
+
+      // Liquidity boost — how many mock "buy" orders get added to history
+      const liquidityBump = Math.floor(totalPower * 500 * (0.9 + Math.random() * 0.2));
+
+      // ── APPLY PRICE BOOST ─────────────────────────────────────
+      let newPrice = 0;
+      let oldPrice = 0;
       try {
         const pc   = await col('stockPrices');
         const pdoc = await pc.findOne({ _id: 'prices' });
-        if (pdoc && pdoc[ticker]) {
-          pdoc[ticker] = pdoc[ticker] * priceBoost;
+        if (pdoc && pdoc[ticker] != null) {
+          oldPrice = pdoc[ticker];
+          pdoc[ticker] = oldPrice * priceBoost;
+          newPrice = pdoc[ticker];
           await pc.replaceOne({ _id:'prices' }, pdoc);
         }
       } catch {}
+
+      // ── ADD FAKE VOLUME TO HISTORY (simulates fan buys) ───────
+      try {
+        const hc   = await col('stockHistory');
+        const hdoc = await hc.findOne({ _id: ticker }) || { _id: ticker, history:[] };
+        const now  = Date.now();
+        // Inject a spike of buy entries
+        const spikeEntries = Array.from({ length: Math.min(20, Math.ceil(totalPower * 3)) }, (_, i) => ({
+          t: now - (i * 30000),
+          p: oldPrice * (1 + (priceBoost - 1) * ((20 - i) / 20)),
+        }));
+        hdoc.history = [...(hdoc.history||[]).slice(-80), ...spikeEntries];
+        await hc.replaceOne({ _id: ticker }, hdoc, { upsert: true });
+      } catch {}
+
+      // ── PAY COIN OWNER REVENUE FROM FAN VOLUME ────────────────
+      // 10% of total fan investment volume goes to coin owner as revenue
+      let ownerCut = 0;
+      if (coin.ownerId) {
+        const { getBusiness, saveBusiness } = require('../../utils/bizDb');
+        const ownerBiz = getBusiness(coin.ownerId);
+        if (ownerBiz) {
+          ownerCut = Math.floor(totalFanVolume * 0.10);
+          ownerBiz.revenue = (ownerBiz.revenue||0) + ownerCut;
+          await saveBusiness(coin.ownerId, ownerBiz);
+        }
+      }
 
       // Update phone shoutout cooldown
       phone.lastShoutout = { ...(phone.lastShoutout||{}), [ticker]: Date.now() };
@@ -301,22 +346,27 @@ module.exports = {
       if (coin.ownerId && coin.ownerId !== userId) {
         interaction.client.users.fetch(coin.ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
           .setColor(0xf5c518)
-          .setTitle('📣 Your Coin Got Shouted Out!')
-          .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted out **${coin.emoji||''} ${coin.name}**!\n\n+${coinHype.toLocaleString()} hype · ${fmtNum(fanDemand)} fans now watching · Price boosted ${Math.round((priceBoost-1)*100)}%`)
+          .setTitle('📣 Shoutout — Price Spiking!')
+          .setDescription(`**${interaction.user.username}** (${tier.label}) shouted out **${coin.emoji||''} ${coin.name}**!\n\n${fmtNum(investingFans)} fans invested ~$${totalFanVolume.toLocaleString()} in volume.\n\n📈 Price: **$${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)}** (+${Math.round((priceBoost-1)*100)}%)\n🔥 Hype: +${coinHype.toLocaleString()}\n💰 Your cut: +$${ownerCut.toLocaleString()} to business revenue`)
         ]}).catch(()=>{})).catch(()=>{});
       }
 
+      const isViral = totalPower >= 5;
+
       return interaction.editReply({ embeds:[new EmbedBuilder()
-        .setColor(0xf5c518)
-        .setTitle(`📣 Shoutout — ${coin.emoji||'🪙'} ${coin.name}`)
-        .setDescription(`${message ? `*"${message}"*\n\n` : ''}**${fmtNum(tier.fanCount)} fans** just heard about **${coin.name}** from you.`)
+        .setColor(isViral ? 0xff3b3b : 0xf5c518)
+        .setTitle(`📣 ${isViral ? '🚨 MEGA SHOUTOUT' : 'Shoutout'} — ${coin.emoji||'🪙'} ${coin.name}${isViral ? ' 🚨' : ''}`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}**${fmtNum(tier.fanCount)} fans** just heard about **${coin.name}**.${isViral ? '\n\n🚨 **The market is going crazy.**' : ''}`)
         .addFields(
-          { name:'✨ Coin Hype',      value:`+${coinHype.toLocaleString()}`,           inline:true },
-          { name:'👥 Fans Watching',  value:fmtNum(fanDemand),                         inline:true },
-          { name:'📈 Price Boost',    value:`+${Math.round((priceBoost-1)*100)}%`,     inline:true },
-          { name:'📣 Your Power',     value:`${tier.coinHypeMult}× base × ${customMult}× custom = **${(tier.coinHypeMult*customMult).toFixed(2)}×**`, inline:false },
+          { name:'📈 Price Spike',      value:`+${Math.round((priceBoost-1)*100)}% (${oldPrice.toFixed(4)} → ${newPrice.toFixed(4)})`, inline:false },
+          { name:'👥 Fans Investing',   value:fmtNum(investingFans),                                         inline:true },
+          { name:'💸 Fan Volume',       value:`~$${totalFanVolume.toLocaleString()}`,                        inline:true },
+          { name:'🔥 Hype Injected',    value:`+${coinHype.toLocaleString()}`,                               inline:true },
+          { name:'📊 Liquidity Bump',   value:`+${liquidityBump.toLocaleString()} units`,                   inline:true },
+          ...(ownerCut > 0 ? [{ name:'💰 Owner Revenue',  value:`+$${ownerCut.toLocaleString()}`,            inline:true }] : []),
+          { name:'📣 Shoutout Power',   value:`${tier.coinHypeMult}× tier × ${customMult}× custom = **${totalPower.toFixed(1)}×**`, inline:true },
         )
-        .setFooter({ text:`${tier.label} · 30min cooldown per coin` })
+        .setFooter({ text:`${tier.label} · Cooldown: ${config.shoutoutCooldownMins||30}min` })
       ]});
     }
 
