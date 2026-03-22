@@ -1121,6 +1121,13 @@ app.post('/api/:guildId/users/:id/wipe-shoutout-cd', requireGuildAuth, async (re
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/:guildId/config/narcotics-role', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.narcoticsRoleId = req.body.roleId || null;
+  db.saveConfig(req.guildId, config);
+  res.json({ success: true });
+});
+
 // ── DRUG MARKET (Global) ──────────────────────────────────────
 app.get('/api/drugs', requireAuth, (req, res) => {
   const { getDrugs } = require('../utils/drugDb');

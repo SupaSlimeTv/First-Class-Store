@@ -813,6 +813,21 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <h3>💊 Drug Market</h3>
           <button class="btn btn-primary btn-sm" onclick="openDrugModal()">+ Add Drug</button>
         </div>
+
+        <!-- Narcotics Role -->
+        <div class="purge-panel owner-only" style="margin:12px 0">
+          <div class="purge-info">
+            <h3>🏴 Narcotics Access Role</h3>
+            <p>Users with this role (plus gang owners) can access gang-only drugs. Leave blank to restrict to gang owners only.</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;min-width:200px;flex-shrink:0">
+            <select class="fselect" id="narcotics-role-select"><option value="">— No extra role —</option></select>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-primary" style="flex:1" onclick="saveNarcoticsRole()">Set</button>
+              <button class="btn btn-ghost" style="flex:1" onclick="clearNarcoticsRole()">Clear</button>
+            </div>
+          </div>
+        </div>
         <table>
           <thead><tr><th>Drug</th><th>Price/Unit</th><th>Effect</th><th>Store Item ID</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="drugs-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
@@ -826,29 +841,127 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
 <!-- DRUG MODAL -->
 <div id="drug-modal" class="backdrop">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:500px">
     <div class="modal-top"><h3 id="drug-modal-title">Add Drug</h3></div>
     <div class="modal-body">
       <input type="hidden" id="drug-edit-id">
+
+      <!-- Step 1: Pick a preset or custom -->
+      <div class="fg" style="margin-bottom:4px">
+        <label class="flabel">Quick Preset</label>
+        <select class="fselect" id="drug-preset" onchange="applyDrugPreset()">
+          <option value="">— Start from scratch —</option>
+          <option value="weed">🌿 Weed</option>
+          <option value="coke">❄️ Cocaine</option>
+          <option value="pills">💊 Pills</option>
+          <option value="shrooms">🍄 Shrooms</option>
+          <option value="lean">🥤 Lean</option>
+          <option value="meth">🔬 Meth</option>
+          <option value="heroin">💉 Heroin</option>
+          <option value="molly">⚡ Molly</option>
+          <option value="crack">🪨 Crack</option>
+          <option value="xans">📦 Xans</option>
+        </select>
+        <div class="hint">Presets auto-fill all fields. You can edit after.</div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Emoji + Name row -->
       <div class="grid2">
-        <div class="fg"><label class="flabel">Emoji</label><input class="finput" id="drug-emoji" placeholder="💊" maxlength="4"></div>
+        <div class="fg">
+          <label class="flabel">Emoji</label>
+          <select class="fselect" id="drug-emoji-select" onchange="document.getElementById('drug-emoji').value=this.value">
+            <option value="💊">💊 Pill</option>
+            <option value="🌿">🌿 Leaf</option>
+            <option value="❄️">❄️ Snow</option>
+            <option value="🍄">🍄 Shroom</option>
+            <option value="🥤">🥤 Cup</option>
+            <option value="🔬">🔬 Crystal</option>
+            <option value="💉">💉 Needle</option>
+            <option value="⚡">⚡ Bolt</option>
+            <option value="🪨">🪨 Rock</option>
+            <option value="📦">📦 Box</option>
+            <option value="🧪">🧪 Vial</option>
+            <option value="🫧">🫧 Smoke</option>
+          </select>
+          <input type="hidden" id="drug-emoji" value="💊">
+        </div>
         <div class="fg"><label class="flabel">Name *</label><input class="finput" id="drug-name" placeholder="e.g. Blue Dream"></div>
       </div>
-      <div class="fg"><label class="flabel">Description</label><input class="finput" id="drug-desc" placeholder="What it does, flavor text..."></div>
+
+      <div class="fg"><label class="flabel">Description</label><input class="finput" id="drug-desc" placeholder="Flavor text..."></div>
+
+      <!-- Price + Tier -->
       <div class="grid2">
-        <div class="fg"><label class="flabel">Price per Unit ($) *</label><input class="finput" type="number" id="drug-price" min="1" placeholder="500"></div>
-        <div class="fg"><label class="flabel">Store Item ID (for delivery)</label><input class="finput" id="drug-store-id" placeholder="e.g. blue-dream"></div>
+        <div class="fg">
+          <label class="flabel">Price Tier</label>
+          <select class="fselect" id="drug-price-tier" onchange="setDrugPrice()">
+            <option value="150">🟢 Cheap ($150)</option>
+            <option value="400">🟡 Mid ($400)</option>
+            <option value="800" selected>🟠 Standard ($800)</option>
+            <option value="1500">🔴 Premium ($1,500)</option>
+            <option value="3000">💎 High-End ($3,000)</option>
+            <option value="custom">✏️ Custom</option>
+          </select>
+        </div>
+        <div class="fg"><label class="flabel">Price per Unit ($)</label><input class="finput" type="number" id="drug-price" min="1" placeholder="800"></div>
       </div>
+
+      <!-- Effect + Store Item -->
+      <div class="grid2">
+        <div class="fg">
+          <label class="flabel">Effect Type</label>
+          <select class="fselect" id="drug-effect-type" onchange="setDrugEffect()">
+            <option value="">None</option>
+            <option value="+20% rob success for 30min">💰 +20% rob success (30min)</option>
+            <option value="+15% steal chance for 1hr">🎯 +15% steal chance (1hr)</option>
+            <option value="silence immunity for 20min">🔇 Silence immunity (20min)</option>
+            <option value="+10% heat reduction">🌡️ -10% heat gain</option>
+            <option value="double daily reward once">📅 Double daily reward</option>
+            <option value="+25% work income for 1hr">💼 +25% work income (1hr)</option>
+            <option value="heal 50 HP">❤️ Heal 50 HP</option>
+            <option value="custom">✏️ Custom</option>
+          </select>
+        </div>
+        <div class="fg"><label class="flabel">Effect (editable)</label><input class="finput" id="drug-effect" placeholder="Effect description..."></div>
+      </div>
+
+      <!-- Store Item ID -->
       <div class="fg">
-        <label class="flabel">Effect (when used)</label>
-        <input class="finput" id="drug-effect" placeholder="e.g. +20% rob success for 30min, silence immunity, etc.">
-        <div class="hint">Describe the in-game effect. This is display text — wire actual effects through the store item.</div>
+        <label class="flabel">Linked Store Item ID</label>
+        <select class="fselect" id="drug-store-select" onchange="document.getElementById('drug-store-id').value=this.value">
+          <option value="">— Link to a store item (for delivery) —</option>
+        </select>
+        <input type="hidden" id="drug-store-id">
+        <div class="hint">Delivered drug goes into user's inventory as this item. Must have 💊 Drug flag checked in the store.</div>
       </div>
+
+      <!-- Bust chance + Availability -->
       <div class="grid2">
-        <div class="fg"><label class="flabel">Border Bust Chance (%)</label><input class="finput" type="number" id="drug-bust" min="0" max="100" placeholder="15" value="15"></div>
+        <div class="fg">
+          <label class="flabel">Border Risk</label>
+          <select class="fselect" id="drug-bust-select" onchange="document.getElementById('drug-bust').value=this.value">
+            <option value="5">🟢 Low (5% bust)</option>
+            <option value="15" selected>🟡 Medium (15% bust)</option>
+            <option value="30">🟠 High (30% bust)</option>
+            <option value="50">🔴 Very High (50% bust)</option>
+            <option value="75">💀 Extreme (75% bust)</option>
+          </select>
+          <input type="hidden" id="drug-bust" value="15">
+        </div>
         <div class="fg" style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-top:20px">
           <input type="checkbox" id="drug-available" checked style="width:16px;height:16px;accent-color:#2ecc71;flex-shrink:0">
           <label for="drug-available" style="font-weight:700;cursor:pointer">Available on market</label>
+        </div>
+      </div>
+
+      <!-- Gang access toggle -->
+      <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
+        <input type="checkbox" id="drug-gang-only" style="width:16px;height:16px;accent-color:#ff3b3b;flex-shrink:0">
+        <div>
+          <label for="drug-gang-only" style="font-weight:700;cursor:pointer">🏴 Gang-Only Drug</label>
+          <div style="font-size:11px;color:var(--muted)">Only gang owners and the designated narcotics role can access this drug.</div>
         </div>
       </div>
     </div>
@@ -1675,7 +1788,7 @@ function nav(n){
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
   document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop',embeds:'✉️ Embed Builder',drugs:'💊 Drug Market',influencers:'📱 Influencers'}[n]||n;
   if (n === 'embeds')      loadEmbedChannels();
-  if (n === 'drugs')       loadDrugs();
+  if (n === 'drugs')       { loadDrugs(); loadNarcoticsRole(); }
   if (n === 'influencers') { loadInfluencers(); loadSponsorships(); }
 }
 
@@ -3231,15 +3344,43 @@ async function loadAuditLog() {
   const body = document.getElementById('audit-log-body');
   body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Loading...</div>';
   try {
-    const logs = await api('GET', `/api/${GUILD}/audit-log`);
+    const [logs, roles, channels] = await Promise.all([
+      api('GET', `/api/${GUILD}/audit-log`),
+      api('GET', `/api/${GUILD}/guild/roles`).catch(()=>[]),
+      api('GET', `/api/${GUILD}/guild/channels`).catch(()=>[]),
+    ]);
     if (!logs.length) {
       body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">No audit entries yet.</div>';
       return;
     }
-    await resolveNames(logs.map(l => l.userId).filter(Boolean));
+
+    // Build role/channel lookup maps
+    const roleMap    = Object.fromEntries((roles||[]).map(r => [r.id, r.name]));
+    const channelMap = Object.fromEntries((channels||[]).map(c => [c.id, '#'+c.name]));
+
+    // Resolve all user IDs that appear in logs
+    const userIds = new Set();
+    logs.forEach(l => {
+      if (l.userId) userIds.add(l.userId);
+      // Extract user IDs from <@123> patterns in data strings
+      const str = JSON.stringify(l.data||{});
+      (str.match(/<@!?(\d+)>/g)||[]).forEach(m => userIds.add(m.replace(/[<@!>]/g,'')));
+    });
+    await resolveNames([...userIds]);
+
+    // Replace <@id>, <#id>, <@&id> with display names in text
+    function resolveRefs(text) {
+      if (!text) return text;
+      return text
+        .replace(/<@!?(\d+)>/g,  (_, id) => `**${resolveName(id)}**`)
+        .replace(/<#(\d+)>/g,    (_, id) => `**${channelMap[id] || '#'+id}**`)
+        .replace(/<@&(\d+)>/g,   (_, id) => `**@${roleMap[id]   || id}**`);
+    }
+
     body.innerHTML = logs.map(l => {
       const label  = ACTION_LABELS[l.action];
-      const text   = label ? label(l.data||{}) : l.action;
+      const rawText= label ? label(l.data||{}) : l.action;
+      const text   = resolveRefs(rawText);
       const name   = resolveName(l.userId);
       const time   = new Date(l.ts).toLocaleString();
       return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px">
@@ -3349,6 +3490,49 @@ async function wipeShoutoutCD(userId) {
 // DRUG MARKET
 // ════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════
+// DRUG MARKET
+// ════════════════════════════════════════════════
+
+const DRUG_PRESETS = {
+  weed:   { emoji:'🌿', name:'Weed',     desc:'Classic green. Smooth vibes.',        price:400,  effect:'+20% rob success for 30min', bust:15, tier:'400' },
+  coke:   { emoji:'❄️', name:'Cocaine',  desc:'White lines. High risk, high reward.',price:1500, effect:'+25% work income for 1hr',    bust:30, tier:'1500' },
+  pills:  { emoji:'💊', name:'Pills',    desc:'Prescribed or not.',                  price:300,  effect:'silence immunity for 20min',  bust:10, tier:'150' },
+  shrooms:{ emoji:'🍄', name:'Shrooms',  desc:'Trip and forget your problems.',      price:600,  effect:'+15% steal chance for 1hr',   bust:20, tier:'400' },
+  lean:   { emoji:'🥤', name:'Lean',     desc:'Sip slow. Move slower.',             price:250,  effect:'+10% heat reduction',         bust:5,  tier:'150' },
+  meth:   { emoji:'🔬', name:'Meth',     desc:'Stay up for days.',                  price:800,  effect:'+25% work income for 1hr',    bust:40, tier:'800' },
+  heroin: { emoji:'💉', name:'Heroin',   desc:'The hard stuff.',                    price:3000, effect:'double daily reward once',     bust:75, tier:'3000' },
+  molly:  { emoji:'⚡', name:'Molly',    desc:'Feel everything. Then nothing.',     price:700,  effect:'+20% rob success for 30min',  bust:25, tier:'800' },
+  crack:  { emoji:'🪨', name:'Crack',    desc:'Rocks that hit different.',          price:500,  effect:'+15% steal chance for 1hr',   bust:35, tier:'400' },
+  xans:   { emoji:'📦', name:'Xans',     desc:'Chill out. Completely.',             price:400,  effect:'silence immunity for 20min',  bust:15, tier:'400' },
+};
+
+function applyDrugPreset() {
+  const key = document.getElementById('drug-preset').value;
+  if (!key) return;
+  const p = DRUG_PRESETS[key];
+  if (!p) return;
+  document.getElementById('drug-emoji-select').value = p.emoji;
+  document.getElementById('drug-emoji').value        = p.emoji;
+  document.getElementById('drug-name').value         = p.name;
+  document.getElementById('drug-desc').value         = p.desc;
+  document.getElementById('drug-price').value        = p.price;
+  document.getElementById('drug-price-tier').value   = p.tier || 'custom';
+  document.getElementById('drug-effect').value       = p.effect;
+  document.getElementById('drug-bust').value         = p.bust;
+  document.getElementById('drug-bust-select').value  = String(p.bust);
+}
+
+function setDrugPrice() {
+  const val = document.getElementById('drug-price-tier').value;
+  if (val !== 'custom') document.getElementById('drug-price').value = val;
+}
+
+function setDrugEffect() {
+  const val = document.getElementById('drug-effect-type').value;
+  if (val !== 'custom' && val) document.getElementById('drug-effect').value = val;
+}
+
 async function loadDrugs() {
   const drugs = await api('GET', `/api/drugs`).catch(()=>[]);
   const tb    = document.getElementById('drugs-tbody');
@@ -3359,25 +3543,37 @@ async function loadDrugs() {
     <td class="mono c-gold">$${(d.price||0).toLocaleString()}</td>
     <td style="font-size:11px;color:var(--muted)">${d.effect||'—'}</td>
     <td><span class="tag t-muted" style="font-size:10px">${d.storeItemId||'—'}</span></td>
-    <td>${d.available ? '<span class="tag t-green">✅ Active</span>' : '<span class="tag t-muted">❌ Off</span>'}</td>
+    <td>${d.available ? '<span class="tag t-green">✅ Active</span>' : '<span class="tag t-muted">❌ Off</span>'}${d.gangOnly?'<span class="tag t-red" style="font-size:9px;margin-left:4px">🏴 Gang</span>':''}</td>
     <td style="display:flex;gap:4px">
-      <button class="btn btn-ghost btn-sm" onclick="openDrugModal(${JSON.stringify(d).replace(/"/g,'&quot;')})">Edit</button>
+      <button class="btn btn-ghost btn-sm" onclick='openDrugModal(${JSON.stringify(d)})'>Edit</button>
       <button class="btn btn-danger btn-sm" onclick="deleteDrug('${d.id}')">Del</button>
     </td>
   </tr>`).join('');
 }
 
-function openDrugModal(drug) {
+async function openDrugModal(drug) {
+  // Load drug store items into the selector
+  const store  = await api('GET', '/api/store').catch(()=>({ items:[] }));
+  const drugItems = (store.items||[]).filter(i => i.isDrug);
+  const storeEl = document.getElementById('drug-store-select');
+  storeEl.innerHTML = '<option value="">— Link to a store item —</option>' +
+    drugItems.map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`).join('');
+
   document.getElementById('drug-modal-title').textContent = drug ? 'Edit Drug' : 'Add Drug';
-  document.getElementById('drug-edit-id').value   = drug?.id    || '';
-  document.getElementById('drug-emoji').value     = drug?.emoji || '💊';
-  document.getElementById('drug-name').value      = drug?.name  || '';
-  document.getElementById('drug-desc').value      = drug?.description || '';
-  document.getElementById('drug-price').value     = drug?.price || '';
-  document.getElementById('drug-store-id').value  = drug?.storeItemId || '';
-  document.getElementById('drug-effect').value    = drug?.effect || '';
-  document.getElementById('drug-bust').value      = drug?.bustChance != null ? Math.round((drug.bustChance||0.15)*100) : 15;
-  document.getElementById('drug-available').checked = drug?.available !== false;
+  document.getElementById('drug-edit-id').value      = drug?.id    || '';
+  document.getElementById('drug-emoji-select').value = drug?.emoji || '💊';
+  document.getElementById('drug-emoji').value        = drug?.emoji || '💊';
+  document.getElementById('drug-name').value         = drug?.name  || '';
+  document.getElementById('drug-desc').value         = drug?.description || '';
+  document.getElementById('drug-price').value        = drug?.price || '800';
+  document.getElementById('drug-effect').value       = drug?.effect || '';
+  document.getElementById('drug-bust').value         = drug?.bustChance != null ? Math.round((drug.bustChance||0.15)*100) : 15;
+  document.getElementById('drug-bust-select').value  = String(drug?.bustChance != null ? Math.round((drug.bustChance||0.15)*100) : 15);
+  document.getElementById('drug-available').checked  = drug?.available !== false;
+  document.getElementById('drug-gang-only').checked  = !!drug?.gangOnly;
+  document.getElementById('drug-store-select').value = drug?.storeItemId || '';
+  document.getElementById('drug-store-id').value     = drug?.storeItemId || '';
+  document.getElementById('drug-preset').value       = '';
   document.getElementById('drug-modal').classList.add('open');
 }
 
@@ -3389,16 +3585,20 @@ async function saveDrug() {
   const price   = parseInt(document.getElementById('drug-price').value)||0;
   if (!name || !price) return toast('Name and price are required','err');
 
+  const storeId = document.getElementById('drug-store-select').value ||
+                  document.getElementById('drug-store-id').value || null;
+
   const payload = {
     id:          id || name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''),
     name,
-    emoji:       document.getElementById('drug-emoji').value.trim() || '💊',
+    emoji:       document.getElementById('drug-emoji').value || '💊',
     description: document.getElementById('drug-desc').value.trim(),
     price,
-    storeItemId: document.getElementById('drug-store-id').value.trim() || null,
+    storeItemId: storeId,
     effect:      document.getElementById('drug-effect').value.trim(),
-    bustChance:  (parseInt(document.getElementById('drug-bust').value)||15) / 100,
+    bustChance:  parseInt(document.getElementById('drug-bust').value||15) / 100,
     available:   document.getElementById('drug-available').checked,
+    gangOnly:    document.getElementById('drug-gang-only').checked,
   };
 
   const r = await api(id ? 'PUT' : 'POST', `/api/drugs${id ? '/'+id : ''}`, payload);
@@ -3415,8 +3615,29 @@ async function deleteDrug(id) {
 
 document.getElementById('drug-modal').addEventListener('click', function(e){ if(e.target===this) closeDrugModal(); });
 
-// ════════════════════════════════════════════════
-// EMBED BUILDER
+async function saveNarcoticsRole() {
+  const roleId = document.getElementById('narcotics-role-select').value;
+  const r = await api('POST', `/api/${GUILD}/config/narcotics-role`, { roleId });
+  if (r.success) toast('Narcotics role saved','ok'); else toast(r.error||'Failed','err');
+}
+async function clearNarcoticsRole() {
+  const r = await api('POST', `/api/${GUILD}/config/narcotics-role`, { roleId: null });
+  if (r.success) { document.getElementById('narcotics-role-select').value=''; toast('Narcotics role cleared','ok'); }
+}
+
+async function loadNarcoticsRole() {
+  const [config, roles] = await Promise.all([
+    api('GET', `/api/${GUILD}/config`).catch(()=>({})),
+    api('GET', `/api/${GUILD}/guild/roles`).catch(()=>[]),
+  ]);
+  const sel = document.getElementById('narcotics-role-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— No extra role —</option>' +
+    (roles||[]).map(r => `<option value="${r.id}" ${config.narcoticsRoleId===r.id?'selected':''}>${r.name}</option>`).join('');
+}
+
+// Override nav for drugs to also load narcotics role
+
 // ════════════════════════════════════════════════
 
 let _embedColor = '#ff3b3b';
