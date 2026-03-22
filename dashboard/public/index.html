@@ -132,6 +132,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="nav('gunshop')" data-s="gunshop"><span class="nav-icon">🔫</span>Gun Shop</div>
     <div class="nav-item" onclick="nav('police')" data-s="police"><span class="nav-icon">🚔</span>Police</div>
     <div class="nav-item" onclick="nav('purge')" data-s="purge"><span class="nav-icon">⬡</span>Purge</div>
+    <div class="nav-item" onclick="nav('embeds')" data-s="embeds"><span class="nav-icon">✉️</span>Embeds</div>
   </nav>
   <div id="purge-badge" class="purge-badge">● PURGE ACTIVE</div>
 </aside>
@@ -661,6 +662,98 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
     </div>
 
+    <!-- EMBEDS -->
+    <div id="section-embeds" class="section">
+      <p class="sub-txt">Build and send rich Discord embeds directly to any channel. No coding required.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+        <!-- LEFT: BUILDER FORM -->
+        <div>
+          <!-- Step 1: Channel -->
+          <div class="purge-panel" style="margin-bottom:14px">
+            <div class="purge-info">
+              <h3>1️⃣ Pick a Channel</h3>
+              <p>Where should this embed be sent?</p>
+            </div>
+            <select class="fselect" id="eb-channel" style="flex-shrink:0;min-width:200px">
+              <option value="">— Select channel —</option>
+            </select>
+          </div>
+
+          <!-- Step 2: Embed Content -->
+          <div class="purge-panel" style="margin-bottom:14px;flex-direction:column;align-items:stretch;gap:12px">
+            <h3>2️⃣ Build Your Embed</h3>
+
+            <!-- Color picker -->
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label class="flabel" style="margin:0;flex-shrink:0">Color</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap" id="eb-color-btns">
+                <button onclick="setEmbedColor('#ff3b3b')" style="width:24px;height:24px;border-radius:50%;background:#ff3b3b;border:2px solid transparent;cursor:pointer" title="Red"></button>
+                <button onclick="setEmbedColor('#2ecc71')" style="width:24px;height:24px;border-radius:50%;background:#2ecc71;border:2px solid transparent;cursor:pointer" title="Green"></button>
+                <button onclick="setEmbedColor('#f5c518')" style="width:24px;height:24px;border-radius:50%;background:#f5c518;border:2px solid transparent;cursor:pointer" title="Gold"></button>
+                <button onclick="setEmbedColor('#5865f2')" style="width:24px;height:24px;border-radius:50%;background:#5865f2;border:2px solid transparent;cursor:pointer" title="Blurple"></button>
+                <button onclick="setEmbedColor('#00d2ff')" style="width:24px;height:24px;border-radius:50%;background:#00d2ff;border:2px solid transparent;cursor:pointer" title="Cyan"></button>
+                <button onclick="setEmbedColor('#ff6b35')" style="width:24px;height:24px;border-radius:50%;background:#ff6b35;border:2px solid transparent;cursor:pointer" title="Orange"></button>
+                <button onclick="setEmbedColor('#888888')" style="width:24px;height:24px;border-radius:50%;background:#888888;border:2px solid transparent;cursor:pointer" title="Grey"></button>
+                <button onclick="setEmbedColor('#9b59b6')" style="width:24px;height:24px;border-radius:50%;background:#9b59b6;border:2px solid transparent;cursor:pointer" title="Purple"></button>
+              </div>
+              <input type="color" id="eb-color-custom" value="#ff3b3b" oninput="setEmbedColor(this.value)" style="width:28px;height:28px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
+            </div>
+
+            <div class="fg"><label class="flabel">Title</label><input class="finput" id="eb-title" placeholder="Embed title..." oninput="updateEmbedPreview()"></div>
+            <div class="fg"><label class="flabel">Description</label><textarea class="ftextarea" id="eb-desc" placeholder="Main embed text. Supports **bold**, *italic*, `code`, and emojis!" rows="4" oninput="updateEmbedPreview()"></textarea></div>
+
+            <!-- Fields -->
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <label class="flabel" style="margin:0">Fields (optional)</label>
+                <button class="btn btn-ghost btn-sm" onclick="addEmbedField()">+ Add Field</button>
+              </div>
+              <div id="eb-fields-list" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
+
+            <!-- Footer + Image -->
+            <div class="grid2">
+              <div class="fg"><label class="flabel">Footer Text</label><input class="finput" id="eb-footer" placeholder="Small text at bottom..." oninput="updateEmbedPreview()"></div>
+              <div class="fg"><label class="flabel">Thumbnail URL</label><input class="finput" id="eb-thumbnail" placeholder="https://..." oninput="updateEmbedPreview()"></div>
+            </div>
+            <div class="fg"><label class="flabel">Image URL (large banner)</label><input class="finput" id="eb-image" placeholder="https://..." oninput="updateEmbedPreview()"></div>
+
+            <!-- Ping option -->
+            <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
+              <input type="checkbox" id="eb-ping-everyone" style="width:16px;height:16px;accent-color:#ff3b3b;flex-shrink:0">
+              <label for="eb-ping-everyone" style="font-weight:700;cursor:pointer;font-size:13px">@everyone ping with this embed</label>
+            </div>
+          </div>
+
+          <!-- Step 3: Send -->
+          <div class="purge-panel" style="flex-direction:column;align-items:stretch;gap:10px">
+            <h3>3️⃣ Send It</h3>
+            <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="sendEmbed()">🚀 Send Embed</button>
+            <button class="btn btn-ghost" style="width:100%" onclick="clearEmbed()">✕ Clear Form</button>
+          </div>
+        </div>
+
+        <!-- RIGHT: LIVE PREVIEW -->
+        <div>
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;position:sticky;top:20px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px;font-weight:700">Live Preview</div>
+            <div id="eb-preview" style="border-left:4px solid #ff3b3b;background:var(--bg3);border-radius:0 6px 6px 0;padding:14px;min-height:80px">
+              <div id="eb-prev-title" style="font-weight:700;font-size:15px;color:#fff;margin-bottom:6px;display:none"></div>
+              <div id="eb-prev-desc" style="font-size:13px;color:#dcddde;white-space:pre-wrap;display:none"></div>
+              <div id="eb-prev-fields" style="display:grid;gap:6px;margin-top:8px"></div>
+              <img id="eb-prev-thumb" style="width:80px;height:80px;border-radius:6px;object-fit:cover;float:right;margin-left:10px;display:none">
+              <img id="eb-prev-image" style="width:100%;border-radius:6px;margin-top:10px;display:none">
+              <div id="eb-prev-footer" style="font-size:11px;color:#72767d;margin-top:10px;border-top:1px solid rgba(255,255,255,.06);padding-top:8px;display:none"></div>
+              <div id="eb-prev-empty" style="color:var(--muted);font-size:13px;text-align:center;padding:16px">Start filling in the form to preview your embed</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 </div>
 </div>
@@ -940,6 +1033,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="passive_income">💰 Passive Income — earn $ over time while active</option>
               <option value="shield">🛡️ Shield — protect user from drain and silence attacks</option>
               <option value="minigame_drain">🖥️ Minigame Drain — target's funds drained only if attacker solves a scrambled word</option>
+              <option value="emp">⚡ EMP Device — attaches to hacking laptop, guarantees hack success at set level (1-5)</option>
               <option value="edit_balance">💵 Edit Balance — give or take money from user/target on use</option>
               <option value="edit_items">🎒 Edit Items — give or take a specific item from user/target on use</option>
               <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
@@ -1076,6 +1170,34 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <label class="flabel">Fine on Failure (% of attacker's total balance)</label>
               <input class="finput" id="m-mg-fine" type="number" min="1" max="100" placeholder="10">
               <div class="hint">The attacker must unscramble a random word to complete the hack. If they fail or time out, they lose this % of their own balance as a penalty.</div>
+            </div>
+          </div>
+
+          <!-- EMP DEVICE fields -->
+          <div id="ef-emp" class="ef-section">
+            <hr class="divider">
+            <div class="fg">
+              <label class="flabel">EMP Level (1–5)</label>
+              <select class="fselect" id="m-emp-level">
+                <option value="1">⚡ Level 1 — 40% guaranteed success (weak signal)</option>
+                <option value="2">⚡⚡ Level 2 — 55% guaranteed success</option>
+                <option value="3">⚡⚡⚡ Level 3 — 70% guaranteed success</option>
+                <option value="4">⚡⚡⚡⚡ Level 4 — 85% guaranteed success</option>
+                <option value="5">⚡⚡⚡⚡⚡ Level 5 — 100% guaranteed success</option>
+              </select>
+              <div class="hint">
+                EMP devices must be paired with a <strong>laptop item</strong> in the attacker's inventory. The EMP bypasses the word scramble — higher levels guarantee success at the set rate regardless of skill. Level 5 = always succeeds. <strong>Single-use by default</strong> — consumed on hack attempt.
+              </div>
+            </div>
+            <div class="fg">
+              <label class="flabel">Hack Target</label>
+              <select class="fselect" id="m-emp-target">
+                <option value="bank">🏦 Personal Bank</option>
+                <option value="business">🏢 Business Revenue</option>
+                <option value="social">📱 Social Media</option>
+                <option value="any">🎯 Any (user chooses at hack time)</option>
+              </select>
+              <div class="hint">Lock the EMP to a specific hack type, or let the user pick when they deploy it.</div>
             </div>
           </div>
 
@@ -1423,7 +1545,8 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop'}[n]||n;
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop',embeds:'✉️ Embed Builder'}[n]||n;
+  if (n === 'embeds') loadEmbedChannels();
 }
 
 async function api(m,u,b){
@@ -1630,8 +1753,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/${GUILD}/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',emp:'⚡ EMP Device',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',emp:'t-gold',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -1778,6 +1901,10 @@ function openEdit(id){
     document.getElementById('m-mg-time').value=ef.timeLimitSeconds||30;
     document.getElementById('m-mg-fine').value=ef.finePercent||10;
   }
+  if(ef.type==='emp'){
+    document.getElementById('m-emp-level').value=ef.empLevel||1;
+    document.getElementById('m-emp-target').value=ef.empTarget||'any';
+  }
   if(ef.type==='edit_balance'){
     document.getElementById('m-eb-action').value=ef.action||'give';
     document.getElementById('m-eb-amount').value=ef.amount||'';
@@ -1878,7 +2005,7 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',emp:'ef-emp',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
 
@@ -1924,6 +2051,13 @@ async function saveItem(){
         effect.amount=parseFloat(document.getElementById('m-mg-amount').value)||25;
         effect.timeLimitSeconds=parseInt(document.getElementById('m-mg-time').value)||30;
         effect.finePercent=parseInt(document.getElementById('m-mg-fine').value)||10;
+      }
+      if(et==='emp'){
+        effect.empLevel=parseInt(document.getElementById('m-emp-level').value)||1;
+        effect.empTarget=document.getElementById('m-emp-target').value||'any';
+        // Success rates per level
+        const empRates={1:0.40,2:0.55,3:0.70,4:0.85,5:1.00};
+        effect.successRate=empRates[effect.empLevel]||0.40;
       }
       if(et==='drain_wallet'||et==='drain_all'){
         effect.drainType=document.getElementById('m-drain-type').value;
@@ -2897,7 +3031,7 @@ const ACTION_LABELS = {
   delete_store_item:(d) => `removed store item **${d.name||''}**`,
   edit_store_item:  (d) => `edited store item **${d.name||''}**`,
   release_player:   (d) => `released ${d.target||'a player'} from jail`,
-  clear_heat:       (d) => `cleared heat for ${d.target||'a player'}`,
+  send_embed:       (d) => `sent an embed to <#${d.channel||''}> — *"${d.title||''}"*`,
   revive_player:    (d) => `revived ${d.target||'a player'}`,
   rob_cooldown:     (d) => `set rob cooldown to **${d.value} min**`,
   shot_timeout:     (d) => `set shot timeout to **${d.value} min**`,
@@ -2929,7 +3063,163 @@ async function loadAuditLog() {
 }
 
 // ════════════════════════════════════════════════
-// GANGS
+// EMBED BUILDER
+// ════════════════════════════════════════════════
+
+let _embedColor = '#ff3b3b';
+let _embedFields = [];
+
+function setEmbedColor(hex) {
+  _embedColor = hex;
+  document.getElementById('eb-preview').style.borderLeftColor = hex;
+  // Update selected state on color buttons
+  document.querySelectorAll('#eb-color-btns button').forEach(b => {
+    b.style.border = b.title && hex.toLowerCase() === rgbToHex(b.style.backgroundColor).toLowerCase()
+      ? '2px solid #fff' : '2px solid transparent';
+  });
+  document.getElementById('eb-color-custom').value = hex;
+}
+
+function rgbToHex(rgb) {
+  if (!rgb || rgb.startsWith('#')) return rgb || '#000';
+  const m = rgb.match(/\d+/g);
+  if (!m) return '#000';
+  return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+function addEmbedField() {
+  const id = Date.now();
+  _embedFields.push({ id, name:'', value:'', inline:false });
+  renderEmbedFields();
+}
+
+function removeEmbedField(id) {
+  _embedFields = _embedFields.filter(f => f.id !== id);
+  renderEmbedFields();
+  updateEmbedPreview();
+}
+
+function renderEmbedFields() {
+  const list = document.getElementById('eb-fields-list');
+  list.innerHTML = _embedFields.map((f,i) => `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="finput" style="flex:1" placeholder="Field name..." value="${f.name||''}"
+          oninput="_embedFields[${i}].name=this.value;updateEmbedPreview()">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);flex-shrink:0;cursor:pointer">
+          <input type="checkbox" ${f.inline?'checked':''} onchange="_embedFields[${i}].inline=this.checked;updateEmbedPreview()"> Inline
+        </label>
+        <button class="btn btn-danger btn-sm" onclick="removeEmbedField(${f.id})">✕</button>
+      </div>
+      <textarea class="ftextarea" style="min-height:40px" placeholder="Field value..."
+        oninput="_embedFields[${i}].value=this.value;updateEmbedPreview()">${f.value||''}</textarea>
+    </div>`).join('');
+}
+
+function updateEmbedPreview() {
+  const title  = document.getElementById('eb-title').value.trim();
+  const desc   = document.getElementById('eb-desc').value.trim();
+  const footer = document.getElementById('eb-footer').value.trim();
+  const thumb  = document.getElementById('eb-thumbnail').value.trim();
+  const image  = document.getElementById('eb-image').value.trim();
+  const hasContent = title || desc || _embedFields.length || footer || thumb || image;
+
+  document.getElementById('eb-prev-empty').style.display = hasContent ? 'none' : 'block';
+
+  const titleEl = document.getElementById('eb-prev-title');
+  titleEl.textContent = title;
+  titleEl.style.display = title ? 'block' : 'none';
+
+  const descEl = document.getElementById('eb-prev-desc');
+  descEl.textContent = desc;
+  descEl.style.display = desc ? 'block' : 'none';
+
+  // Fields
+  const fieldsEl = document.getElementById('eb-prev-fields');
+  if (_embedFields.length) {
+    fieldsEl.style.display = 'grid';
+    fieldsEl.style.gridTemplateColumns = 'repeat(auto-fill, minmax(140px, 1fr))';
+    fieldsEl.innerHTML = _embedFields.filter(f=>f.name||f.value).map(f =>
+      `<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:6px 8px">
+        <div style="font-weight:700;font-size:12px;color:#fff;margin-bottom:2px">${f.name||'Field'}</div>
+        <div style="font-size:12px;color:#dcddde;white-space:pre-wrap">${f.value||''}</div>
+      </div>`
+    ).join('');
+  } else {
+    fieldsEl.style.display = 'none';
+    fieldsEl.innerHTML = '';
+  }
+
+  const thumbEl = document.getElementById('eb-prev-thumb');
+  thumbEl.src = thumb; thumbEl.style.display = thumb ? 'block' : 'none';
+
+  const imageEl = document.getElementById('eb-prev-image');
+  imageEl.src = image; imageEl.style.display = image ? 'block' : 'none';
+
+  const footerEl = document.getElementById('eb-prev-footer');
+  footerEl.textContent = footer; footerEl.style.display = footer ? 'block' : 'none';
+}
+
+function clearEmbed() {
+  ['eb-title','eb-desc','eb-footer','eb-thumbnail','eb-image'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  document.getElementById('eb-ping-everyone').checked = false;
+  _embedFields = [];
+  renderEmbedFields();
+  setEmbedColor('#ff3b3b');
+  updateEmbedPreview();
+}
+
+async function loadEmbedChannels() {
+  const chans = await api('GET', `/api/${GUILD}/guild/channels`).catch(()=>[]);
+  const sel = document.getElementById('eb-channel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select channel —</option>' +
+    (chans||[]).map(c => `<option value="${c.id}">#${c.name}</option>`).join('');
+}
+
+async function sendEmbed() {
+  const channelId = document.getElementById('eb-channel').value;
+  if (!channelId) return toast('Select a channel first','err');
+
+  const title    = document.getElementById('eb-title').value.trim();
+  const desc     = document.getElementById('eb-desc').value.trim();
+  const footer   = document.getElementById('eb-footer').value.trim();
+  const thumbnail= document.getElementById('eb-thumbnail').value.trim();
+  const image    = document.getElementById('eb-image').value.trim();
+  const ping     = document.getElementById('eb-ping-everyone').checked;
+  const fields   = _embedFields.filter(f => f.name || f.value).map(f => ({ name:f.name||'\u200b', value:f.value||'\u200b', inline:!!f.inline }));
+
+  if (!title && !desc && !fields.length) return toast('Add a title or description first','err');
+
+  const payload = {
+    channelId,
+    embed: {
+      color: parseInt(_embedColor.replace('#',''), 16),
+      ...(title && { title }),
+      ...(desc  && { description: desc }),
+      ...(fields.length && { fields }),
+      ...(footer && { footer: { text: footer } }),
+      ...(thumbnail && { thumbnail: { url: thumbnail } }),
+      ...(image && { image: { url: image } }),
+    },
+    ping,
+  };
+
+  const r = await api('POST', `/api/${GUILD}/send-embed`, payload);
+  if (r.success) {
+    toast('✅ Embed sent!', 'ok');
+    clearEmbed();
+  } else {
+    toast(r.error || 'Failed to send embed', 'err');
+  }
+}
+
+// Load channels when embeds section is opened
+const _origNav = nav;
+// Hook into nav to load channels when embeds is opened
+
 // ════════════════════════════════════════════════
 async function loadGangs() {
   try {

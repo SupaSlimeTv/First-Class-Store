@@ -990,6 +990,44 @@ app.post('/api/:guildId/config/jail', requireGuildAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── SEND EMBED ────────────────────────────────────────────────
+app.post('/api/:guildId/send-embed', requireGuildAuth, async (req, res) => {
+  try {
+    const { channelId, embed, ping } = req.body;
+    if (!channelId || !embed) return res.status(400).json({ error: 'channelId and embed required' });
+
+    const botClient = require('../index.client');
+    if (!botClient) return res.status(503).json({ error: 'Bot not connected' });
+
+    const channel = await botClient.channels.fetch(channelId).catch(() => null);
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+    const { EmbedBuilder } = require('discord.js');
+    const built = new EmbedBuilder();
+    if (embed.color     !== undefined) built.setColor(embed.color);
+    if (embed.title)                   built.setTitle(embed.title);
+    if (embed.description)             built.setDescription(embed.description);
+    if (embed.fields?.length)          built.addFields(embed.fields);
+    if (embed.footer?.text)            built.setFooter({ text: embed.footer.text });
+    if (embed.thumbnail?.url)          built.setThumbnail(embed.thumbnail.url);
+    if (embed.image?.url)              built.setImage(embed.image.url);
+    built.setTimestamp();
+
+    await channel.send({
+      content: ping ? '@everyone' : undefined,
+      embeds:  [built],
+      allowedMentions: ping ? { parse: ['everyone'] } : { parse: [] },
+    });
+
+    await writeAudit(req.guildId, req.session.user?.id, 'send_embed', {
+      channel: channelId,
+      title: embed.title || '(no title)',
+    });
+
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── AUDIT LOG ─────────────────────────────────────────────
 
 async function writeAudit(guildId, userId, action, data={}) {
