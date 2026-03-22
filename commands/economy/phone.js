@@ -338,6 +338,15 @@ module.exports = {
         }
       }
 
+      // ── PAY INFLUENCER THEIR CUT ──────────────────────────────
+      // 5% base, scaling up to 20% at max power
+      const influencerPct = Math.min(0.20, 0.05 + (totalPower - 1) * 0.01);
+      const influencerCut = Math.floor(totalFanVolume * influencerPct);
+      const freshInfluencer = getOrCreateUser(userId);
+      freshInfluencer.wallet += influencerCut;
+      phone.totalEarned = (phone.totalEarned||0) + influencerCut;
+      saveUser(userId, freshInfluencer);
+
       // Update phone shoutout cooldown
       phone.lastShoutout = { ...(phone.lastShoutout||{}), [ticker]: Date.now() };
       await savePhone(userId, phone);
@@ -347,7 +356,7 @@ module.exports = {
         interaction.client.users.fetch(coin.ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
           .setColor(0xf5c518)
           .setTitle('📣 Shoutout — Price Spiking!')
-          .setDescription(`**${interaction.user.username}** (${tier.label}) shouted out **${coin.emoji||''} ${coin.name}**!\n\n${fmtNum(investingFans)} fans invested ~$${totalFanVolume.toLocaleString()} in volume.\n\n📈 Price: **$${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)}** (+${Math.round((priceBoost-1)*100)}%)\n🔥 Hype: +${coinHype.toLocaleString()}\n💰 Your cut: +$${ownerCut.toLocaleString()} to business revenue`)
+          .setDescription(`**${interaction.user.username}** (${tier.label}) shouted out **${coin.emoji||''} ${coin.name}**!\n\n${fmtNum(investingFans)} fans invested ~$${totalFanVolume.toLocaleString()} in volume.\n\n📈 Price: **$${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)}** (+${Math.round((priceBoost-1)*100)}%)\n🔥 Hype: +${coinHype.toLocaleString()}\n💰 Your cut: +$${ownerCut.toLocaleString()} to business revenue\n📣 Influencer earned: +$${influencerCut.toLocaleString()}`)
         ]}).catch(()=>{})).catch(()=>{});
       }
 
@@ -363,7 +372,8 @@ module.exports = {
           { name:'💸 Fan Volume',       value:`~$${totalFanVolume.toLocaleString()}`,                        inline:true },
           { name:'🔥 Hype Injected',    value:`+${coinHype.toLocaleString()}`,                               inline:true },
           { name:'📊 Liquidity Bump',   value:`+${liquidityBump.toLocaleString()} units`,                   inline:true },
-          ...(ownerCut > 0 ? [{ name:'💰 Owner Revenue',  value:`+$${ownerCut.toLocaleString()}`,            inline:true }] : []),
+          { name:'💵 Your Cut',         value:`+$${influencerCut.toLocaleString()} (${Math.round(influencerPct*100)}%)`, inline:true },
+          ...(ownerCut > 0 ? [{ name:'🏢 Owner Revenue', value:`+$${ownerCut.toLocaleString()}`,             inline:true }] : []),
           { name:'📣 Shoutout Power',   value:`${tier.coinHypeMult}× tier × ${customMult}× custom = **${totalPower.toFixed(1)}×**`, inline:true },
         )
         .setFooter({ text:`${tier.label} · Cooldown: ${config.shoutoutCooldownMins||30}min` })
