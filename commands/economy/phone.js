@@ -131,6 +131,8 @@ module.exports = {
 
       await interaction.deferReply();
 
+      try {
+
       // ── Calculate earnings with status multiplier ──────────
       const statusMult  = tier.mult;
       const phoneBonus  = 1 + (pType.hypeBonus || 0);
@@ -214,6 +216,10 @@ module.exports = {
         )
         .setFooter({ text:`${newTier.label} · Next post in ${Math.ceil(platform.cooldownMs/60000)}min` })
       ]});
+      } catch(postErr) {
+        console.error('Phone post error:', postErr);
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Post failed: ${postErr.message}`)] });
+      }
     }
 
     // ── LEADERBOARD ──────────────────────────────────────────
