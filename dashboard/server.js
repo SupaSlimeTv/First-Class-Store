@@ -108,8 +108,23 @@ app.get('/auth/callback', async (req, res) => {
         redirect_uri:  REDIRECT_URI,
       }),
     });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) return res.redirect('/login.html?error=token_failed');
+
+    // Debug: log what Discord actually returned
+    const rawText = await tokenRes.text();
+    console.log('OAuth token response status:', tokenRes.status);
+    console.log('OAuth token response body:', rawText.substring(0, 300));
+
+    let tokenData;
+    try { tokenData = JSON.parse(rawText); }
+    catch(e) {
+      console.error('OAuth response was not JSON. CLIENT_ID:', DISCORD_CLIENT_ID ? 'SET' : 'MISSING', '| CLIENT_SECRET:', DISCORD_CLIENT_SECRET ? 'SET' : 'MISSING', '| REDIRECT_URI:', REDIRECT_URI);
+      return res.redirect('/login.html?error=discord_returned_html');
+    }
+
+    if (!tokenData.access_token) {
+      console.error('No access token. Discord error:', tokenData);
+      return res.redirect('/login.html?error=token_failed');
+    }
     const user = await fetchDiscordAPI('/users/@me', tokenData.access_token);
     if (!user) return res.redirect('/login.html?error=user_failed');
     req.session.user        = { id: user.id, username: user.global_name || user.username, avatar: user.avatar };
