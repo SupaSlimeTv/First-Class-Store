@@ -1762,6 +1762,42 @@ async function tickLottery() {
 
 setInterval(tickLottery, 60_000);
 
+// ---- AUTO MONEY DROP ENGINE ─────────────────────────────────
+// Each guild can configure a drop channel + frequency range
+// Every minute we roll whether to spawn a drop in each configured guild
+const _dropTimers = {}; // guildId -> nextDropAt timestamp
+
+setInterval(async () => {
+  try {
+    const { getConfig }  = require('./utils/db');
+    const { spawnDrop }  = require('./commands/economy/moneydrop');
+    const now = Date.now();
+
+    for (const [guildId, guild] of client.guilds.cache) {
+      const config = getConfig(guildId);
+      if (!config.dropChannelId) continue; // no channel configured
+
+      // Init timer for this guild
+      if (!_dropTimers[guildId]) {
+        const minMs = (config.dropMinMinutes || 15) * 60 * 1000;
+        const maxMs = (config.dropMaxMinutes || 45) * 60 * 1000;
+        _dropTimers[guildId] = now + minMs + Math.random() * (maxMs - minMs);
+      }
+
+      if (now >= _dropTimers[guildId]) {
+        const channel = guild.channels.cache.get(config.dropChannelId);
+        if (channel?.isTextBased()) {
+          await spawnDrop(channel, guildId, null);
+        }
+        // Schedule next drop
+        const minMs = (config.dropMinMinutes || 15) * 60 * 1000;
+        const maxMs = (config.dropMaxMinutes || 45) * 60 * 1000;
+        _dropTimers[guildId] = now + minMs + Math.random() * (maxMs - minMs);
+      }
+    }
+  } catch(e) { console.error('Auto drop error:', e.message); }
+}, 60_000);
+
 // ---- BUSINESS REVENUE TICK ENGINE ----
 setInterval(() => {
   try {
@@ -1865,4 +1901,178 @@ require('./index.client').set(client);
 require('./dashboard/server.js');
 
 // ---- LOGIN ----
+// ── EMBED EVENT TRIGGERS ──────────────────────────────────────
+async function fireEmbedTrigger(guildId, event, variables) {
+  try {
+    const { getConfig } = require('./utils/db');
+    const config  = getConfig(guildId);
+    const trigger = config.embedTriggers?.[event];
+    if (!trigger) return;
+
+    const channel = await client.channels.fetch(trigger.channelId).catch(()=>null);
+    if (!channel) return;
+
+    const { EmbedBuilder } = require('discord.js');
+    const built = new EmbedBuilder();
+    const e = trigger.embed;
+
+    const sub = (str) => str
+      ? str.replace(/\{user\}/g, variables.mention||'')
+           .replace(/\{username\}/g, variables.username||'')
+           .replace(/\{server\}/g, variables.server||'')
+           .replace(/\{memberCount\}/g, variables.memberCount||'')
+      : str;
+
+    if (e.color     !== undefined) built.setColor(e.color);
+    if (e.title)                   built.setTitle(sub(e.title));
+    if (e.description)             built.setDescription(sub(e.description));
+    if (e.fields?.length)          built.addFields(e.fields.map(f=>({...f, name:sub(f.name), value:sub(f.value)})));
+    if (e.footer?.text)            built.setFooter({ text: sub(e.footer.text) });
+    if (e.thumbnail?.url)          built.setThumbnail(e.thumbnail.url);
+    if (e.image?.url)              built.setImage(e.image.url);
+    built.setTimestamp();
+
+    await channel.send({ embeds: [built] });
+  } catch(e) { console.error('Embed trigger error:', e.message); }
+}
+
+client.on('guildMemberAdd', async member => {
+  const vars = { mention:`<@${member.id}>`, username:member.user.username, server:member.guild.name, memberCount:member.guild.memberCount };
+  await fireEmbedTrigger(member.guild.id, 'guildMemberAdd', vars);
+});
+
+client.on('guildMemberRemove', async member => {
+  const vars = { mention:`<@${member.id}>`, username:member.user.username, server:member.guild.name, memberCount:member.guild.memberCount };
+  await fireEmbedTrigger(member.guild.id, 'guildMemberRemove', vars);
+});
+
+client.on('guildBanAdd', async ban => {
+  const vars = { mention:`<@${ban.user.id}>`, username:ban.user.username, server:ban.guild.name, memberCount:ban.guild.memberCount };
+  await fireEmbedTrigger(ban.guild.id, 'guildBanAdd', vars);
+});
+
+client.on('guildBanRemove', async ban => {
+  const vars = { mention:`<@${ban.user.id}>`, username:ban.user.username, server:ban.guild.name, memberCount:ban.guild.memberCount };
+  await fireEmbedTrigger(ban.guild.id, 'guildBanRemove', vars);
+});
+
+// ── 💰 MONEY DROP SYSTEM ──────────────────────────────────────
+// Antidote-style: weighted random drops, first to click wins
+// Tiers: Common $50-500 (70%), Uncommon $500-5k (20%), Rare $5k-50k (7%), Epic $50k-485k (3%)
+
+const activeDrops = new Map(); // channelId -> { amount, messageId }
+
+function rollDropAmount() {
+  const roll = Math.random() * 100;
+  if (roll < 70)      return Math.floor(Math.random() * 451)  + 50;         // Common
+  if (roll < 90)      return Math.floor(Math.random() * 4501) + 500;        // Uncommon
+  if (roll < 97)      return Math.floor(Math.random() * 45001)+ 5000;       // Rare
+  return Math.floor(Math.random() * 435001) + 50000;                         // Epic (max $485k)
+}
+
+function dropTier(amount) {
+  if (amount < 500)    return { label:'Common',   color:0x2ecc71, emoji:'💵' };
+  if (amount < 5000)   return { label:'Uncommon', color:0x3498db, emoji:'💰' };
+  if (amount < 50000)  return { label:'Rare',     color:0xf5c518, emoji:'💎' };
+  return                        { label:'Epic',    color:0xff3b3b, emoji:'💰' };
+}
+
+async function spawnMoneyDrop(guild) {
+  try {
+    const { getConfig } = require('./utils/db');
+    const config = getConfig(guild.id);
+    if (!config.moneyDropChannelId) return;
+
+    const channel = await client.channels.fetch(config.moneyDropChannelId).catch(()=>null);
+    if (!channel) return;
+
+    // Don't spawn if one is already active in this channel
+    if (activeDrops.has(channel.id)) return;
+
+    const amount = rollDropAmount();
+    const tier   = dropTier(amount);
+
+    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const msg = await channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(tier.color)
+        .setTitle(`${tier.emoji} Money Drop — ${tier.label}!`)
+        .setDescription(`A **${tier.label}** money drop appeared!\n\n💵 **$${amount.toLocaleString()}** is up for grabs.\n\nFirst to claim it wins!`)
+        .setFooter({ text:'⚡ First come first served — expires in 60 seconds' })
+        .setTimestamp()
+      ],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('moneydrop_claim').setLabel(`💰 Claim $${amount.toLocaleString()}`).setStyle(ButtonStyle.Success)
+      )],
+    });
+
+    activeDrops.set(channel.id, { amount, messageId: msg.id, guildId: guild.id });
+
+    // Auto-expire after 60 seconds
+    setTimeout(async () => {
+      if (activeDrops.get(channel.id)?.messageId === msg.id) {
+        activeDrops.delete(channel.id);
+        await msg.edit({
+          embeds: [new EmbedBuilder().setColor(0x888888)
+            .setTitle(`${tier.emoji} Money Drop — Expired`)
+            .setDescription(`Nobody claimed the **$${amount.toLocaleString()}** drop in time. 💨`)
+          ],
+          components: [],
+        }).catch(()=>{});
+      }
+    }, 60_000);
+  } catch(e) { console.error('Money drop error:', e.message); }
+}
+
+// Handle claim button
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton() || interaction.customId !== 'moneydrop_claim') return;
+  const drop = activeDrops.get(interaction.channelId);
+  if (!drop || drop.messageId !== interaction.message.id) {
+    return interaction.reply({ content:'This drop already expired or was claimed.', ephemeral:true });
+  }
+
+  // Claimed — remove immediately to prevent double-claims
+  activeDrops.delete(interaction.channelId);
+
+  const { getOrCreateUser, saveUser, setGuildContext } = require('./utils/db');
+  setGuildContext(interaction.guildId);
+  const user = getOrCreateUser(interaction.user.id);
+  user.wallet += drop.amount;
+  saveUser(interaction.user.id, user);
+
+  const tier = dropTier(drop.amount);
+  const { EmbedBuilder } = require('discord.js');
+
+  await interaction.update({
+    embeds: [new EmbedBuilder()
+      .setColor(tier.color)
+      .setTitle(`${tier.emoji} Claimed by ${interaction.user.username}!`)
+      .setDescription(`<@${interaction.user.id}> snatched up **$${drop.amount.toLocaleString()}**!\n\n💵 New wallet: **$${user.wallet.toLocaleString()}**`)
+      .setTimestamp()
+    ],
+    components: [],
+  });
+});
+
+// Money drop tick — check each guild every minute, roll chance to spawn
+setInterval(async () => {
+  try {
+    const { getConfig } = require('./utils/db');
+    for (const guild of client.guilds.cache.values()) {
+      const config = getConfig(guild.id);
+      if (!config.moneyDropChannelId || !config.moneyDropEnabled) continue;
+
+      // Random interval: drop every 15-45 minutes on average
+      // Each minute tick: ~3.3% chance (so avg 30min between drops)
+      const minInterval = config.moneyDropMinMins || 15;
+      const maxInterval = config.moneyDropMaxMins || 45;
+      // Convert to per-tick probability
+      const avgMins = (minInterval + maxInterval) / 2;
+      const chance  = 1 / avgMins;
+      if (Math.random() < chance) await spawnMoneyDrop(guild);
+    }
+  } catch(e) { console.error('Drop tick error:', e.message); }
+}, 60_000);
+
 client.login(process.env.TOKEN);
