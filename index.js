@@ -2051,4 +2051,8 @@ setInterval(async () => {
   } catch(e) { console.error('Drop tick error:', e.message); }
 }, 60_000);
 
+// ── GLOBAL ERROR HANDLERS ─────────────────────────────────────
+process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
+process.on('uncaughtException',  (err) => console.error('Uncaught exception:', err));
+
 client.login(process.env.TOKEN);

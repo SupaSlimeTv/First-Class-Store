@@ -5,6 +5,7 @@
 // ============================================================
 
 const express        = require('express');
+const rateLimit      = require('express-rate-limit');
 const session        = require('express-session');
 const path           = require('path');
 const fs             = require('fs');
@@ -36,6 +37,22 @@ const REDIRECT_URI          = process.env.DASHBOARD_URL
   : `http://localhost:${PORT}/auth/callback`;
 
 app.use(express.json());
+
+// ── RATE LIMITING ─────────────────────────────────────────────
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,                  // 300 requests per 15min per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, slow down.' },
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,                   // 20 login attempts per 15min
+  message: { error: 'Too many login attempts.' },
+});
+app.use('/api/', apiLimiter);
+app.use('/auth/', authLimiter);
 app.set('trust proxy', 1);
 app.use(session({
   secret:            process.env.SESSION_SECRET,
@@ -79,6 +96,20 @@ async function isAdminInGuild(userId, guildId) {
   } catch { return false; }
 }
 
+
+// ── PAGINATED MEMBER FETCH (handles servers > 1000 members) ──
+async function fetchAllMembers(guildId) {
+  let all = [];
+  let after = '0';
+  while (true) {
+    const batch = await fetchBotAPI(`/guilds/${guildId}/members?limit=1000&after=${after}`);
+    if (!batch || !batch.length) break;
+    all = all.concat(batch);
+    if (batch.length < 1000) break;
+    after = batch[batch.length - 1].user.id;
+  }
+  return all;
+}
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in', redirect: '/login.html' });
   next();
@@ -224,7 +255,7 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
 
   try {
     // Fetch current guild members — only show people actually in the server
-    const members = await fetchBotAPI(`/guilds/${guildId}/members?limit=1000`);
+    const members = await fetchAllMembers(guildId);
     if (!Array.isArray(members)) return res.json([]);
 
     const { getPhone, getStatusTier } = require('../utils/phoneDb');
@@ -668,7 +699,7 @@ app.post('/api/:guildId/users/resolve', requireGuildAuth, async (req, res) => {
     const result = {};
 
     // Try guild members first (gets nicknames)
-    const members = await fetchBotAPI(`/guilds/${req.guildId}/members?limit=1000`);
+    const members = await fetchAllMembers(req.guildId);
     const memberMap = {};
     if (Array.isArray(members)) {
       for (const m of members) {
@@ -1092,7 +1123,7 @@ app.get('/api/:guildId/influencers', requireGuildAuth, async (req, res) => {
   try {
     const { getAllPhones, getStatusTier, PHONE_TYPES } = require('../utils/phoneDb');
     const all     = getAllPhones();
-    const members = await fetchBotAPI(`/guilds/${req.guildId}/members?limit=1000`);
+    const members = await fetchAllMembers(req.guildId);
     const memberIds = new Set((members||[]).map(m => m.user?.id).filter(Boolean));
 
     const list = Object.entries(all)
@@ -1211,6 +1242,42 @@ app.delete('/api/drugs/:id', requireAuth, async (req, res) => {
     const { deleteDrug } = require('../utils/drugDb');
     const gid = req.query.guildId || req.session.guildId;
     await deleteDrug(req.params.id, gid);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── MONEY DROP CONFIG ─────────────────────────────────────────
+app.post('/api/:guildId/config/money-drop', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  const { enabled, channelId, minMins, maxMins } = req.body;
+  if (enabled  !== undefined) config.moneyDropEnabled    = !!enabled;
+  if (channelId !== undefined) config.moneyDropChannelId = channelId || null;
+  if (minMins  !== undefined) config.moneyDropMinMins   = parseInt(minMins)||15;
+  if (maxMins  !== undefined) config.moneyDropMaxMins   = parseInt(maxMins)||45;
+  db.saveConfig(req.guildId, config);
+  await writeAudit(req.guildId, req.session.user?.id, 'money_drop_config', { enabled: config.moneyDropEnabled });
+  res.json({ success: true });
+});
+
+// ── EMBED TRIGGERS ────────────────────────────────────────────
+app.post('/api/:guildId/embed-triggers', requireGuildAuth, async (req, res) => {
+  try {
+    const { event, channelId, embed } = req.body;
+    if (!event || !channelId || !embed) return res.status(400).json({ error: 'event, channelId, embed required' });
+    const config = db.getConfig(req.guildId);
+    if (!config.embedTriggers) config.embedTriggers = {};
+    config.embedTriggers[event] = { channelId, embed };
+    db.saveConfig(req.guildId, config);
+    await writeAudit(req.guildId, req.session.user?.id, 'embed_trigger_save', { event, channel: channelId });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/:guildId/embed-triggers/:event', requireGuildAuth, async (req, res) => {
+  try {
+    const config = db.getConfig(req.guildId);
+    if (config.embedTriggers) delete config.embedTriggers[req.params.event];
+    db.saveConfig(req.guildId, config);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

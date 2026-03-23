@@ -15,6 +15,7 @@
     "discord.js": "^14.16.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.3.1",
     "express-session": "^1.18.0"
   },
   "devDependencies": {
