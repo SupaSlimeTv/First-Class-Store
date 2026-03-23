@@ -227,6 +227,52 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
       </div>
 
+      <div class="purge-panel owner-only" style="margin-bottom:0">
+        <div class="purge-info">
+          <h3>🔫 Shot Timeout</h3>
+          <p>When a player is hit by a gun, they are silenced from all bot commands for this many minutes. Set to <strong>0</strong> to disable. During purge timeouts still apply.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <input id="shot-timeout-input" type="number" min="0" step="1" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="5">
+          <div style="font-size:12px;color:var(--muted)">min</div>
+          <button class="btn btn-primary" onclick="saveShotTimeout()">Save</button>
+        </div>
+      </div>
+
+      <!-- MONEY DROP CONFIG -->
+      <div class="purge-panel owner-only" style="margin-top:14px;flex-direction:column;align-items:stretch;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h3>💰 Money Drop System</h3>
+            <p>Randomly drops claimable cash in a channel. First to click wins. Antidote-style weighted drops.</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span id="drop-status-label" style="font-size:12px;color:var(--muted)">Off</span>
+            <div id="drop-toggle" onclick="toggleMoneyDrop()" style="width:44px;height:24px;border-radius:12px;background:var(--border);cursor:pointer;position:relative;transition:background .2s">
+              <div id="drop-knob" style="width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:left .2s"></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="fg" style="margin:0">
+            <label class="flabel">Drop Channel</label>
+            <select class="fselect" id="drop-channel-select"><option value="">— Select channel —</option></select>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Min interval (min)</label>
+            <input class="finput" type="number" id="drop-min-mins" min="1" placeholder="15" value="15">
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">Max interval (min)</label>
+            <input class="finput" type="number" id="drop-max-mins" min="1" placeholder="45" value="45">
+          </div>
+        </div>
+        <div class="info-box" style="margin:0;font-size:11px">
+          💵 <strong>Common</strong> $50–500 (70%) · 💰 <strong>Uncommon</strong> $500–5k (20%) · 💎 <strong>Rare</strong> $5k–50k (7%) · 🔥 <strong>Epic</strong> $50k–$485k (3%)
+        </div>
+        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveMoneyDropConfig()">Save Drop Settings</button>
+      </div>
+
       <!-- AUDIT LOG -->
       <div style="margin-top:20px">
         <div class="tbl-head" style="margin-bottom:10px">
@@ -732,7 +778,43 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <!-- Step 3: Send -->
           <div class="purge-panel" style="flex-direction:column;align-items:stretch;gap:10px">
             <h3>3️⃣ Send It</h3>
-            <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="sendEmbed()">🚀 Send Embed</button>
+
+            <!-- Event trigger toggle — prominent card -->
+            <div style="border:2px solid #5865f2;border-radius:8px;overflow:hidden">
+              <div onclick="toggleEmbedTrigger()" style="background:rgba(88,101,242,.15);padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:18px">⚡</span>
+                  <div>
+                    <div style="font-weight:700;font-size:13px;color:#fff">Link to a Server Event</div>
+                    <div style="font-size:11px;color:var(--muted)">Auto-send this embed when someone joins, leaves, gets banned, etc.</div>
+                  </div>
+                </div>
+                <div id="eb-trigger-chevron" style="color:#5865f2;font-size:18px;transition:transform .2s">▼</div>
+              </div>
+              <div id="eb-trigger-options" style="display:none;flex-direction:column;gap:10px;padding:14px 16px;background:var(--bg3)">
+                <div class="fg" style="margin:0">
+                  <label class="flabel">Event Type</label>
+                  <select class="fselect" id="eb-trigger-event">
+                    <option value="">— Select an event —</option>
+                    <option value="guildMemberAdd">👋 Member Joins Server</option>
+                    <option value="guildMemberRemove">🚪 Member Leaves Server</option>
+                    <option value="guildBanAdd">🔨 Member Banned</option>
+                    <option value="guildBanRemove">✅ Member Unbanned</option>
+                  </select>
+                </div>
+                <div class="info-box" style="margin:0;font-size:11px">
+                  Use these variables in your title/description:<br>
+                  <code>{user}</code> → @mention &nbsp;·&nbsp; <code>{username}</code> → display name &nbsp;·&nbsp; <code>{server}</code> → server name &nbsp;·&nbsp; <code>{memberCount}</code> → member count
+                </div>
+                <div id="eb-trigger-status" style="font-size:11px;padding:6px 10px;background:rgba(88,101,242,.1);border-radius:4px;color:#5865f2;display:none"></div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn btn-primary" style="flex:1" onclick="saveEmbedTrigger()">💾 Save Trigger</button>
+                  <button class="btn btn-danger" onclick="deleteEmbedTrigger()">🗑️ Remove</button>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="sendEmbed()">🚀 Send Now</button>
             <button class="btn btn-ghost" style="width:100%" onclick="clearEmbed()">✕ Clear Form</button>
           </div>
         </div>
@@ -1816,7 +1898,7 @@ function nav(n){
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
   document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop',embeds:'✉️ Embed Builder',drugs:'💊 Drug Market',influencers:'📱 Influencers'}[n]||n;
-  if (n === 'embeds')      loadEmbedChannels();
+  if (n === 'embeds')      { loadEmbedChannels(); loadEmbedTriggers(); }
   if (n === 'drugs')       { loadDrugs(); loadNarcoticsRole(); }
   if (n === 'influencers') { loadInfluencers(); loadSponsorships(); }
 }
@@ -1846,6 +1928,7 @@ async function refresh(){
   await loadGunShop();
   await loadCustomCoins();
   await loadAuditLog();
+  loadMoneyDropConfig(config);
 
   // Load users separately so the list doesn't flash blank
   api('GET',`/api/${GUILD}/users`).then(users => {
@@ -3825,6 +3908,119 @@ function clearEmbed() {
   renderEmbedFields();
   setEmbedColor('#ff3b3b');
   updateEmbedPreview();
+}
+
+// ── MONEY DROP CONFIG ──────────────────────────────────────────
+function updateDropToggleUI(enabled) {
+  const knob  = document.getElementById('drop-knob');
+  const track = document.getElementById('drop-toggle');
+  const label = document.getElementById('drop-status-label');
+  if (!knob) return;
+  if (enabled) {
+    track.style.background = '#2ecc71'; knob.style.left = '23px';
+    label.textContent = 'Active'; label.style.color = '#2ecc71';
+  } else {
+    track.style.background = 'var(--border)'; knob.style.left = '3px';
+    label.textContent = 'Off'; label.style.color = 'var(--muted)';
+  }
+}
+
+async function toggleMoneyDrop() {
+  const config = await api('GET', `/api/${GUILD}/config`);
+  const newVal = !config.moneyDropEnabled;
+  const r = await api('POST', `/api/${GUILD}/config/money-drop`, {
+    enabled:   newVal,
+    channelId: document.getElementById('drop-channel-select')?.value,
+    minMins:   parseInt(document.getElementById('drop-min-mins')?.value)||15,
+    maxMins:   parseInt(document.getElementById('drop-max-mins')?.value)||45,
+  });
+  if (r.success) { updateDropToggleUI(newVal); toast(newVal?'💰 Money drops enabled!':'Money drops disabled','ok'); }
+  else toast(r.error||'Failed','err');
+}
+
+async function saveMoneyDropConfig() {
+  const channelId = document.getElementById('drop-channel-select').value;
+  const minMins   = parseInt(document.getElementById('drop-min-mins').value)||15;
+  const maxMins   = parseInt(document.getElementById('drop-max-mins').value)||45;
+  if (!channelId) return toast('Select a drop channel first','err');
+  const r = await api('POST', `/api/${GUILD}/config/money-drop`, { channelId, minMins, maxMins });
+  if (r.success) toast('Drop settings saved','ok'); else toast(r.error||'Failed','err');
+}
+
+function loadMoneyDropConfig(config) {
+  const sel = document.getElementById('drop-channel-select');
+  if (sel && _guildChannels?.length) {
+    sel.innerHTML = '<option value="">— Select channel —</option>' +
+      _guildChannels.map(c=>`<option value="${c.id}" ${config.moneyDropChannelId===c.id?'selected':''}>#${c.name}</option>`).join('');
+  }
+  if (document.getElementById('drop-min-mins')) document.getElementById('drop-min-mins').value = config.moneyDropMinMins||15;
+  if (document.getElementById('drop-max-mins')) document.getElementById('drop-max-mins').value = config.moneyDropMaxMins||45;
+  updateDropToggleUI(!!config.moneyDropEnabled);
+}
+
+function toggleEmbedTrigger() {
+  const opts     = document.getElementById('eb-trigger-options');
+  const chevron  = document.getElementById('eb-trigger-chevron');
+  const isOpen   = opts.style.display !== 'none';
+  opts.style.display   = isOpen ? 'none' : 'flex';
+  chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+async function loadEmbedTriggers() {
+  // Load any saved triggers and show their status
+  const config = await api('GET', `/api/${GUILD}/config`).catch(()=>({}));
+  const triggers = config.embedTriggers || {};
+  const statusEl = document.getElementById('eb-trigger-status');
+  if (!statusEl) return;
+  const keys = Object.keys(triggers);
+  if (keys.length) {
+    const labels = { guildMemberAdd:'Member Join', guildMemberRemove:'Member Leave', guildBanAdd:'Member Ban', guildBanRemove:'Member Unban' };
+    statusEl.style.display = 'block';
+    statusEl.textContent = `${keys.length} active trigger${keys.length!==1?'s':''}: ${keys.map(k=>labels[k]||k).join(', ')}`;
+  } else {
+    statusEl.style.display = 'none';
+  }
+}
+
+async function saveEmbedTrigger() {
+  const channelId = document.getElementById('eb-channel').value;
+  const event     = document.getElementById('eb-trigger-event').value;
+  if (!channelId) return toast('Select a channel first','err');
+  if (!event)     return toast('Select an event first','err');
+
+  const title    = document.getElementById('eb-title').value.trim();
+  const desc     = document.getElementById('eb-desc').value.trim();
+  const footer   = document.getElementById('eb-footer').value.trim();
+  const thumbnail= document.getElementById('eb-thumbnail').value.trim();
+  const image    = document.getElementById('eb-image').value.trim();
+  const fields   = _embedFields.filter(f=>f.name||f.value).map(f=>({name:f.name||'\u200b',value:f.value||'\u200b',inline:!!f.inline}));
+
+  const payload = {
+    event, channelId,
+    embed: {
+      color: parseInt(_embedColor.replace('#',''),16),
+      ...(title && { title }),
+      ...(desc  && { description: desc }),
+      ...(fields.length && { fields }),
+      ...(footer && { footer:{ text:footer } }),
+      ...(thumbnail && { thumbnail:{ url:thumbnail } }),
+      ...(image && { image:{ url:image } }),
+    },
+  };
+
+  const r = await api('POST', `/api/${GUILD}/embed-triggers`, payload);
+  if (r.success) {
+    toast(`✅ Trigger saved — embed will auto-send on ${event}`,'ok');
+    await loadEmbedTriggers();
+  } else toast(r.error||'Failed','err');
+}
+
+async function deleteEmbedTrigger() {
+  const event = document.getElementById('eb-trigger-event').value;
+  if (!event) return toast('Select an event to remove','err');
+  const r = await api('DELETE', `/api/${GUILD}/embed-triggers/${event}`);
+  if (r.success) { toast('Trigger removed','ok'); await loadEmbedTriggers(); }
+  else toast(r.error||'Failed','err');
 }
 
 async function loadEmbedChannels() {
