@@ -1762,42 +1762,6 @@ async function tickLottery() {
 
 setInterval(tickLottery, 60_000);
 
-// ---- AUTO MONEY DROP ENGINE ─────────────────────────────────
-// Each guild can configure a drop channel + frequency range
-// Every minute we roll whether to spawn a drop in each configured guild
-const _dropTimers = {}; // guildId -> nextDropAt timestamp
-
-setInterval(async () => {
-  try {
-    const { getConfig }  = require('./utils/db');
-    const { spawnDrop }  = require('./commands/economy/moneydrop');
-    const now = Date.now();
-
-    for (const [guildId, guild] of client.guilds.cache) {
-      const config = getConfig(guildId);
-      if (!config.dropChannelId) continue; // no channel configured
-
-      // Init timer for this guild
-      if (!_dropTimers[guildId]) {
-        const minMs = (config.dropMinMinutes || 15) * 60 * 1000;
-        const maxMs = (config.dropMaxMinutes || 45) * 60 * 1000;
-        _dropTimers[guildId] = now + minMs + Math.random() * (maxMs - minMs);
-      }
-
-      if (now >= _dropTimers[guildId]) {
-        const channel = guild.channels.cache.get(config.dropChannelId);
-        if (channel?.isTextBased()) {
-          await spawnDrop(channel, guildId, null);
-        }
-        // Schedule next drop
-        const minMs = (config.dropMinMinutes || 15) * 60 * 1000;
-        const maxMs = (config.dropMaxMinutes || 45) * 60 * 1000;
-        _dropTimers[guildId] = now + minMs + Math.random() * (maxMs - minMs);
-      }
-    }
-  } catch(e) { console.error('Auto drop error:', e.message); }
-}, 60_000);
-
 // ---- BUSINESS REVENUE TICK ENGINE ----
 setInterval(() => {
   try {
@@ -2055,22 +2019,34 @@ client.on('interactionCreate', async interaction => {
   });
 });
 
-// Money drop tick — check each guild every minute, roll chance to spawn
+// Money drop tick — per-guild timer-based scheduling (not probability)
+// Each guild gets its own next-drop timestamp so they never interfere
+const _dropNextAt = {}; // guildId -> timestamp of next drop
+
 setInterval(async () => {
   try {
     const { getConfig } = require('./utils/db');
+    const now = Date.now();
+
     for (const guild of client.guilds.cache.values()) {
       const config = getConfig(guild.id);
       if (!config.moneyDropChannelId || !config.moneyDropEnabled) continue;
 
-      // Random interval: drop every 15-45 minutes on average
-      // Each minute tick: ~3.3% chance (so avg 30min between drops)
-      const minInterval = config.moneyDropMinMins || 15;
-      const maxInterval = config.moneyDropMaxMins || 45;
-      // Convert to per-tick probability
-      const avgMins = (minInterval + maxInterval) / 2;
-      const chance  = 1 / avgMins;
-      if (Math.random() < chance) await spawnMoneyDrop(guild);
+      const minMs = (config.moneyDropMinMins || 15) * 60 * 1000;
+      const maxMs = (config.moneyDropMaxMins || 45) * 60 * 1000;
+
+      // First time seeing this guild — stagger its first drop randomly
+      // so all guilds don't drop at the same time after a restart
+      if (!_dropNextAt[guild.id]) {
+        _dropNextAt[guild.id] = now + Math.random() * maxMs;
+        continue;
+      }
+
+      if (now >= _dropNextAt[guild.id]) {
+        await spawnMoneyDrop(guild);
+        // Schedule next drop: random interval between min and max
+        _dropNextAt[guild.id] = now + minMs + Math.random() * (maxMs - minMs);
+      }
     }
   } catch(e) { console.error('Drop tick error:', e.message); }
 }, 60_000);
