@@ -273,6 +273,19 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <button class="btn btn-primary" style="align-self:flex-start" onclick="saveMoneyDropConfig()">Save Drop Settings</button>
       </div>
 
+      <!-- HOME PRICES CONFIG -->
+      <div class="purge-panel owner-only" style="margin-top:14px;flex-direction:column;align-items:stretch;gap:12px">
+        <h3>🏠 Home System Prices</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0">Customize home purchase prices for this server. Leave blank to use defaults.</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+          <div class="fg" style="margin:0"><label class="flabel">🏚️ Studio</label><input class="finput" type="number" id="home-price-studio" placeholder="5000 (default)"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏠 House</label><input class="finput" type="number" id="home-price-house" placeholder="25000 (default)"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏡 Mansion</label><input class="finput" type="number" id="home-price-mansion" placeholder="100000 (default)"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏰 Estate</label><input class="finput" type="number" id="home-price-estate" placeholder="500000 (default)"></div>
+        </div>
+        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveHomePrices()">Save Prices</button>
+      </div>
+
       <!-- AUDIT LOG -->
       <div style="margin-top:20px">
         <div class="tbl-head" style="margin-bottom:10px">
@@ -650,31 +663,31 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </table>
       </div>
 
-      <!-- HOME PRICES CONFIG -->
-      <div class="purge-panel owner-only" style="margin-bottom:14px;flex-direction:column;align-items:stretch;gap:12px">
-        <h3>🏠 Home Prices</h3>
-        <p style="font-size:12px;color:var(--muted);margin:0">Customize home purchase prices for this server. Leave blank to use defaults.</p>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-          <div class="fg" style="margin:0"><label class="flabel">🏚️ Studio</label><input class="finput" type="number" id="home-price-studio" placeholder="5000"></div>
-          <div class="fg" style="margin:0"><label class="flabel">🏠 House</label><input class="finput" type="number" id="home-price-house" placeholder="25000"></div>
-          <div class="fg" style="margin:0"><label class="flabel">🏡 Mansion</label><input class="finput" type="number" id="home-price-mansion" placeholder="100000"></div>
-          <div class="fg" style="margin:0"><label class="flabel">🏰 Estate</label><input class="finput" type="number" id="home-price-estate" placeholder="500000"></div>
-        </div>
-        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveHomePrices()">Save Prices</button>
-      </div>
-
       <!-- JAIL CONFIG -->
-      <div class="purge-panel owner-only" style="margin-bottom:14px">
-        <div class="purge-info">
+      <div class="purge-panel owner-only" style="margin-bottom:14px;flex-direction:column;align-items:stretch;gap:12px">
+        <div>
           <h3>🔒 Prison System</h3>
-          <p>Run <code>/jailcreate</code> in your server first. Then select the roles/channel below.</p>
+          <p style="font-size:12px;color:var(--muted);margin:4px 0 0">Run <code>/jailcreate</code> in your server first to auto-create the roles and channel. Then select them below.</p>
           <p id="jail-status" style="margin-top:6px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">—</p>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;min-width:200px">
-          <select class="fselect" id="jail-role-select"><option value="">— Select Prisoner Role —</option></select>
-          <select class="fselect" id="jail-channel-select"><option value="">— Select Prison Channel —</option></select>
-          <button class="btn btn-primary" onclick="saveJailConfig()">Save Prison Config</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="fg" style="margin:0">
+            <label class="flabel">🔒 Prisoner Role</label>
+            <select class="fselect" id="jail-role-select"><option value="">— Select role —</option></select>
+            <div class="hint" style="margin-top:4px">Given when a user is jailed. Can talk in prison channel.</div>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">🔕 Solitary Role</label>
+            <select class="fselect" id="solitary-role-select"><option value="">— Select role —</option></select>
+            <div class="hint" style="margin-top:4px">Given in solitary. Same lockout but read-only — can't talk.</div>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">📺 Prison Channel</label>
+            <select class="fselect" id="jail-channel-select"><option value="">— Select channel —</option></select>
+            <div class="hint" style="margin-top:4px">Where prisoners can talk while jailed.</div>
+          </div>
         </div>
+        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveJailConfig()">💾 Save Prison Config</button>
       </div>
 
       <div class="tbl-wrap">
@@ -4424,22 +4437,34 @@ async function loadJailConfig() {
       api('GET', `/api/${GUILD}/guild/roles`).catch(()=>[]),
       api('GET', `/api/${GUILD}/guild/channels`).catch(()=>[]),
     ]);
+
+    const roleOpts = (roles||[]).map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
     const roleSel = document.getElementById('jail-role-select');
+    const solSel  = document.getElementById('solitary-role-select');
     const chanSel = document.getElementById('jail-channel-select');
-    if (!roleSel || !chanSel) return;
-    roleSel.innerHTML = '<option value="">— Select Prisoner Role —</option>' +
-      (roles||[]).map(r => `<option value="${r.id}" ${config.prisonRoleId===r.id?'selected':''}>${r.name}</option>`).join('');
-    chanSel.innerHTML = '<option value="">— Select Prison Channel —</option>' +
-      (chans||[]).map(c => `<option value="${c.id}" ${config.prisonChannelId===c.id?'selected':''}>#${c.name}</option>`).join('');
+
+    if (roleSel) {
+      roleSel.innerHTML = '<option value="">— Select Prisoner Role —</option>' + roleOpts;
+      if (config.prisonRoleId) roleSel.value = config.prisonRoleId;
+    }
+    if (solSel) {
+      solSel.innerHTML = '<option value="">— Select Solitary Role —</option>' + roleOpts;
+      if (config.solitaryRoleId) solSel.value = config.solitaryRoleId;
+    }
+    if (chanSel) {
+      chanSel.innerHTML = '<option value="">— Select Prison Channel —</option>' +
+        (chans||[]).map(c => `<option value="${c.id}" ${config.prisonChannelId===c.id?'selected':''}>#${c.name}</option>`).join('');
+    }
+
     const status = document.getElementById('jail-status');
     if (status) {
-      if (config.prisonRoleId && config.prisonChannelId) {
-        status.textContent = `✅ Prison active — Role ID: ${config.prisonRoleId}`;
-        status.style.color = '#2ecc71';
-      } else {
-        status.textContent = '⚠️ Run /jailcreate in your server first, then select the role and channel here.';
-        status.style.color = '#f5c518';
-      }
+      const hasAll = config.prisonRoleId && config.prisonChannelId;
+      const hasSol = config.solitaryRoleId;
+      status.textContent = hasAll
+        ? `✅ Prison active${hasSol ? ' · Solitary configured' : ' · ⚠️ No solitary role set'}`
+        : '⚠️ Run /jailcreate in your server first, then select the roles and channel.';
+      status.style.color = hasAll ? '#2ecc71' : '#f5c518';
     }
   } catch(e) { console.error('loadJailConfig error:', e); }
 }
@@ -4447,8 +4472,9 @@ async function loadJailConfig() {
 async function saveJailConfig() {
   const roleId = document.getElementById('jail-role-select').value;
   const chanId = document.getElementById('jail-channel-select').value;
-  if (!roleId || !chanId) return toast('Select both a role and channel','err');
-  const r = await api('POST', `/api/${GUILD}/config/jail`, { prisonRoleId: roleId, prisonChannelId: chanId });
+  const solId  = document.getElementById('solitary-role-select')?.value || null;
+  if (!roleId || !chanId) return toast('Select a prisoner role and channel','err');
+  const r = await api('POST', `/api/${GUILD}/config/jail`, { prisonRoleId: roleId, prisonChannelId: chanId, solitaryRoleId: solId });
   if (r.success) { toast('Prison config saved ✅','ok'); await loadJailConfig(); }
   else toast(r.error||'Failed','err');
 }

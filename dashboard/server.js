@@ -1125,7 +1125,7 @@ app.post('/api/:guildId/coins', requireGuildAuth, async (req, res) => {
     await c.insertOne({ _id: id, ...profile });
 
     // Register with live tick engine
-    try { const idx = require('../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
+    try { const idx = require('../../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
 
     // Set starting price
     const pc = await col('stockPrices');
@@ -1145,7 +1145,7 @@ app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
     const { col } = require('../utils/mongo');
     const c = await col('customCoins');
     await c.deleteOne({ _id: req.params.id });
-    try { const idx = require('../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
+    try { const idx = require('../../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1153,11 +1153,12 @@ app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
 // Jail / prison config
 app.post('/api/:guildId/config/jail', requireGuildAuth, (req, res) => {
   const config = db.getConfig(req.guildId);
-  const { prisonRoleId, prisonChannelId } = req.body;
-  if (prisonRoleId    !== undefined) config.prisonRoleId     = prisonRoleId    || null;
-  if (prisonChannelId !== undefined) config.prisonChannelId  = prisonChannelId || null;
+  const { prisonRoleId, prisonChannelId, solitaryRoleId } = req.body;
+  if (prisonRoleId    !== undefined) config.prisonRoleId    = prisonRoleId    || null;
+  if (prisonChannelId !== undefined) config.prisonChannelId = prisonChannelId || null;
+  if (solitaryRoleId  !== undefined) config.solitaryRoleId  = solitaryRoleId  || null;
   db.saveConfig(req.guildId, config);
-  writeAudit(req.guildId, req.session.user?.id, 'jail_config', { prisonRoleId, prisonChannelId });
+  writeAudit(req.guildId, req.session.user?.id, 'jail_config', { prisonRoleId, prisonChannelId, solitaryRoleId });
   res.json({ success: true });
 });
 
