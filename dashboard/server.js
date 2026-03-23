@@ -235,17 +235,33 @@ app.get('/api/session-guild', requireAuth, (req, res) => {
 
 app.get('/api/:guildId/stats', requireGuildAuth, async (req, res) => {
   const guildId  = req.guildId;
-  const users    = db.getAllUsers();
+  const allUsers = db.getAllUsers();
   const store    = db.getStore(req.guildId);
   const config   = db.getConfig(guildId);
-  const userList = Object.values(users);
-  const totalMoney = userList.reduce((s, u) => s + (u.wallet||0) + (u.bank||0), 0);
-  let totalMembers = userList.length;
+
+  // Get guild member IDs to filter to this server only
+  let memberIds = new Set();
+  let totalMembers = 0;
   try {
+    const members = await fetchAllMembers(guildId);
+    if (Array.isArray(members)) {
+      members.forEach(m => { if (m.user?.id) memberIds.add(m.user.id); });
+      totalMembers = memberIds.size;
+    }
+    // Also try approximate count for display
     const guild = await fetchBotAPI(`/guilds/${guildId}?with_counts=true`);
     if (guild?.approximate_member_count) totalMembers = guild.approximate_member_count;
   } catch {}
-  res.json({ totalUsers: userList.length, totalMembers, totalMoney, storeItems: (store.items||[]).length, purgeActive: config.purgeActive, prefix: config.prefix });
+
+  // Only count users who are members of THIS guild
+  const guildUsers = Object.entries(allUsers)
+    .filter(([id]) => memberIds.size === 0 || memberIds.has(id))
+    .map(([, u]) => u);
+
+  const totalUsers = guildUsers.length;
+  const totalMoney = guildUsers.reduce((s, u) => s + (u.wallet||0) + (u.bank||0), 0);
+
+  res.json({ totalUsers, totalMembers, totalMoney, storeItems: (store.items||[]).length, purgeActive: config.purgeActive, prefix: config.prefix });
 });
 
 // ── USERS ─────────────────────────────────────────────────────
