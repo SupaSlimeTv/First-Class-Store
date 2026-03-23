@@ -45,7 +45,7 @@ module.exports = {
     if (sub === 'deposit') {
       if (type === 'item') {
         const user  = getOrCreateUser(userId);
-        const store = getStore();
+        const store = getStore(interaction.guildId);
         const inv   = user.inventory || [];
         const counts= inv.reduce((a,id)=>{ a[id]=(a[id]||0)+1; return a; }, {});
         const choices = Object.entries(counts).map(([id,cnt]) => {
@@ -66,7 +66,7 @@ module.exports = {
     if (sub === 'withdraw' && gang) {
       const inv = gang.inventory || { items:{}, guns:[] };
       if (type === 'item') {
-        const store = getStore();
+        const store = getStore(interaction.guildId);
         const choices = Object.entries(inv.items||{}).map(([id,cnt]) => {
           const item = store.items.find(i=>i.id===id);
           return { name:`${item?.name||id} ×${cnt}`, value:id };
@@ -94,7 +94,7 @@ module.exports = {
 
     // ── VIEW ─────────────────────────────────────────────────
     if (sub === 'view') {
-      const store    = getStore();
+      const store    = getStore(interaction.guildId);
       const goonData = getGangGoons(gang.id);
       const drugs    = getDrugs();
 
@@ -147,7 +147,7 @@ module.exports = {
         inv.items[id] = (inv.items[id]||0) + 1;
         gang.inventory = inv;
         await saveGang(gang.id, gang);
-        const store = getStore();
+        const store = getStore(interaction.guildId);
         const item  = store.items.find(i=>i.id===id);
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
           .setDescription(`${item?.isDrug?'💊':'🎒'} **${item?.name||id}** deposited into the gang inventory.`)
@@ -184,7 +184,7 @@ module.exports = {
         const user  = getOrCreateUser(userId);
         user.inventory = [...(user.inventory||[]), id];
         saveUser(userId, user);
-        const store = getStore();
+        const store = getStore(interaction.guildId);
         const item  = store.items.find(i=>i.id===id);
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
           .setDescription(`${item?.isDrug?'💊':'🎒'} **${item?.name||id}** taken from gang inventory.`)

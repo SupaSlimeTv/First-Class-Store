@@ -3,6 +3,7 @@ const { getOrCreateUser, saveUser, getStore, hasAccount, getConfig } = require('
 const { getPhone, savePhone, getAllPhones, PLATFORMS, PHONE_TYPES, STATUS_TIERS, getStatusTier, getNextStatusTier, SPONSOR_DEALS, defaultPhone } = require('../../utils/phoneDb');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
+const { coinAutocomplete } = require('../../utils/coinAutocomplete');
 
 const fmtMoney = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + Math.round(n).toLocaleString() : '$' + n;
 const fmtNum   = n => n >= 1e6 ? (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? (n/1e3).toFixed(1) + 'K' : n.toString();
@@ -21,18 +22,24 @@ module.exports = {
     .addSubcommand(s => s.setName('status').setDescription('View your influencer status and stats'))
     .addSubcommand(s => s.setName('leaderboard').setDescription('Top influencers by status'))
     .addSubcommand(s => s.setName('shoutout').setDescription('🌟 Celebrity+ only — Shout out a coin to your fans. Boosts price & hype.')
-      .addStringOption(o => o.setName('coin').setDescription('Coin ticker to shout out (e.g. DOGE2)').setRequired(true).setMaxLength(10))
+      .addStringOption(o => o.setName('coin').setDescription('Select a coin to shout out').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('message').setDescription('What to say about the coin').setRequired(false).setMaxLength(200)))
     .addSubcommand(s => s.setName('promo').setDescription('📣 Influencer+ only — Promote another creator to boost their followers & hype.')
       .addUserOption(o => o.setName('creator').setDescription('Creator to shout out').setRequired(true))
       .addStringOption(o => o.setName('message').setDescription('What to say about them').setRequired(false).setMaxLength(200)))
     .addSubcommand(s => s.setName('hate').setDescription('👑 Cultural Icon only — Trash a coin publicly. Crashes price & destroys hype.')
-      .addStringOption(o => o.setName('coin').setDescription('Coin ticker to hate on').setRequired(true).setMaxLength(10))
+      .addStringOption(o => o.setName('coin').setDescription('Select a coin to hate on').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('message').setDescription('What to say').setRequired(false).setMaxLength(200)))
     .addSubcommand(s => s.setName('sponsors').setDescription('View and collect sponsor deals'))
     .addSubcommand(s => s.setName('calpolice').setDescription('Call police on a user (false reports = YOU get jailed)')
       .addUserOption(o => o.setName('user').setDescription('Who to report').setRequired(true))
       .addStringOption(o => o.setName('reason').setDescription('What are you reporting?').setRequired(true).setMaxLength(200))),
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'coin') return coinAutocomplete(interaction, 'coin');
+    await interaction.respond([]);
+  },
 
   async execute(interaction) {
     if (await noAccount(interaction)) return;
@@ -643,7 +650,7 @@ module.exports = {
       await interaction.deferReply();
 
       const { getPoliceRecord, savePoliceRecord } = require('../../utils/gangDb');
-      const store       = getStore();
+      const store       = getStore(interaction.guildId);
       const targetUser  = getOrCreateUser(target.id);
       const targetRec   = getPoliceRecord(target.id);
       const drugItems   = (store.items||[]).filter(i => i.isDrug);

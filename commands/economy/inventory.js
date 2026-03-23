@@ -23,7 +23,7 @@ module.exports = {
       });
     }
 
-    const store  = getStore();
+    const store  = getStore(interaction.guildId);
     const inv    = userData.inventory || [];
 
     if (!inv.length) {

@@ -2114,6 +2114,87 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+// ── GANG PAYROLL ACCEPT/DECLINE HANDLER ──────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('payroll_accept_') && !customId.startsWith('payroll_decline_')) return;
+
+  const isAccept = customId.startsWith('payroll_accept_');
+  const offerId  = customId.replace('payroll_accept_', '').replace('payroll_decline_', '');
+
+  const { _pendingOffers } = require('./commands/gangs/gangpayroll');
+  const offer = _pendingOffers[offerId];
+
+  const { EmbedBuilder } = require('discord.js');
+  const { getOrCreateUser, saveUser } = require('./utils/db');
+  const { getGang, saveGang } = require('./utils/gangDb');
+  const { updateOfficer, getOfficer } = require('./utils/policeDb');
+
+  if (!offer) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888)
+    .setDescription('This offer has expired.')
+  ], components:[] });
+
+  // Make sure it's the right officer responding
+  if (interaction.user.id !== offer.officerId) return interaction.reply({ content:'This offer is not for you.', ephemeral:true });
+
+  delete _pendingOffers[offerId];
+
+  if (isAccept) {
+    // Pay the officer
+    const officer = getOrCreateUser(offer.officerId);
+    officer.wallet += offer.amount;
+    saveUser(offer.officerId, officer);
+
+    // Record deal in gang
+    const gang = getGang(offer.gangId);
+    if (gang) {
+      gang.payrolls = gang.payrolls || {};
+      const key = `${offer.gangId}:${offer.officerId}`;
+      gang.payrolls[key] = { officerId: offer.officerId, amount: offer.amount, dealtAt: Date.now(), leaderId: offer.leaderId };
+      await saveGang(gang.id, gang);
+    }
+
+    // Reduce officer credibility
+    if (offer.guildId) {
+      const ofData = getOfficer(offer.guildId, offer.officerId);
+      await updateOfficer(offer.guildId, offer.officerId, {
+        credibility:    Math.max(0, (ofData?.credibility||100) - 15),
+        onGangPayroll:  offer.gangId,
+      });
+    }
+
+    await interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0xf5c518)
+      .setTitle('💰 Deal Accepted')
+      .setDescription(`You accepted the payroll offer from **${gang?.name || 'the gang'}**.\n\n**${('$'+offer.amount.toLocaleString())}** added to your wallet.\n\n⚠️ -15 credibility. You are now expected to look the other way for their members.`)
+    ], components:[] });
+
+    // DM the leader
+    client.users.fetch(offer.leaderId).then(u => u.send({ embeds:[new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('✅ Payroll Deal Accepted')
+      .setDescription(`<@${offer.officerId}> accepted your payroll offer of **$${offer.amount.toLocaleString()}**.\n\nThey are now on **${gang?.name || 'your gang'}**'s payroll.`)
+    ]}).catch(()=>{})).catch(()=>{});
+
+  } else {
+    // Declined — refund leader
+    const leader = getOrCreateUser(offer.leaderId);
+    leader.wallet += offer.amount;
+    saveUser(offer.leaderId, leader);
+
+    await interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0x888888)
+      .setDescription(`You declined the payroll offer. The **$${offer.amount.toLocaleString()}** has been refunded to them.`)
+    ], components:[] });
+
+    client.users.fetch(offer.leaderId).then(u => u.send({ embeds:[new EmbedBuilder()
+      .setColor(COLORS.ERROR)
+      .setDescription(`<@${offer.officerId}> declined your payroll offer. **$${offer.amount.toLocaleString()}** refunded to your wallet.`)
+    ]}).catch(()=>{})).catch(()=>{});
+  }
+});
+
 // ── HOME FURNISH BUTTON HANDLER ───────────────────────────────
 client.on('interactionCreate', async interaction => {
   if (!interaction.isButton() || !interaction.customId.startsWith('home_buy_furn_')) return;

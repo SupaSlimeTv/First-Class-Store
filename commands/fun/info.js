@@ -4,12 +4,12 @@ const PAGES = [
   {
     title: '📖 Welcome to First Class Store',
     color: 0xff3b3b,
-    desc: `First Class Store is a full-featured economy bot — gangs, businesses, pets, guns, phones, stocks, hacking, laundering, word games, and more.\n\nType \`!open account\` or use any slash command to get started.`,
+    desc: `First Class Store is a full-featured economy bot — gangs, businesses, pets, guns, phones, stocks, hacking, homes, police, and more.\n\nType \`!open account\` or use any slash command to get started.`,
     fields: [
       { name:'💵 Starting Balance', value:'Every new user gets **$500** in their wallet when they open an account.', inline:false },
       { name:'📌 Prefix Commands',  value:'All commands work as `/` slash commands **and** with the server prefix (default `!`). Examples: `!bal`, `!daily`, `!pay @user 1000`.', inline:false },
       { name:'🏦 Wallet vs Bank',   value:'**Wallet** is exposed — can be robbed, drained, shot, or hacked. **Bank** is safe. Deposit to protect it.', inline:false },
-      { name:'📊 Dashboard',        value:'Admins manage everything at the dashboard. Users, gangs, items, prison, influencers, drug market, embed builder, and more.', inline:false },
+      { name:'🌐 Cross-Server Economy', value:'Your **wallet, bank, and inventory** follow you across all servers with this bot. However each server has its **own item store, drug market, and config**.', inline:false },
     ],
   },
   {
@@ -53,7 +53,7 @@ const PAGES = [
       { name:'/roll',              value:'Roll dice.',                                        inline:true },
       { name:'/8ball',             value:'Ask the magic 8 ball.',                             inline:true },
       { name:'/rps',               value:'Rock paper scissors.',                              inline:true },
-      { name:'/blacktea',          value:'🍵 Turn-based word game! Get a 3-letter combo and type a word containing it — or lose a life. Last player standing wins. Supports wagers.', inline:false },
+      { name:'/blacktea lives: seconds: wager:', value:'🍵 Turn-based word game. Get a 3-letter combo, type a word containing it or lose a life. Last player standing wins. Supports wagers.', inline:false },
     ],
   },
   {
@@ -62,11 +62,11 @@ const PAGES = [
     desc: 'Two ways to gamble big.',
     fields: [
       { name:'🎟️ Lottery',  value:'`/lottery buy <tickets>` · `/lottery info`\nWinner drawn on a timer. More tickets = better odds.', inline:false },
-      { name:'📈 Memecoins', value:'**Built-in:** DOGE2 · PEPE · RUGPUL · MOON · BODEN · CHAD\n**Custom:** Crypto Lab owners launch their own coins.\n\n⭐ Celebrity+ influencers can **shoutout** coins to spike prices.\n👑 Cultural Icons can **hate** on coins to crash them.', inline:false },
+      { name:'📈 Memecoins', value:'**Built-in:** DOGE2 · PEPE · RUGPUL · MOON · BODEN · CHAD\n**Custom:** Crypto Lab owners launch their own coins visible to everyone via `/market`.\n\n⭐ Celebrity+ influencers can **shoutout** coins to spike prices.\n👑 Cultural Icons can **hate** on coins to crash them.', inline:false },
       { name:'/invest',      value:'Invest in any coin.',    inline:true },
       { name:'/cashout',     value:'Sell at current price.', inline:true },
       { name:'/portfolio',   value:'View your P&L.',        inline:true },
-      { name:'/market',      value:'Live coin prices.',      inline:true },
+      { name:'/market',      value:'Live prices for ALL coins including custom ones.',      inline:true },
     ],
   },
   {
@@ -75,13 +75,13 @@ const PAGES = [
     desc: 'Own a business, earn passive income, hire employees. Two categories: **Legit** and **Cash-Only** (for laundering).',
     fields: [
       { name:'Legit Businesses',     value:'Restaurant · Pharmacy · Casino · Barbershop · Car Wash · Record Label · Real Estate · Tech Startup · Street Food · Gym · Crypto Lab', inline:false },
-      { name:'💸 Cash-Only Fronts',  value:'🫧 Laundromat · 🚿 Cash Car Wash · 🎵 Nightclub — *Lower laundering fees. Influencer sponsorships boost your revenue passively.*', inline:false },
+      { name:'💸 Cash-Only Fronts',  value:'🫧 Laundromat · 🚿 Cash Car Wash · 🎵 Nightclub — *Gang leaders only. Lower laundering fees. Influencer sponsorships boost revenue.*', inline:false },
       { name:'/business start',      value:'Open a business.',               inline:true },
       { name:'/business collect',    value:'Collect revenue.',               inline:true },
       { name:'/business upgrade',    value:'Level up (max 10).',             inline:true },
       { name:'/hire · /fire',        value:'Manage employees.',              inline:true },
       { name:'/myrouting',           value:'Your private routing number — gives laptop access to your accounts. **Never share it in DMs.** Phishers will try to steal it.', inline:false },
-      { name:'/sponsordeal view',    value:'Check active influencer sponsorships and their revenue boost to your business.', inline:false },
+      { name:'/sponsordeal view',    value:'Check active influencer sponsorships and their revenue boost.', inline:false },
     ],
   },
   {
@@ -89,15 +89,14 @@ const PAGES = [
     color: 0x5865f2,
     desc: 'Build your brand from Newcomer to Cultural Icon. Post, promote, shoutout coins, and get paid.',
     fields: [
-      { name:'📱 Phones',          value:'`/phoneshop` · `/phone buy type:`\n📵 Burner ($500) · 📱 Standard ($2k) · 📲 Flagship ($8k) · 🎙️ Creator Pro ($20k)\n\n🔥 **Burner phones** get disguised phishing templates — harder to detect.', inline:false },
+      { name:'📱 Phones',          value:'`/phoneshop` · `/phone buy type:`\n📵 Burner ($500) · 📱 Standard ($2k) · 📲 Flagship ($8k) · 🎙️ Creator Pro ($20k)\n\n🔥 **Burner phones** unlock disguised phishing templates and drug ordering via `/drugmarket`.', inline:false },
       { name:'📊 Status Tiers',    value:'🌱 Newcomer → 📱 Content Creator → 🔥 Influencer → ⭐ Celebrity → 💎 Superstar → 👑 Cultural Icon\n\nHigher status = more earnings, bigger fan count, better sponsor deals.', inline:false },
       { name:'/phone post',        value:'Post on 📸 Flexgram (45min) · 🐦 Chirp (20min) · 🎮 Streamz (90min)\nEarn hype, followers, status, and money. Go viral for 2–5× rewards.', inline:false },
-      { name:'/phone shoutout',    value:'⭐ **Celebrity+** — Shout out a coin ticker. Fans buy in, price spikes, you get paid a % of the fan volume generated.', inline:true },
-      { name:'/phone hate',        value:'👑 **Cultural Icon only** — Publicly trash a coin. Fans panic sell, price crashes up to 85%. 1hr cooldown.', inline:true },
-      { name:'/phone promo',       value:'🔥 **Influencer+** — Shout out another creator. They gain followers, hype, and status from your fan base.', inline:true },
+      { name:'/phone shoutout',    value:'⭐ **Celebrity+** — Shout out a coin. Fans buy in, price spikes, you get paid a % of volume.', inline:true },
+      { name:'/phone hate',        value:'👑 **Cultural Icon only** — Trash a coin publicly. Price crashes up to 85%. 1hr cooldown.', inline:true },
+      { name:'/phone promo',       value:'🔥 **Influencer+** — Boost another creator. They gain followers, hype, and status.', inline:true },
       { name:'/phone calpolice',   value:'Report someone. Clean target = YOU get jailed for false report.', inline:true },
-      { name:'/phone sponsors',    value:'Collect brand deals. Bigger status = bigger payouts ($500 → $1M+).', inline:true },
-      { name:'/phone status',      value:'View your stats, tier, progress, cooldowns.',                      inline:true },
+      { name:'/phone sponsors',    value:'Collect brand deals. Bigger status = bigger payouts.',              inline:true },
     ],
   },
   {
@@ -111,6 +110,7 @@ const PAGES = [
       { name:'🎒 Gang Inventory',   value:'`/ganginventory view` — see the shared stash\n`/ganginventory deposit` — leader puts items/guns in\n`/ganginventory withdraw` — any member takes from stash', inline:false },
       { name:'💊 Dirty Money',      value:'Goons traffic drugs and generate dirty money every 5 min. Must launder before spending.', inline:true },
       { name:'🧾 Accountant',       value:'Auto-launders dirty money into business revenue every tick. Reduces launder fees by 60%.', inline:true },
+      { name:'👮 Police Payroll Deals', value:'Gang leaders with the **Police on Payroll** upgrade can use `/gangpayroll offer @officer amount:` to propose deals directly to officers via DM. Officer accepts or declines. Accepted = officer blocked from searching your members + gang gets 30% search evasion vs other officers.', inline:false },
     ],
   },
   {
@@ -118,10 +118,45 @@ const PAGES = [
     color: 0x888888,
     desc: 'Order drugs, clean dirty money, and survive jail.',
     fields: [
-      { name:'/drugmarket browse',  value:'See available drugs and their prices. Burner phone required to order.', inline:false },
-      { name:'/drugmarket order',   value:'📵 **Burner phone only** — Order drugs cross-border. 2–5 min delivery. Risk of getting busted at the border (configurable %). Busted = +heat, possible jail.', inline:false },
+      { name:'/drugmarket browse',  value:'See available drugs. Each server has its own drug market.', inline:false },
+      { name:'/drugmarket order',   value:'📵 **Burner phone only** — Order drugs cross-border. 2–5 min delivery. Risk of getting busted (configurable %). Busted = +heat, possible jail.\n\n⚠️ Drug items are **detectable** — police can find them if they search you.', inline:false },
       { name:'/launder <amount>',   value:'Push dirty money through your business.\n• Cash business: **20% fee** · Legit: **35% fee** · With Accountant: **fee -60%**', inline:false },
       { name:'🔒 Prison',           value:'🔒 **Prisoner** — locked out of all channels, can talk in prison chat\n🔕 **Solitary** — same lockout, read-only\n\nAuto-released when timer expires. `/jail` · `/unjail` · `/solitary`', inline:false },
+    ],
+  },
+  {
+    title: '🏠 Home System',
+    color: 0xf5c518,
+    desc: 'Buy a home, furnish it, stash illegal items, and earn passive income — all in one place.',
+    fields: [
+      { name:'🏚️ Studio',   value:'Default $5,000 · 3 stash slots · 2 furnishing slots · $50/hr',   inline:true },
+      { name:'🏠 House',    value:'Default $25,000 · 8 stash slots · 5 furnishing slots · $150/hr',  inline:true },
+      { name:'🏡 Mansion',  value:'Default $100,000 · 20 stash · 10 furnishing · $400/hr',           inline:true },
+      { name:'🏰 Estate',   value:'Default $500,000 · 50 stash · 20 furnishing · $1,200/hr',         inline:true },
+      { name:'🏠 Limits',   value:'Regular users: **1 home max**\nGang leaders & business owners: **2 homes max**', inline:false },
+      { name:'🛋️ Furnishings', value:'**🔒 Safe** — +5 stash slots\n**📷 Security Camera** — DMs you when police try to search you\n**🧪 Drug Lab** — +$200/hr dirty money (auto-adds to gang pool)\n**⛏️ Mining Rig** — +$300/hr passive\n**🚨 Panic Room** — automatically escape one arrest (single-use)\n**🌿 Grow House** — +$150/hr dirty money\n**🏦 Vault** — +20 stash slots', inline:false },
+      { name:'/home buy tier:',     value:'Purchase a home.',                                         inline:true },
+      { name:'/home furnish',       value:'Browse and install furnishings.',                          inline:true },
+      { name:'/home stash',         value:'Store items — hidden from police searches.',               inline:true },
+      { name:'/home collect',       value:'Collect pending passive income.',                          inline:true },
+      { name:'/home view',          value:'See your stash, furnishings, and income.',                 inline:true },
+      { name:'/home sell',          value:'Sell home for 50% refund. All furnishings lost.',          inline:true },
+      { name:'⚠️ Important',        value:'Home stash is **NOT** checked during police searches. Only your inventory is. Stash drugs and illegal items at home to stay clean.', inline:false },
+    ],
+  },
+  {
+    title: '🚔 Police System',
+    color: 0x3498db,
+    desc: 'Designated officers can search, arrest, and raid. Anyone can tip off police or try to bribe an officer.',
+    fields: [
+      { name:'👮 Officers',         value:'Admins assign a **Police Role** via the dashboard. Anyone with that role can use `/police` commands.\n\nOfficers earn salaries from the **Police Treasury** (funded by admin).', inline:false },
+      { name:'📋 Warrants',         value:'Officers need a warrant to search or arrest someone.\n\n**Auto-warrant** — issued automatically when you hit **25+ heat**\n**Manual** — `/police warrant @user reason:` (officers only)\n**Tip** — `/police tip @user` costs $500. Valid tip = 2× refund + warrant issued. False tip = $500 lost.\n\nWarrants expire in **2 hours**.', inline:false },
+      { name:'/police search @user', value:'Search someone for drugs and illegal items. Requires a warrant.\n• Found items are confiscated · Officer gets 15% of item value · Target gets jailed 10min\n• Clean search = -5 officer credibility (don\'t abuse it)\n• Can\'t search same person twice in **30 minutes**\n• 📷 **Security Camera** at home? You get a DM warning before they search.', inline:false },
+      { name:'/police arrest @user', value:'Arrest a user with an active warrant. Jail time scales with heat.\n• 🚨 **Panic Room** at home = automatically escape one arrest.', inline:true },
+      { name:'/police raid <gang>',  value:'Break up a gang war. Requires **3+ active officers**.\nJails all members 5min · Wipes gang heat.', inline:true },
+      { name:'/police tip @user',    value:'Costs $500 · If valid = 2× back + warrant · If false = $500 gone.', inline:true },
+      { name:'/police bribe @officer amount:', value:'Send an officer a bribe via DM. They can **Accept** (gets paid, loses credibility, logged) or **Decline** (you get refunded).', inline:false },
+      { name:'⭐ Credibility',       value:'Officers start at 100/100. False searches lose 5 pts. Good busts gain 10 pts. Accepting bribes loses 30 pts. High bribe count flagged in dashboard.', inline:false },
     ],
   },
   {
@@ -130,7 +165,7 @@ const PAGES = [
     desc: 'Digital crime. Drain accounts, mix funds, phish routing numbers.',
     fields: [
       { name:'/hack @user mode:',        value:'Requires hacking item from the shop.\n🏦 **Bank** — steal 20–50% of their bank\n🏢 **Business** — steal 30–70% of revenue\n📱 **Social** — wipe followers, destroy status, drain sponsor funds\n\n⚡ **EMP Device** (shop item) — bypasses the word scramble. Level 1–5 (40–100% success guarantee).', inline:false },
-      { name:'/phish @user',             value:'Send a fake official DM to a business owner. If they reply with their routing number you intercept it.\n\n🔥 **Burner phone** = disguised system message templates — harder to detect.', inline:false },
+      { name:'/phish @user',             value:'Send a fake DM to a business owner. If they reply with their routing number you intercept it.\n\n🔥 **Burner phone** = disguised system message templates — harder to detect.', inline:false },
       { name:'/laptop routing: action:', value:'Access any business with their routing number.\n📊 Check · 💸 Launder dirty→clean · 💵 Withdraw revenue\n\n*Owner gets a DM if $5k+ taken. They can report to police.*', inline:false },
       { name:'₿ /bitcoin mix · collect', value:'Stolen money lands as 🔥 Hot Funds — traceable. Mix through BTC to clean it.\n🐢 Slow (4hr, 5%) · ⚡ Normal (1hr, 10%) · 🚀 Fast (instant, 20%)\n\n⚠️ If victim reported the theft, detection chance rises. Caught = arrested + funds seized.', inline:false },
     ],
@@ -144,7 +179,7 @@ const PAGES = [
       { name:'/shoot @user',                            value:'Hit = drain wallet + silence from bot commands temporarily.',                 inline:true },
       { name:'/health · /medkit',                       value:'Check HP and heal.',                                                         inline:true },
       { name:'/petshop',                                value:'Adopt a pet ($500–$1M). 10 types from 🐹 Hamster to 🐲 World Serpent.',     inline:false },
-      { name:'/pet feed/mission/upgrade/guard/evolve', value:'Level up your pet, send on missions, toggle guard mode to intercept attacks.', inline:false },
+      { name:'/pet feed/mission/upgrade/guard/evolve',  value:'Level up your pet, send on missions, toggle guard mode to intercept attacks.', inline:false },
     ],
   },
   {
@@ -153,11 +188,11 @@ const PAGES = [
     desc: 'Shop items with powerful effects. AI companions that react to how you treat them.',
     fields: [
       { name:'🤖 AI Entities',  value:'Items can spawn AI companions. Talk with `/talk`. Treat them well — neglect = **rogue**.\n\nArchetypes: 🤖 Robot · 📱 Phone · 🧠 Companion · 🚁 Drone · 💬 Assistant', inline:false },
-      { name:'✨ Effect Types', value:'Drain · Silence · Hitman · Shield · Passive Income · Consume Buff · Magic Chain · AI Entity · **Laptop** · **Minigame Drain** · **⚡ EMP Device**', inline:false },
-      { name:'⚡ EMP Device',   value:'Attach to a laptop to bypass the hack word scramble. Level 1 = 40% success → Level 5 = 100% guaranteed. Single-use. Lock to specific hack type (bank/business/social) or any.', inline:true },
-      { name:'💊 Drug Items',   value:'Items flagged as drugs are detectable by police. Users caught holding them when reported get arrested.', inline:true },
-      { name:'/status (!buffs)',value:'Check active buffs.',  inline:true },
-      { name:'/use <item>',     value:'Use an item.',        inline:true },
+      { name:'✨ Effect Types', value:'Drain · Silence · Hitman · Shield · Passive Income · **Give/Remove Role** · Consume Buff · Magic Chain · AI Entity · Minigame Drain · ⚡ EMP Device', inline:false },
+      { name:'🏅 Role Effects', value:'Items can **give** or **remove** a Discord role on use. Great for status items, VIP access, and event roles. Admins set this up via `/createitem` or the dashboard.', inline:true },
+      { name:'⚡ EMP Device',   value:'Bypass the hack word scramble. Level 1 = 40% → Level 5 = 100% guaranteed. Single-use.', inline:true },
+      { name:'💊 Drug Items',   value:'Items flagged as drugs are detectable during `/police search`. Keep them in your **home stash** to stay clean.', inline:true },
+      { name:'/use <item>',     value:'Use an item from your inventory.',    inline:true },
     ],
   },
   {
@@ -165,11 +200,11 @@ const PAGES = [
     color: 0xf5c518,
     desc: 'Read before playing.',
     fields: [
-      { name:'💰 Economy',      value:'• Robbing, hacking, attacks are part of the game\n• Protected roles cannot be robbed or attacked\n• `/pay` is instant — no confirmation\n• You can sell businesses, pets, phones, and guns to other players via `/sell`', inline:false },
-      { name:'🏴 Gangs',        value:'• Only gang members can BUY guns (anyone can be shot)\n• Crimes build police heat → too much = raid + jail\n• Dirty money must be laundered before spending\n• Gang inventory is shared — all members can withdraw', inline:false },
-      { name:'📱 Influencers',  value:'• Phone is separate from business — you can have both\n• /phone shoutout (Celebrity+) pumps coins — you get paid\n• /phone hate (Cultural Icon) crashes coins\n• /phone promo (Influencer+) boosts other creators\n• False police reports land YOU in jail', inline:false },
-      { name:'💻 Hacking',      value:'• Stolen money is HOT — mix through Bitcoin before using\n• Business owners get alerts when $5k+ is taken — can report to police\n• Routing numbers are private — phishers send fake DMs to steal them\n• EMP devices bypass the hack word scramble', inline:false },
-      { name:'🍵 BlackTea',     value:'• `/blacktea` starts a word game — type words containing the given 3-letter combo\n• Wrong answer or timeout = lose a life\n• Last player standing wins\n• Supports entry wagers — winner takes the pot', inline:false },
+      { name:'💰 Economy',      value:'• Robbing, hacking, attacks are part of the game\n• Protected roles cannot be robbed or attacked\n• `/pay` is instant — no confirmation\n• Economy (wallet/bank) follows you across servers — items and store are per-server', inline:false },
+      { name:'🏴 Gangs',        value:'• Only gang members can BUY guns (anyone can be shot)\n• Crimes build police heat → 25+ heat = auto warrant issued\n• Dirty money must be laundered before spending\n• Gang leaders can have 2 homes and 3 cash businesses max', inline:false },
+      { name:'🏠 Homes',        value:'• Home stash is hidden from police searches — inventory is not\n• Furnishings stack passive income with home base rate\n• Drug lab / grow house dirty money goes to your gang pool\n• Panic Room escapes one arrest then breaks', inline:false },
+      { name:'🚔 Police',       value:'• Officers need warrants to search or arrest\n• 25+ heat = auto warrant · 2hr expiry\n• Bribes are logged — admin can see in dashboard audit\n• Raids require 3+ officers and jail the entire gang', inline:false },
+      { name:'💻 Hacking',      value:'• Stolen money is HOT — mix through Bitcoin before using\n• Business owners get alerts when $5k+ taken — can report to police\n• Routing numbers are private — never share in DMs\n• EMP devices bypass the hack word scramble', inline:false },
     ],
   },
 ];
@@ -182,6 +217,7 @@ module.exports = {
 
   async execute(interaction) {
     let page = 0;
+
     const buildEmbed = (p) => new EmbedBuilder()
       .setColor(PAGES[p].color)
       .setTitle(PAGES[p].title)
@@ -190,19 +226,23 @@ module.exports = {
       .setFooter({ text:`Page ${p+1}/${PAGES.length} — Use ◀ ▶ to navigate` });
 
     const buildRow = (p) => new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('info_prev').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(p === 0),
-      new ButtonBuilder().setCustomId('info_next').setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(p === PAGES.length - 1),
+      new ButtonBuilder().setCustomId(`info_prev_${p}`).setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(p===0),
+      new ButtonBuilder().setCustomId(`info_page_${p}`).setLabel(`${p+1} / ${PAGES.length}`).setStyle(ButtonStyle.Primary).setDisabled(true),
+      new ButtonBuilder().setCustomId(`info_next_${p}`).setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(p===PAGES.length-1),
     );
 
     await interaction.reply({ embeds:[buildEmbed(page)], components:[buildRow(page)] });
 
-    const collector = interaction.channel.createMessageComponentCollector({ time: 5 * 60 * 1000 });
+    const msg       = await interaction.fetchReply();
+    const collector = msg.createMessageComponentCollector({ time:5*60*1000 });
+
     collector.on('collect', async btn => {
       if (btn.user.id !== interaction.user.id) return btn.reply({ content:'Not your menu.', ephemeral:true });
-      if (btn.customId==='info_prev') page=Math.max(0,page-1);
-      if (btn.customId==='info_next') page=Math.min(PAGES.length-1,page+1);
+      if (btn.customId.startsWith('info_prev')) page = Math.max(0, page-1);
+      if (btn.customId.startsWith('info_next')) page = Math.min(PAGES.length-1, page+1);
       await btn.update({ embeds:[buildEmbed(page)], components:[buildRow(page)] });
     });
+
     collector.on('end', () => interaction.editReply({ components:[] }).catch(()=>{}));
   },
 };

@@ -36,7 +36,7 @@ module.exports = {
 
     if (type === 'item') {
       const user  = getOrCreateUser(userId);
-      const store = getStore();
+      const store = getStore(interaction.guildId);
       const inv   = user.inventory || [];
       const counts= inv.reduce((a,id)=>{ a[id]=(a[id]||0)+1; return a; }, {});
       const choices = Object.entries(counts).map(([id, cnt]) => {
@@ -98,7 +98,7 @@ module.exports = {
 
     if (type === 'item') {
       const user  = getOrCreateUser(userId);
-      const store = getStore();
+      const store = getStore(interaction.guildId);
       if (!(user.inventory||[]).includes(itemArg)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You don't own \`${itemArg}\`.`)], ephemeral:true });
       const storeItem = store.items.find(i => i.id === itemArg);
       itemLabel = storeItem ? storeItem.name : itemArg;

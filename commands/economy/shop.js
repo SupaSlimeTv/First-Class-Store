@@ -14,7 +14,7 @@ module.exports = {
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
     const { getStore } = require('../../utils/db');
-    const store   = getStore();
+    const store   = getStore(interaction.guildId);
     const choices = (store.items||[])
       .filter(i => i.name.toLowerCase().includes(focused) || i.id.includes(focused))
       .slice(0,25)
@@ -23,7 +23,7 @@ module.exports = {
   },
   async execute(interaction) {
     const sub   = interaction.options.getSubcommand();
-    const store = getStore();
+    const store = getStore(interaction.guildId);
 
     if (sub === 'browse') {
       const enabled = store.items.filter(i => i.enabled);

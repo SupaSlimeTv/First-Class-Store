@@ -140,14 +140,45 @@ module.exports = {
       }
 
       // Check warrant — gang leaders need higher heat threshold
-      const targetGang = getGangByMember(target.id);
+      const targetGang   = getGangByMember(target.id);
       const isGangLeader = targetGang?.leaderId === target.id;
+
+      // ── PAYROLL CHECK ─────────────────────────────────────────
+      // If target is in a gang — check if THIS officer is on that gang's payroll
+      if (targetGang) {
+        const gangPayrolls = targetGang.payrolls || {};
+        const key = `${targetGang.id}:${userId}`;
+        const onPayroll = !!gangPayrolls[key];
+
+        if (onPayroll) {
+          // This officer is bought — they cannot search this gang member
+          return interaction.reply({ embeds:[new EmbedBuilder()
+            .setColor(0xf5c518)
+            .setTitle('⚠️ Conflict of Interest')
+            .setDescription(`You have a standing arrangement with **${targetGang.name}**. You cannot search their members.\n\nCut the deal first if you want to proceed.`)
+          ], ephemeral:true });
+        }
+
+        // Not on payroll — gang's payroll level gives members 30% evasion chance
+        const hasPayrollProtection = targetGang.police_payroll && Object.keys(gangPayrolls).length > 0;
+        if (hasPayrollProtection && Math.random() < 0.30) {
+          // Target evades — update cooldown so officer can't just spam
+          const cds = { ...(officer?.searchCooldowns||{}), [target.id]: Date.now() };
+          await updateOfficer(guildId, userId, { searchCooldowns: cds });
+          return interaction.reply({ embeds:[new EmbedBuilder()
+            .setColor(0x888888)
+            .setTitle('🔍 Search Inconclusive')
+            .setDescription(`<@${target.id}> was uncooperative and the search couldn't be completed.\n\n*${targetGang.name} has connections — some things don't get found.*`)
+          ]});
+        }
+      }
+      // ── END PAYROLL CHECK ─────────────────────────────────────
+
       if (!hasActiveWarrant(guildId, target.id) && !interaction.member.permissions.has('Administrator')) {
         if (isGangLeader) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
           .setTitle('⚠️ Warrant Required')
           .setDescription(`<@${target.id}> is a gang leader. You need an active warrant to search them.`)
         ], ephemeral:true });
-        // Non-leader: still needs warrant
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
           .setTitle('📋 Warrant Required')
           .setDescription(`You need an active warrant to search <@${target.id}>. Use \`/police warrant\` to issue one.`)

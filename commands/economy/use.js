@@ -29,7 +29,7 @@ module.exports = {
       return interaction.respond([{ name: 'Your inventory is empty', value: '__empty__' }]);
     }
 
-    const store  = getStore();
+    const store  = getStore(interaction.guildId);
     const inv    = user.inventory;
     const typed  = interaction.options.getFocused().toLowerCase();
 
@@ -74,7 +74,7 @@ module.exports = {
       return interaction.reply({ embeds: [errorEmbed(`You don't have **${itemId}** in your inventory.`)], ephemeral: true });
     }
 
-    const store = getStore();
+    const store = getStore(interaction.guildId);
     const item  = store.items.find((i) => i.id === itemId);
 
     if (!item) return interaction.reply({ embeds: [errorEmbed(`Item \`${itemId}\` no longer exists in the store.`)], ephemeral: true });

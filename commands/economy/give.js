@@ -39,7 +39,7 @@ module.exports = {
     const { getGunShop } = require('../../utils/gunDb');
     let choices = [];
     if (['item','drug'].includes(type)) {
-      const store = getStore();
+      const store = getStore(interaction.guildId);
       choices = (store.items||[]).map(i => ({ name:`${i.name} (${i.id})`, value:i.id }));
     } else if (type === 'gun') {
       const guns = getGunShop().guns || [];
@@ -79,7 +79,7 @@ module.exports = {
     // ── STORE ITEM ───────────────────────────────────────────────
     if (type === 'item') {
       if (!itemId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify an `item_id`. Use `/shop` to see item IDs.')], ephemeral:true });
-      const store = getStore();
+      const store = getStore(interaction.guildId);
       const item  = store.items.find(i => i.id === itemId);
       if (!item) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Item \`${itemId}\` not found. Use \`/shop\` to see available items.`)], ephemeral:true });
 

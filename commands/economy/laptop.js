@@ -35,7 +35,7 @@ module.exports = {
 
     // Must own a laptop item
     const user   = getOrCreateUser(userId);
-    const store  = getStore();
+    const store  = getStore(interaction.guildId);
     const laptop = store.items.find(i =>
       (i.effect?.type === 'laptop' || (i.id||'').toLowerCase().includes('laptop') || (i.name||'').toLowerCase().includes('laptop')) &&
       (user.inventory||[]).includes(i.id)
