@@ -110,7 +110,7 @@ const PAGES = [
       { name:'🎒 Gang Inventory',   value:'`/ganginventory view` — see the shared stash\n`/ganginventory deposit` — leader puts items/guns in\n`/ganginventory withdraw` — any member takes from stash', inline:false },
       { name:'💊 Dirty Money',      value:'Goons traffic drugs and generate dirty money every 5 min. Must launder before spending.', inline:true },
       { name:'🧾 Accountant',       value:'Auto-launders dirty money into business revenue every tick. Reduces launder fees by 60%.', inline:true },
-      { name:'👮 Police Payroll Deals', value:'Gang leaders with the **Police on Payroll** upgrade can use `/gangpayroll offer @officer amount:` to propose deals directly to officers via DM. Officer accepts or declines. Accepted = officer blocked from searching your members + gang gets 30% search evasion vs other officers.', inline:false },
+      { name:'👮 Police Payroll Deals', value:'Gang leaders with the **Police on Payroll** upgrade can use `/gangpayroll offer @officer amount:` to propose a deal via DM. Officer accepts or declines.\n\n**What payrolled officers can do:**\n🚫 `/police squash @member` — remove a gang member\'s warrant (-10 cred)\n⛓️ `/police reduce @member` — cut jail sentence in half (-10 cred)\n🚨 `/police leak` — DM gang leader the full warrant list (-10 cred · 1hr CD)\n🚔 `/police escort @member` — cancel an arrest (-20 cred · once/day)\n⚠️ Raid tip-off — get a DM when police raid your gang with 60s warning\n\n✅ Payrolled officers **cannot** search your members at all.\n🎲 Non-payrolled officers get a **30% evasion chance** vs your members.', inline:false },
     ],
   },
   {
