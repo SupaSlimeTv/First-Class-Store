@@ -127,7 +127,7 @@ async function load() {
 function addBot(guildId, name) {
   var cid = window._clientId;
   if (!cid) { alert('Client ID not loaded. Refresh and try again.'); return; }
-  var url = 'https://discord.com/oauth2/authorize?client_id=' + cid + '&permissions=2550393974&scope=bot%20applications.commands&guild_id=' + guildId + '&disable_guild_select=true';
+  var url = 'https://discord.com/oauth2/authorize?client_id=' + cid + '&permissions=8&scope=bot%20applications.commands&guild_id=' + guildId + '&disable_guild_select=true';
   window.open(url, '_blank', 'width=500,height=700');
 }
 
