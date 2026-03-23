@@ -26,7 +26,6 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('createitem')
     .setDescription('Create a new item in the store (admin/owner only)')
-    .addStringOption(o => o.setName('id').setDescription('Unique item ID (no spaces, lowercase)').setRequired(true).setMaxLength(30))
     .addStringOption(o => o.setName('name').setDescription('Display name of the item').setRequired(true).setMaxLength(50))
     .addIntegerOption(o => o.setName('price').setDescription('Price in dollars').setRequired(true).setMinValue(1))
     .addStringOption(o => o.setName('description').setDescription('Item description').setRequired(true).setMaxLength(200))
@@ -54,8 +53,9 @@ module.exports = {
       ], ephemeral:true });
     }
 
-    const rawId   = interaction.options.getString('id').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-_]/g,'');
     const name    = interaction.options.getString('name');
+    // Auto-generate ID from name: lowercase, spaces→hyphens, strip special chars
+    const rawId   = name.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-_]/g,'').slice(0,30);
     const price   = interaction.options.getInteger('price');
     const desc    = interaction.options.getString('description');
     const type    = interaction.options.getString('type');
@@ -64,10 +64,6 @@ module.exports = {
     const reusable= interaction.options.getBoolean('reusable') ?? false;
     const enabled = interaction.options.getBoolean('enabled') ?? true;
     const emoji   = interaction.options.getString('emoji') || '';
-
-    if (!rawId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-      .setDescription('Invalid item ID. Use only letters, numbers, hyphens, and underscores.')
-    ], ephemeral:true });
 
     const store = getStore(interaction.guildId);
     if (store.items.find(i => i.id === rawId)) {
