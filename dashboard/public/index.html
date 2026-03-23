@@ -1259,9 +1259,11 @@ tr:hover td{background:rgba(255,255,255,.015)}
           </div>
           <div id="req-item" class="ef-section">
             <div class="fg">
-              <label class="flabel">Required Item ID</label>
-              <input class="finput" id="m-req-item-val" placeholder="e.g. bad-usb">
-              <div class="hint">The user must already own this item. Use the exact item ID shown in the store table.</div>
+              <label class="flabel">Required Item</label>
+              <select class="fselect" id="m-req-item-val" onchange="document.getElementById('m-req-item-label').value=this.options[this.selectedIndex]?.dataset?.name||''">
+                <option value="">— Select an item —</option>
+              </select>
+              <div class="hint">User must already own this item in their inventory to use this item.</div>
             </div>
             <div class="fg">
               <label class="flabel">Display Label (shown to user if they don't qualify)</label>
@@ -2136,12 +2138,40 @@ function clearForm(){
   onTypeChange();onEffectChange();clearReqFields();
 }
 
-function openAdd(){editId=null;clearForm();document.getElementById('modal-h').textContent='Add Item';document.getElementById('m-orig-id').value='';document.getElementById('item-modal').classList.add('open')}
+// Populate all item-picker dropdowns from the current store cache
+function populateItemDropdowns(selectedVal) {
+  const items = S.store || [];
+  const opts = '<option value="">— Select an item —</option>' +
+    items.map(i => `<option value="${i.id}" data-name="${i.name}"${selectedVal===i.id?' selected':''}>${i.name} (${i.id})${i.isDrug?' 💊':''}${i.isWeapon?' 🔪':''}</option>`).join('');
+
+  // Required item dropdown in store modal
+  const reqEl = document.getElementById('m-req-item-val');
+  if (reqEl) { const cur = reqEl.value; reqEl.innerHTML = opts; if(cur) reqEl.value = cur; }
+
+  // Drug market store item link dropdown
+  const drugEl = document.getElementById('drug-store-select');
+  if (drugEl) {
+    const drugCur = drugEl.value;
+    const drugItems = items.filter(i => i.isDrug);
+    drugEl.innerHTML = '<option value="">— Link to a store item —</option>' +
+      drugItems.map(i => `<option value="${i.id}"${drugCur===i.id?' selected':''}>${i.name} (${i.id})</option>`).join('');
+  }
+}
+
+function openAdd(){
+  editId=null;clearForm();
+  document.getElementById('modal-h').textContent='Add Item';
+  document.getElementById('m-orig-id').value='';
+  populateItemDropdowns();
+  document.getElementById('item-modal').classList.add('open');
+}
 
 function openEdit(id){
   const item=S.store.find(i=>i.id===id);if(!item)return;
   editId=id;outcomes=[];
   document.getElementById('modal-h').textContent='Edit Item';
+  document.getElementById('m-orig-id').value=id;
+  populateItemDropdowns();
   document.getElementById('m-orig-id').value=id;
   document.getElementById('m-name').value=item.name;
   document.getElementById('m-desc').value=item.description||'';
@@ -2243,8 +2273,15 @@ function populateReqFields(req){
   onReqTypeChange();
   if(req.type==='balance') document.getElementById('m-req-balance-val').value=req.value||'';
   if(req.type==='item'){
-    document.getElementById('m-req-item-val').value=req.value||'';
-    document.getElementById('m-req-item-label').value=req.label||'';
+    // Set dropdown value — dropdown may not be populated yet so also set after a tick
+    const sel = document.getElementById('m-req-item-val');
+    sel.value = req.value || '';
+    // If not found (dropdown not populated yet), retry after populate
+    if (!sel.value && req.value) {
+      populateItemDropdowns(req.value);
+      sel.value = req.value;
+    }
+    document.getElementById('m-req-item-label').value = req.label || '';
   }
   if(req.type==='role'){
     document.getElementById('m-req-role-val').value=req.value||'';
@@ -3598,6 +3635,7 @@ async function loadDrugs() {
 async function openDrugModal(drug) {
   // Load drug store items into the selector
   const store  = await api('GET', '/api/store').catch(()=>({ items:[] }));
+  if (!S.store) S.store = store.items || [];
   const drugItems = (store.items||[]).filter(i => i.isDrug);
   const storeEl = document.getElementById('drug-store-select');
   storeEl.innerHTML = '<option value="">— Link to a store item —</option>' +
