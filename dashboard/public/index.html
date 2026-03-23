@@ -779,6 +779,13 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="purge-panel" style="flex-direction:column;align-items:stretch;gap:10px">
             <h3>3️⃣ Send It</h3>
 
+            <!-- Plain message above embed -->
+            <div class="fg" style="margin:0">
+              <label class="flabel">Message (above embed — supports @mentions)</label>
+              <input class="finput" id="eb-message" placeholder="e.g. Welcome {user}! or @everyone new drop!">
+              <div class="hint" style="margin-top:4px">This is a plain text message sent above the embed. Use <code>{user}</code> for @mention, <code>{username}</code> for display name.</div>
+            </div>
+
             <!-- Event trigger toggle — prominent card -->
             <div style="border:2px solid #5865f2;border-radius:8px;overflow:hidden">
               <div onclick="toggleEmbedTrigger()" style="background:rgba(88,101,242,.15);padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none">
@@ -803,8 +810,11 @@ tr:hover td{background:rgba(255,255,255,.015)}
                   </select>
                 </div>
                 <div class="info-box" style="margin:0;font-size:11px">
-                  Use these variables in your title/description:<br>
-                  <code>{user}</code> → @mention &nbsp;·&nbsp; <code>{username}</code> → display name &nbsp;·&nbsp; <code>{server}</code> → server name &nbsp;·&nbsp; <code>{memberCount}</code> → member count
+                  <strong>Variables you can use anywhere in the embed:</strong><br>
+                  <code>{user}</code> → @mention &nbsp;·&nbsp;
+                  <code>{username}</code> or <code>{name}</code> → display name<br>
+                  <code>{server}</code> → server name &nbsp;·&nbsp;
+                  <code>{membercount}</code> or <code>{count}</code> → member count
                 </div>
                 <div id="eb-trigger-status" style="font-size:11px;padding:6px 10px;background:rgba(88,101,242,.1);border-radius:4px;color:#5865f2;display:none"></div>
                 <div style="display:flex;gap:8px">
@@ -812,6 +822,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
                   <button class="btn btn-danger" onclick="deleteEmbedTrigger()">🗑️ Remove</button>
                 </div>
               </div>
+            </div>
+
+            <!-- Active triggers list -->
+            <div id="eb-active-triggers" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Active Event Triggers</div>
+              <div id="eb-triggers-list" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
 
             <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="sendEmbed()">🚀 Send Now</button>
@@ -3900,7 +3916,7 @@ function updateEmbedPreview() {
 }
 
 function clearEmbed() {
-  ['eb-title','eb-desc','eb-footer','eb-thumbnail','eb-image'].forEach(id => {
+  ['eb-title','eb-desc','eb-footer','eb-thumbnail','eb-image','eb-message'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
   });
   document.getElementById('eb-ping-everyone').checked = false;
@@ -3967,25 +3983,64 @@ function toggleEmbedTrigger() {
 }
 
 async function loadEmbedTriggers() {
-  // Load any saved triggers and show their status
-  const config = await api('GET', `/api/${GUILD}/config`).catch(()=>({}));
+  const config   = await api('GET', `/api/${GUILD}/config`).catch(()=>({}));
   const triggers = config.embedTriggers || {};
   const statusEl = document.getElementById('eb-trigger-status');
-  if (!statusEl) return;
+  const listWrap = document.getElementById('eb-active-triggers');
+  const listEl   = document.getElementById('eb-triggers-list');
+  if (!statusEl || !listWrap || !listEl) return;
+
+  const EVENT_LABELS = {
+    guildMemberAdd:    '👋 Member Joins',
+    guildMemberRemove: '🚪 Member Leaves',
+    guildBanAdd:       '🔨 Member Banned',
+    guildBanRemove:    '✅ Member Unbanned',
+  };
+
   const keys = Object.keys(triggers);
   if (keys.length) {
-    const labels = { guildMemberAdd:'Member Join', guildMemberRemove:'Member Leave', guildBanAdd:'Member Ban', guildBanRemove:'Member Unban' };
     statusEl.style.display = 'block';
-    statusEl.textContent = `${keys.length} active trigger${keys.length!==1?'s':''}: ${keys.map(k=>labels[k]||k).join(', ')}`;
+    statusEl.textContent   = `${keys.length} active trigger${keys.length!==1?'s':''}: ${keys.map(k=>EVENT_LABELS[k]||k).join(', ')}`;
+    listWrap.style.display = 'block';
+    listEl.innerHTML = keys.map(k => `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg4);border-radius:4px;padding:8px 10px">
+        <div>
+          <span style="font-weight:700;font-size:13px">${EVENT_LABELS[k]||k}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">→ #${triggers[k].channelId}</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="loadTriggerIntoForm('${k}')">✏️ Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTriggerByKey('${k}')">🗑️</button>
+        </div>
+      </div>`).join('');
   } else {
     statusEl.style.display = 'none';
+    listWrap.style.display = 'none';
+    listEl.innerHTML = '';
   }
+}
+
+function loadTriggerIntoForm(eventKey) {
+  // Open the trigger panel and pre-select the event
+  const opts    = document.getElementById('eb-trigger-options');
+  const chevron = document.getElementById('eb-trigger-chevron');
+  opts.style.display      = 'flex';
+  chevron.style.transform = 'rotate(180deg)';
+  document.getElementById('eb-trigger-event').value = eventKey;
+  // Scroll to trigger section
+  opts.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function deleteTriggerByKey(eventKey) {
+  const r = await api('DELETE', `/api/${GUILD}/embed-triggers/${eventKey}`);
+  if (r.success) { toast(`Trigger removed`,'ok'); await loadEmbedTriggers(); }
+  else toast(r.error||'Failed','err');
 }
 
 async function saveEmbedTrigger() {
   const channelId = document.getElementById('eb-channel').value;
   const event     = document.getElementById('eb-trigger-event').value;
-  if (!channelId) return toast('Select a channel first','err');
+  if (!channelId) return toast('Select a channel first (Step 1)','err');
   if (!event)     return toast('Select an event first','err');
 
   const title    = document.getElementById('eb-title').value.trim();
@@ -3993,10 +4048,12 @@ async function saveEmbedTrigger() {
   const footer   = document.getElementById('eb-footer').value.trim();
   const thumbnail= document.getElementById('eb-thumbnail').value.trim();
   const image    = document.getElementById('eb-image').value.trim();
+  const message  = document.getElementById('eb-message')?.value.trim() || '';
   const fields   = _embedFields.filter(f=>f.name||f.value).map(f=>({name:f.name||'\u200b',value:f.value||'\u200b',inline:!!f.inline}));
 
   const payload = {
     event, channelId,
+    content: message || undefined,
     embed: {
       color: parseInt(_embedColor.replace('#',''),16),
       ...(title && { title }),
@@ -4010,7 +4067,7 @@ async function saveEmbedTrigger() {
 
   const r = await api('POST', `/api/${GUILD}/embed-triggers`, payload);
   if (r.success) {
-    toast(`✅ Trigger saved — embed will auto-send on ${event}`,'ok');
+    toast(`✅ Trigger saved — auto-sends on ${event}`,'ok');
     await loadEmbedTriggers();
   } else toast(r.error||'Failed','err');
 }
@@ -4041,12 +4098,14 @@ async function sendEmbed() {
   const thumbnail= document.getElementById('eb-thumbnail').value.trim();
   const image    = document.getElementById('eb-image').value.trim();
   const ping     = document.getElementById('eb-ping-everyone').checked;
+  const message  = document.getElementById('eb-message')?.value.trim() || '';
   const fields   = _embedFields.filter(f => f.name || f.value).map(f => ({ name:f.name||'\u200b', value:f.value||'\u200b', inline:!!f.inline }));
 
   if (!title && !desc && !fields.length) return toast('Add a title or description first','err');
 
   const payload = {
     channelId,
+    content: ping ? '@everyone' : (message || undefined),
     embed: {
       color: parseInt(_embedColor.replace('#',''), 16),
       ...(title && { title }),
