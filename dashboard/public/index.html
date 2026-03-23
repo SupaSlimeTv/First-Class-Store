@@ -1828,7 +1828,7 @@ async function api(m,u,b){
 
 async function refresh(){
   const [stats,store,config,effects]=await Promise.all([
-    api('GET',`/api/${GUILD}/stats`),api('GET','/api/store'),
+    api('GET',`/api/${GUILD}/stats`),api('GET',`/api/store?guildId=${GUILD}`),
     api('GET',`/api/${GUILD}/config`),api('GET',`/api/${GUILD}/effects`)
   ]);
   S={...S,stats,store:store.items||[],purgeActive:config.purgeActive,effects};
@@ -3615,7 +3615,7 @@ function setDrugEffect() {
 }
 
 async function loadDrugs() {
-  const drugs = await api('GET', `/api/drugs`).catch(()=>[]);
+  const drugs = await api('GET', `/api/drugs?guildId=${GUILD}`).catch(()=>[]);
   const tb    = document.getElementById('drugs-tbody');
   if (!tb) return;
   if (!drugs.length) { tb.innerHTML = '<tr><td colspan="6" class="empty-cell">No drugs defined yet. Add one above.</td></tr>'; return; }
@@ -3634,7 +3634,7 @@ async function loadDrugs() {
 
 async function openDrugModal(drug) {
   // Load drug store items into the selector
-  const store  = await api('GET', '/api/store').catch(()=>({ items:[] }));
+  const store  = await api('GET', `/api/store?guildId=${GUILD}`).catch(()=>({ items:[] }));
   if (!S.store) S.store = store.items || [];
   const drugItems = (store.items||[]).filter(i => i.isDrug);
   const storeEl = document.getElementById('drug-store-select');
@@ -3683,14 +3683,14 @@ async function saveDrug() {
     gangOnly:    document.getElementById('drug-gang-only').checked,
   };
 
-  const r = await api(id ? 'PUT' : 'POST', `/api/drugs${id ? '/'+id : ''}`, payload);
+  const r = await api(id ? 'PUT' : 'POST', `/api/drugs${id ? '/'+id : ''}?guildId=${GUILD}`, payload);
   if (r.success) { toast(id ? 'Drug updated' : 'Drug added','ok'); closeDrugModal(); await loadDrugs(); }
   else toast(r.error||'Failed','err');
 }
 
 async function deleteDrug(id) {
   if (!confirm('Delete this drug from the market?')) return;
-  const r = await api('DELETE', `/api/drugs/${id}`);
+  const r = await api('DELETE', `/api/drugs/${id}?guildId=${GUILD}`);
   if (r.success) { toast('Drug removed','ok'); await loadDrugs(); }
   else toast(r.error||'Failed','err');
 }

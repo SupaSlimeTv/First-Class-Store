@@ -5,35 +5,60 @@
 // ============================================================
 const { col } = require('./mongo');
 
-let _drugs = [];
+let _drugs = {}; // guildId -> [...drugs]
 let _orders = {}; // userId -> pending order
 
 async function preloadDrugCache() {
   try {
     const c    = await col('drugs');
     const docs = await c.find({}).toArray();
-    _drugs = docs.map(d => { const o={...d}; delete o._id; return { id:d._id, ...o }; });
-    console.log(`💊 Drug cache loaded (${_drugs.length} drugs)`);
+    _drugs = {};
+    for (const d of docs) {
+      if (d._id.includes(':')) {
+        // New format: guildId:drugId
+        const gid = d._id.split(':').slice(0,-1).join(':');
+        if (!_drugs[gid]) _drugs[gid] = [];
+        const o = {...d}; delete o._id;
+        _drugs[gid].push({ id: d._id.split(':').pop(), ...o });
+      } else {
+        // Old format — migrate to default guild
+        const gid = process.env.GUILD_ID || 'default';
+        if (!_drugs[gid]) _drugs[gid] = [];
+        const o = {...d}; delete o._id;
+        _drugs[gid].push({ id: d._id, ...o });
+      }
+    }
+    const total = Object.values(_drugs).reduce((s,a)=>s+a.length,0);
+    console.log(`💊 Drug cache loaded (${total} drugs)`);
   } catch(e) { console.error('preloadDrugCache error:', e.message); }
 }
 
-function getDrugs()          { return [..._drugs]; }
-function getDrug(id)         { return _drugs.find(d => d.id === id) || null; }
+function getDrugs(guildId) {
+  const gid = guildId || process.env.GUILD_ID || 'default';
+  return [...(_drugs[gid] || [])];
+}
+function getDrug(id, guildId) {
+  return getDrugs(guildId).find(d => d.id === id) || null;
+}
 
-async function saveDrug(drug) {
-  const idx = _drugs.findIndex(d => d.id === drug.id);
-  if (idx === -1) _drugs.push(drug); else _drugs[idx] = drug;
+async function saveDrug(drug, guildId) {
+  const gid = guildId || process.env.GUILD_ID || 'default';
+  if (!_drugs[gid]) _drugs[gid] = [];
+  const idx = _drugs[gid].findIndex(d => d.id === drug.id);
+  if (idx === -1) _drugs[gid].push(drug); else _drugs[gid][idx] = drug;
   try {
     const c = await col('drugs');
-    await c.replaceOne({ _id: drug.id }, { _id: drug.id, ...drug }, { upsert: true });
+    const key = `${gid}:${drug.id}`;
+    await c.replaceOne({ _id: key }, { _id: key, ...drug }, { upsert: true });
   } catch(e) { console.error('saveDrug error:', e.message); }
 }
 
-async function deleteDrug(id) {
-  _drugs = _drugs.filter(d => d.id !== id);
+async function deleteDrug(id, guildId) {
+  const gid = guildId || process.env.GUILD_ID || 'default';
+  if (_drugs[gid]) _drugs[gid] = _drugs[gid].filter(d => d.id !== id);
   try {
     const c = await col('drugs');
-    await c.deleteOne({ _id: id });
+    await c.deleteOne({ _id: `${gid}:${id}` });
   } catch(e) { console.error('deleteDrug error:', e.message); }
 }
 

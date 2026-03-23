@@ -91,6 +91,8 @@ async function requireGuildAuth(req, res, next) {
   const ok = await isAdminInGuild(req.session.user.id, guildId);
   if (!ok) return res.status(403).json({ error: 'You are not an admin in this server' });
   req.guildId = guildId;
+  // Set guild context so all db calls in this request use the right guild
+  db.setGuildContext(guildId);
   next();
 }
 
@@ -185,8 +187,10 @@ app.get('/api/my-guilds', requireAuth, async (req, res) => {
 app.get('/dashboard/:guildId', requireAuth, async (req, res) => {
   const ok = await isAdminInGuild(req.session.user.id, req.params.guildId);
   if (!ok) return res.redirect('/guild-select.html?error=no_access');
-  // Store selected guild in session
+  // Store selected guild in session for global API routes (drugs, store)
   req.session.selectedGuild = req.params.guildId;
+  req.session.guildId       = req.params.guildId;
+  req.session.save(() => {});
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -200,7 +204,7 @@ app.get('/api/session-guild', requireAuth, (req, res) => {
 app.get('/api/:guildId/stats', requireGuildAuth, async (req, res) => {
   const guildId  = req.guildId;
   const users    = db.getAllUsers();
-  const store    = db.getStore();
+  const store    = db.getStore(req.guildId);
   const config   = db.getConfig(guildId);
   const userList = Object.values(users);
   const totalMoney = userList.reduce((s, u) => s + (u.wallet||0) + (u.bank||0), 0);
@@ -444,7 +448,7 @@ app.post('/api/:guildId/users/:id/unban', requireGuildAuth, async (req, res) => 
 
 app.get('/api/:guildId/users/:id/inventory', requireGuildAuth, async (req, res) => {
   const user  = db.getUser(req.params.id);
-  const store = db.getStore();
+  const store = db.getStore(req.guildId);
 
   // Store items
   const items = (user?.inventory || []).reduce((acc, id) => {
@@ -534,10 +538,10 @@ app.post('/api/:guildId/users/:id/take-gun', requireGuildAuth, async (req, res) 
 
 // ── STORE (GLOBAL) ────────────────────────────────────────────
 
-app.get('/api/store', requireAuth, (req, res) => res.json(db.getStore()));
+app.get('/api/store', requireAuth, (req, res) => { const gid = req.query.guildId || req.session.guildId; if(gid) db.setGuildContext(gid); res.json(db.getStore(gid)); });
 
 app.post('/api/store', requireAuth, async (req, res) => {
-  const store = db.getStore();
+  const store = db.getStore(req.guildId);
   const { name, description, price, type, roleReward, reusable, effect, requirements, enabled, trigger, isDrug, isWeapon } = req.body;
   if (!name || !price) return res.status(400).json({ error: 'name and price required' });
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -550,7 +554,7 @@ app.post('/api/store', requireAuth, async (req, res) => {
 });
 
 app.put('/api/store/:id', requireAuth, async (req, res) => {
-  const store = db.getStore();
+  const store = db.getStore(req.guildId);
   const idx   = (store.items||[]).findIndex(i=>i.id===req.params.id);
   if (idx===-1) return res.status(404).json({ error: 'Item not found' });
   store.items[idx] = { ...store.items[idx], ...req.body, id: req.params.id };
@@ -559,8 +563,8 @@ app.put('/api/store/:id', requireAuth, async (req, res) => {
   res.json({ success: true, item: store.items[idx] });
 });
 
-app.delete('/api/store/:id', async (req, res) => {
-  const store = db.getStore();
+app.delete('/api/store/:id', requireAuth, async (req, res) => {
+  const store = db.getStore(req.guildId);
   const item  = (store.items||[]).find(i=>i.id===req.params.id);
   store.items  = (store.items||[]).filter(i=>i.id!==req.params.id);
   db.saveStore(store);
@@ -1177,16 +1181,18 @@ app.post('/api/:guildId/config/narcotics-role', requireGuildAuth, async (req, re
   res.json({ success: true });
 });
 
-// ── DRUG MARKET (Global) ──────────────────────────────────────
+// ── DRUG MARKET (Per-Guild) ───────────────────────────────────
 app.get('/api/drugs', requireAuth, (req, res) => {
   const { getDrugs } = require('../utils/drugDb');
-  res.json(getDrugs());
+  const gid = req.query.guildId || req.session.guildId;
+  res.json(getDrugs(gid));
 });
 
 app.post('/api/drugs', requireAuth, async (req, res) => {
   try {
     const { saveDrug } = require('../utils/drugDb');
-    await saveDrug(req.body);
+    const gid = req.query.guildId || req.body.guildId || req.session.guildId;
+    await saveDrug(req.body, gid);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1194,7 +1200,8 @@ app.post('/api/drugs', requireAuth, async (req, res) => {
 app.put('/api/drugs/:id', requireAuth, async (req, res) => {
   try {
     const { saveDrug } = require('../utils/drugDb');
-    await saveDrug({ ...req.body, id: req.params.id });
+    const gid = req.query.guildId || req.body.guildId || req.session.guildId;
+    await saveDrug({ ...req.body, id: req.params.id }, gid);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1202,7 +1209,8 @@ app.put('/api/drugs/:id', requireAuth, async (req, res) => {
 app.delete('/api/drugs/:id', requireAuth, async (req, res) => {
   try {
     const { deleteDrug } = require('../utils/drugDb');
-    await deleteDrug(req.params.id);
+    const gid = req.query.guildId || req.session.guildId;
+    await deleteDrug(req.params.id, gid);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

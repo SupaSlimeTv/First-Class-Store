@@ -1,16 +1,20 @@
 // ============================================================
 // utils/db.js — MongoDB-backed Database
-// All data persists across Railway deploys via MongoDB Atlas
+// Users/economy: GLOBAL (shared across servers — intentional)
+// Config: per-guild
+// Store: per-guild
 // ============================================================
 
 const { col } = require('./mongo');
 
-// ── IN-MEMORY CACHES ─────────────────────────────────────
-let _users  = {};   // userId -> user object
+let _users  = {};   // userId -> user object (global)
 let _config = {};   // guildId -> config object
-let _store  = null; // { items: [...] }
+let _stores = {};   // guildId -> { items: [...] }
 
-// ── DEFAULT VALUES ────────────────────────────────────────
+let _activeGuild = process.env.GUILD_ID || 'default';
+function setGuildContext(guildId) { if (guildId) _activeGuild = guildId; }
+function getGuildContext()        { return _activeGuild; }
+
 const DEFAULT_USER = {
   wallet: 500, bank: 0, lastDaily: null, inventory: [],
   bannedUntil: null, hitmanCount: 0, roleIncomeCooldowns: {},
@@ -34,33 +38,37 @@ const DEFAULT_STORE = {
   }],
 };
 
-// ── PRELOAD ───────────────────────────────────────────────
+// ── PRELOAD ───────────────────────────────────────────────────
 async function preloadCache() {
   try {
     const [uc, cc, sc] = await Promise.all([col('users'), col('configs'), col('store')]);
-    const [users, configs, storeDoc] = await Promise.all([
+    const [users, configs, storeDocs] = await Promise.all([
       uc.find({}).toArray(),
       cc.find({}).toArray(),
-      sc.findOne({ _id: 'store' }),
+      sc.find({}).toArray(),
     ]);
-    _users  = Object.fromEntries(users.map(d   => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
+    _users  = Object.fromEntries(users.map(d => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
     _config = Object.fromEntries(configs.map(d => { const id=d._id; const o={...d}; delete o._id; return [id,o]; }));
-    _store  = storeDoc ? { items: storeDoc.items || [] } : null;
-    console.log(`📂 Cache preloaded (${Object.keys(_users).length} users)`);
+    _stores = {};
+    for (const d of storeDocs) {
+      if (d._id === 'store') {
+        // Old global store — keep under GUILD_ID for migration
+        const gid = process.env.GUILD_ID || 'default';
+        if (!_stores[gid]) _stores[gid] = { items: d.items || [] };
+      } else if (d._id.includes(':store')) {
+        const gid = d._id.replace(':store', '');
+        _stores[gid] = { items: d.items || [] };
+      }
+    }
+    console.log(`📂 Cache preloaded (${Object.keys(_users).length} users, ${Object.keys(_stores).length} stores)`);
   } catch(e) { console.error('preloadCache error:', e.message); }
 }
 
-// ── USERS ─────────────────────────────────────────────────
-function getUser(userId) {
-  return _users[userId] || null;
-}
-
-function getOrCreateUser(userId) {
-  if (!_users[userId]) _users[userId] = { ...DEFAULT_USER };
-  return _users[userId];
-}
-
-function hasAccount(userId) { return !!_users[userId]; }
+// ── USERS (GLOBAL — shared across all servers) ─────────────────
+function getUser(userId)           { return _users[userId] || null; }
+function getOrCreateUser(userId)   { if (!_users[userId]) _users[userId] = { ...DEFAULT_USER }; return _users[userId]; }
+function hasAccount(userId)        { return !!_users[userId]; }
+function getAllUsers()              { return { ..._users }; }
 
 function openAccount(userId) {
   if (_users[userId]) return false;
@@ -71,12 +79,10 @@ function openAccount(userId) {
 
 function saveUser(userId, data) {
   _users[userId] = data;
-  // Fire-and-forget async save — don't block sync callers
   col('users').then(c => c.replaceOne({ _id: userId }, { _id: userId, ...data }, { upsert: true }))
     .catch(e => console.error('saveUser error:', e.message));
 }
 
-function getAllUsers()     { return { ..._users }; }
 function saveAllUsers(data) {
   _users = { ...data };
   col('users').then(async c => {
@@ -87,71 +93,58 @@ function saveAllUsers(data) {
   }).catch(e => console.error('saveAllUsers error:', e.message));
 }
 
-// ── CONFIG ────────────────────────────────────────────────
+// ── CONFIG (PER-GUILD) ────────────────────────────────────────
 function getConfig(guildId) {
-  const id = guildId || process.env.GUILD_ID || 'default';
+  const id = guildId || _activeGuild || 'default';
   return { ...DEFAULT_CONFIG, ...(_config[id] || {}) };
 }
 
 function saveConfig(guildId, data) {
   if (typeof guildId === 'object') { data = guildId; guildId = null; }
-  const id = guildId || process.env.GUILD_ID || 'default';
+  const id = guildId || _activeGuild || 'default';
   _config[id] = data;
   col('configs').then(c => c.replaceOne({ _id: id }, { _id: id, ...data }, { upsert: true }))
     .catch(e => console.error('saveConfig error:', e.message));
 }
 
-// ── STORE ─────────────────────────────────────────────────
-function getStore() {
-  return _store || DEFAULT_STORE;
+// ── STORE (PER-GUILD) ─────────────────────────────────────────
+function getStore(guildId) {
+  const gid = guildId || _activeGuild;
+  return _stores[gid] || { ...DEFAULT_STORE };
 }
 
-function saveStore(data) {
-  _store = data;
-  col('store').then(c => c.replaceOne({ _id: 'store' }, { _id: 'store', ...data }, { upsert: true }))
+function saveStore(data, guildId) {
+  const gid = guildId || _activeGuild;
+  _stores[gid] = data;
+  const key = `${gid}:store`;
+  col('store').then(c => c.replaceOne({ _id: key }, { _id: key, ...data }, { upsert: true }))
     .catch(e => console.error('saveStore error:', e.message));
 }
 
-// ── ECONOMY HELPERS ───────────────────────────────────────
-function addToWallet(userId, amount) {
-  const user = getOrCreateUser(userId); user.wallet += amount; saveUser(userId, user); return user;
-}
+// ── ECONOMY HELPERS ───────────────────────────────────────────
+function addToWallet(userId, amount) { const u=getOrCreateUser(userId); u.wallet+=amount; saveUser(userId,u); return u; }
+function deposit(userId, amount)     { const u=getUser(userId); if(amount>u.wallet) throw new Error('Not enough in wallet.'); u.wallet-=amount; u.bank+=amount; saveUser(userId,u); return u; }
+function withdraw(userId, amount)    { const u=getUser(userId); if(amount>u.bank) throw new Error('Not enough in bank.'); u.bank-=amount; u.wallet+=amount; saveUser(userId,u); return u; }
+function isPurgeActive(guildId)      { return !!getConfig(guildId).purgeActive; }
 
-function deposit(userId, amount) {
-  const user = getUser(userId);
-  if (amount > user.wallet) throw new Error('Not enough money in wallet.');
-  user.wallet -= amount; user.bank += amount; saveUser(userId, user); return user;
-}
-
-function withdraw(userId, amount) {
-  const user = getUser(userId);
-  if (amount > user.bank) throw new Error('Not enough money in bank.');
-  user.bank -= amount; user.wallet += amount; saveUser(userId, user); return user;
-}
-
-function isPurgeActive(guildId) { return !!getConfig(guildId).purgeActive; }
-
-// ── INVENTORY ─────────────────────────────────────────────
+// ── INVENTORY ─────────────────────────────────────────────────
 function giveItem(userId, itemId) {
-  const user = getOrCreateUser(userId);
-  if (!user.inventory) user.inventory = [];
-  user.inventory.push(itemId); saveUser(userId, user); return user;
+  const u=getOrCreateUser(userId); if(!u.inventory) u.inventory=[];
+  u.inventory.push(itemId); saveUser(userId,u); return u;
 }
-
 function removeItem(userId, itemId) {
-  const user = getUser(userId); if (!user?.inventory) return false;
-  const idx = user.inventory.indexOf(itemId); if (idx === -1) return false;
-  user.inventory.splice(idx, 1); saveUser(userId, user); return true;
+  const u=getUser(userId); if(!u?.inventory) return false;
+  const idx=u.inventory.indexOf(itemId); if(idx===-1) return false;
+  u.inventory.splice(idx,1); saveUser(userId,u); return true;
 }
-
 function isBotBanned(userId) {
-  const user = getUser(userId); if (!user?.bannedUntil) return false;
-  if (Date.now() > user.bannedUntil) { user.bannedUntil = null; saveUser(userId, user); return false; }
+  const u=getUser(userId); if(!u?.bannedUntil) return false;
+  if(Date.now()>u.bannedUntil){u.bannedUntil=null;saveUser(userId,u);return false;}
   return true;
 }
 
 module.exports = {
-  preloadCache,
+  preloadCache, setGuildContext, getGuildContext,
   getUser, getOrCreateUser, openAccount, hasAccount, saveUser, getAllUsers, saveAllUsers,
   getConfig, saveConfig,
   getStore, saveStore,

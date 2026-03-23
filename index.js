@@ -90,6 +90,9 @@ client.once('ready', async () => {
   const { preloadBitcoinCache } = require('./utils/bitcoinDb');
   await preloadBitcoinCache();
 
+  const { preloadDrugCache } = require('./utils/drugDb');
+  await preloadDrugCache();
+
   // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');
@@ -134,6 +137,10 @@ client.on('guildMemberAdd', async (member) => {
 // Every slash command fires an "interactionCreate" event
 client.on('interactionCreate', async (interaction) => {
 
+  // ── SET GUILD CONTEXT for all db calls ───────────────────────
+  const { setGuildContext } = require('./utils/db');
+  if (interaction.guildId) setGuildContext(interaction.guildId);
+
   // ---- AUTOCOMPLETE ----
   if (interaction.isAutocomplete()) {
     const command = client.commands.get(interaction.commandName);
@@ -154,7 +161,6 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   // ---- HITMAN SILENCE CHECK ----
-  // If the user was silenced by a hitman, block ALL commands except /help
   if (command.data.name !== 'help') {
     const { isBotBanned, getUser } = require('./utils/db');
     if (isBotBanned(interaction.user.id)) {
@@ -187,6 +193,9 @@ client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
   const db = require('./utils/db');
+  // Set guild context so all db calls use this guild's data
+  if (message.guildId) db.setGuildContext(message.guildId);
+
   const { getConfig, getUser, getOrCreateUser, openAccount, hasAccount, saveUser,
           getStore, giveItem, isBotBanned, deposit, withdraw, isPurgeActive } = db;
   const embeds = require('./utils/embeds');
@@ -1306,6 +1315,21 @@ client.on('messageCreate', async (message) => {
     return overviewCmd.executePrefix(message);
   }
 
+  // ---- ganginventory ----
+  if (['ganginventory','ginv','gangstash','gstash'].includes(commandName)) {
+    return message.reply('Use `/ganginventory` slash command — subcommand selection required.');
+  }
+
+  // ---- sponsordeal ----
+  if (commandName === 'sponsordeal' || commandName === 'sponsor') {
+    return message.reply('Use `/sponsordeal` slash command — requires subcommand and user selection.');
+  }
+
+  // ---- drugmarket ----
+  if (['drugmarket','drugs','drugshop','dmarket'].includes(commandName)) {
+    return message.reply('Use `/drugmarket` slash command — subcommand selection required.');
+  }
+
   // ---- bitcoin / btc ----
   if (commandName === 'bitcoin' || commandName === 'btc' || commandName === 'btcwallet') {
     return message.reply('Use `/bitcoin` slash command — subcommand selection required.');
@@ -1314,6 +1338,11 @@ client.on('messageCreate', async (message) => {
   // ---- phish ----
   if (commandName === 'phish') {
     return message.reply('Use `/phish` slash command — requires user mention selection.');
+  }
+
+  // ---- blacktea ----
+  if (commandName === 'blacktea' || commandName === 'bt' || commandName === 'wordgame') {
+    return message.reply('Use `/blacktea` slash command to start a game — options like lives and wager require slash command selection.');
   }
 
   // ---- myrouting / laptop ----
@@ -1466,7 +1495,31 @@ setInterval(async () => {
 
 // ---- PASSIVE INCOME TICK ENGINE ----
 const { tickPassiveIncome } = require('./utils/effects');
-setInterval(tickPassiveIncome, 60_000);
+setInterval(async () => {
+  tickPassiveIncome();
+  // Apply active biz sponsorship boosts every minute
+  try {
+    const { col } = require('./utils/mongo');
+    const c    = await col('bizSponsorships');
+    const docs = await c.find({}).toArray();
+    const { getBusiness, saveBusiness } = require('./utils/bizDb');
+    const now  = Date.now();
+    for (const doc of docs) {
+      const active = (doc.deals||[]).filter(d => d.expiresAt > now);
+      if (!active.length) continue;
+      const biz = getBusiness(doc._id);
+      if (!biz) continue;
+      const totalBoost = active.reduce((s,d) => s+d.boost, 0);
+      const { calcIncome } = require('./utils/bizDb');
+      const baseIncome = calcIncome(biz);
+      const bonusPerMin = Math.floor(baseIncome * totalBoost / 60);
+      if (bonusPerMin > 0) {
+        biz.revenue = (biz.revenue||0) + bonusPerMin;
+        await saveBusiness(doc._id, biz);
+      }
+    }
+  } catch(e) { console.error('Sponsorship tick error:', e.message); }
+}, 60_000);
 tickPassiveIncome();
 
 // ---- BITCOIN MIX COMPLETION TICK ----
