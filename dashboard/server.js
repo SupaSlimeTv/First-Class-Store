@@ -40,15 +40,16 @@ app.use(express.json());
 
 // ── RATE LIMITING ─────────────────────────────────────────────
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300,                  // 300 requests per 15min per IP
+  windowMs: 15 * 60 * 1000,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path.includes('/purge/') || req.path.includes('/config/'),
   message: { error: 'Too many requests, slow down.' },
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,                   // 20 login attempts per 15min
+  max: 20,
   message: { error: 'Too many login attempts.' },
 });
 app.use('/api/', apiLimiter);
@@ -675,13 +676,39 @@ app.delete('/api/:guildId/roleincome/:roleId', requireGuildAuth, (req, res) => {
 
 // ── PURGE ─────────────────────────────────────────────────────
 
-app.post('/api/:guildId/purge/start', requireGuildAuth, async (req, res) => { await writeAudit(req.guildId, req.session.user?.id, 'purge_start', {});
+app.post('/api/:guildId/purge/start', requireGuildAuth, async (req, res) => {
+  await writeAudit(req.guildId, req.session.user?.id, 'purge_start', {});
   const config = db.getConfig(req.guildId);
   if (config.purgeActive) return res.status(400).json({ error: 'Already active' });
-  const allUsers = db.getAllUsers();
-  for (const id in allUsers) { allUsers[id].wallet += (allUsers[id].bank||0); allUsers[id].bank = 0; db.saveUser(id, allUsers[id]); }
+
+  // Drain bank → wallet for users in THIS guild only
+  try {
+    const botClient  = require('../index.client');
+    const members    = await fetchAllMembers(req.guildId);
+    const memberIds  = new Set((members||[]).map(m => m.user?.id).filter(Boolean));
+    const allUsers   = db.getAllUsers();
+    for (const id in allUsers) {
+      if (!memberIds.has(id)) continue; // only this guild's members
+      const u = allUsers[id];
+      if ((u.bank||0) > 0) {
+        u.wallet = (u.wallet||0) + (u.bank||0);
+        u.bank   = 0;
+        db.saveUser(id, u);
+      }
+    }
+  } catch(e) { console.error('Purge drain error:', e.message); }
+
   config.purgeActive = true; config.purgeStartTime = Date.now();
-  db.saveConfig(req.guildId, config); res.json({ success: true });
+  db.saveConfig(req.guildId, config);
+  res.json({ success: true });
+});
+
+app.post('/api/:guildId/config/purge-gif', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.purgeStartGif = req.body.startGif || null;
+  config.purgeEndGif   = req.body.endGif   || null;
+  db.saveConfig(req.guildId, config);
+  res.json({ success: true });
 });
 
 app.post('/api/:guildId/purge/end', requireGuildAuth, async (req, res) => { await writeAudit(req.guildId, req.session.user?.id, 'purge_end', {});
@@ -1262,11 +1289,11 @@ app.post('/api/:guildId/config/money-drop', requireGuildAuth, async (req, res) =
 // ── EMBED TRIGGERS ────────────────────────────────────────────
 app.post('/api/:guildId/embed-triggers', requireGuildAuth, async (req, res) => {
   try {
-    const { event, channelId, embed } = req.body;
+    const { event, channelId, embed, content } = req.body;
     if (!event || !channelId || !embed) return res.status(400).json({ error: 'event, channelId, embed required' });
     const config = db.getConfig(req.guildId);
     if (!config.embedTriggers) config.embedTriggers = {};
-    config.embedTriggers[event] = { channelId, embed };
+    config.embedTriggers[event] = { channelId, embed, content: content || null };
     db.saveConfig(req.guildId, config);
     await writeAudit(req.guildId, req.session.user?.id, 'embed_trigger_save', { event, channel: channelId });
     res.json({ success: true });

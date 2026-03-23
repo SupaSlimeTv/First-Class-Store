@@ -679,6 +679,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <p id="pf-desc">No purge running. Start one below — all users' bank funds will drain to wallets immediately.</p>
         </div>
         <button class="btn btn-danger" id="pf-btn" onclick="togglePurge()">Start Purge</button>
+        <button class="btn btn-ghost btn-sm" onclick="forceClearPurge()" title="Force clear stuck purge state">↺ Reset</button>
       </div>
 
       <!-- ANNOUNCEMENT CHANNEL -->
@@ -696,6 +697,29 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <button class="btn btn-primary" style="flex:1" onclick="savePurgeChannel()">Set Channel</button>
             <button class="btn btn-ghost" style="flex:1" onclick="clearPurgeChannel()">Clear</button>
           </div>
+        </div>
+      </div>
+
+      <!-- PURGE GIF CONFIG -->
+      <div class="purge-panel" style="margin-bottom:20px;flex-direction:column;align-items:stretch;gap:12px">
+        <h3>🎬 Purge Announcement GIFs</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0">Paste a GIF or image URL to use in the purge start/end announcements. Leave blank to use the default.</p>
+        <div class="grid2">
+          <div class="fg" style="margin:0">
+            <label class="flabel">🔴 Purge START GIF URL</label>
+            <input class="finput" id="purge-start-gif" placeholder="https://media.giphy.com/... (leave blank for default)">
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="flabel">🟢 Purge END GIF URL</label>
+            <input class="finput" id="purge-end-gif" placeholder="https://... (optional)">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="savePurgeGifs()">💾 Save GIFs</button>
+          <button class="btn btn-ghost btn-sm" onclick="previewPurgeGif()">👁 Preview</button>
+        </div>
+        <div id="purge-gif-preview" style="display:none;margin-top:4px">
+          <img id="purge-gif-img" src="" style="max-width:300px;border-radius:6px;border:1px solid var(--border)">
         </div>
       </div>
 
@@ -1991,6 +2015,12 @@ async function refresh(){
     ? 'Active: #' + (_guildChannels.find(c=>c.id===config.purgeChannelId)?.name || config.purgeChannelId) + ' — bot will @everyone here'
     : 'No channel set — @everyone announcements disabled';
 
+  // Load purge GIFs
+  const startGifEl = document.getElementById('purge-start-gif');
+  const endGifEl   = document.getElementById('purge-end-gif');
+  if (startGifEl) startGifEl.value = config.purgeStartGif || '';
+  if (endGifEl)   endGifEl.value   = config.purgeEndGif   || '';
+
   document.getElementById('refresh-ts').textContent='Last sync: '+new Date().toLocaleTimeString();
 }
 
@@ -2569,6 +2599,29 @@ function renderPurge(){
   document.getElementById('pf-desc').textContent=on?'End the purge to restore normal operations.':'No purge running. Start one — all users\' bank funds will drain to wallets immediately.';
   document.getElementById('pf-btn').textContent=on?'End Purge':'Start Purge';
   document.getElementById('pf-btn').className='btn '+(on?'btn-success':'btn-danger');
+}
+
+async function savePurgeGifs() {
+  const startGif = document.getElementById('purge-start-gif').value.trim() || null;
+  const endGif   = document.getElementById('purge-end-gif').value.trim()   || null;
+  const r = await api('POST', `/api/${GUILD}/config/purge-gif`, { startGif, endGif });
+  if (r.success) toast('Purge GIFs saved','ok');
+  else toast(r.error||'Failed','err');
+}
+
+function previewPurgeGif() {
+  const url = document.getElementById('purge-start-gif').value.trim() ||
+              'https://media.giphy.com/media/l0HlKrB02QY0f1mbm/giphy.gif';
+  const prev = document.getElementById('purge-gif-preview');
+  const img  = document.getElementById('purge-gif-img');
+  img.src = url;
+  prev.style.display = 'block';
+}
+
+async function forceClearPurge() {
+  const r = await api('POST', `/api/${GUILD}/purge/end`);
+  if (r.success) { toast('Purge state cleared','ok'); refresh(); }
+  else toast(r.error||'Failed','err');
 }
 
 async function togglePurge(){

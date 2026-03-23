@@ -155,20 +155,24 @@ function rouletteEmbed(betType, betDesc, result, resultColor, bet, won, payout, 
     .setTimestamp();
 }
 
-function purgeEmbed(starting) {
+function purgeEmbed(starting, gifUrl) {
   if (starting) {
-    return new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setColor(COLORS.PURGE)
       .setTitle('🔴 THE PURGE IS NOW ACTIVE @everyone')
       .setDescription('**@everyone — The Purge has begun. All bank funds have been forcefully moved to wallets.**\n\n> 💸 All money is now exposed and vulnerable\n> 🚫 Deposits and withdrawals are **DISABLED**\n> ⚡ Rob cooldowns are **COMPLETELY REMOVED**\n> 🔫 All attacks, drains, and hitmen still work\n> 🏴 Gang wars have zero consequences\n\n**Protect yourself. Trust nobody.**\n\n*The purge will continue until the server owner ends it.*')
-      .setImage('https://media.giphy.com/media/l0HlKrB02QY0f1mbm/giphy.gif')
       .setTimestamp();
+    const gif = gifUrl || 'https://media.giphy.com/media/l0HlKrB02QY0f1mbm/giphy.gif';
+    embed.setImage(gif);
+    return embed;
   }
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(COLORS.SUCCESS)
     .setTitle('🟢 THE PURGE HAS ENDED @everyone')
     .setDescription('**@everyone — The Purge is over. Normal operations have resumed.**\n\n> 🏦 Deposits and withdrawals are back\n> ⏱️ Rob cooldowns are restored\n> 🛡️ Standard protections apply\n\nDeposit your money to keep it safe.')
     .setTimestamp();
+  if (gifUrl) embed.setImage(gifUrl);
+  return embed;
 }
 
 function successEmbed(title, description) {

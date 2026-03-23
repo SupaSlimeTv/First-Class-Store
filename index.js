@@ -1461,7 +1461,7 @@ setInterval(async () => {
 
       await channel.send({
         content: '@everyone',
-        embeds: [purgeEmbed(currentState)],
+        embeds: [purgeEmbed(currentState, currentState ? config.purgeStartGif : config.purgeEndGif)],
         allowedMentions: { parse: ['everyone'] },
       });
     }
@@ -1880,11 +1880,17 @@ async function fireEmbedTrigger(guildId, event, variables) {
     const built = new EmbedBuilder();
     const e = trigger.embed;
 
+    // Variable substitution — case-insensitive
     const sub = (str) => str
-      ? str.replace(/\{user\}/g, variables.mention||'')
-           .replace(/\{username\}/g, variables.username||'')
-           .replace(/\{server\}/g, variables.server||'')
-           .replace(/\{memberCount\}/g, variables.memberCount||'')
+      ? str.replace(/\{user\}/gi,         variables.mention||'')        // @mention
+           .replace(/\{mention\}/gi,       variables.mention||'')        // @mention alias
+           .replace(/\{username\}/gi,      variables.username||'')       // display name
+           .replace(/\{displayname\}/gi,   variables.username||'')       // display name alias
+           .replace(/\{name\}/gi,          variables.username||'')       // short alias
+           .replace(/\{server\}/gi,        variables.server||'')         // server name
+           .replace(/\{servername\}/gi,    variables.server||'')         // server name alias
+           .replace(/\{membercount\}/gi,   String(variables.memberCount||'')) // member count
+           .replace(/\{count\}/gi,         String(variables.memberCount||'')) // short alias
       : str;
 
     if (e.color     !== undefined) built.setColor(e.color);
@@ -1896,7 +1902,9 @@ async function fireEmbedTrigger(guildId, event, variables) {
     if (e.image?.url)              built.setImage(e.image.url);
     built.setTimestamp();
 
-    await channel.send({ embeds: [built] });
+    // Content (plain message above embed — supports mentions)
+    const content = trigger.content ? sub(trigger.content) : undefined;
+    await channel.send({ content, embeds: [built], allowedMentions: { parse: ['users','everyone'] } });
   } catch(e) { console.error('Embed trigger error:', e.message); }
 }
 
