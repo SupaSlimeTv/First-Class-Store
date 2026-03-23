@@ -25,7 +25,9 @@ async function preloadGunCache() {
 
 // ── GUN SHOP ──────────────────────────────────────────────
 function getGunShop() {
-  if (!_shop) return { guns: [...DEFAULT_GUNS] };
+  if (!_shop || !_shop.guns || !_shop.guns.length) {
+    return { guns: [...DEFAULT_GUNS] };
+  }
   return _shop;
 }
 
@@ -39,11 +41,18 @@ async function saveGunShop(data) {
 
 function getGunById(gunId) {
   const shop = getGunShop();
-  return (shop.guns || []).find(g => g.id === gunId) || null;
+  return (shop.guns || DEFAULT_GUNS).find(g => g.id === gunId) || null;
+}
+
+function getAllGuns() {
+  return getGunShop().guns || DEFAULT_GUNS;
 }
 
 // ── GUN INVENTORY ─────────────────────────────────────────
-function getGunInventory(userId)     { return _inventory[userId] || []; }
+function getGunInventory(userId) {
+  if (!_inventory[userId]) _inventory[userId] = [];
+  return _inventory[userId];
+}
 function getAllGunInventories()       { return { ..._inventory }; }
 
 async function saveGunInventory(userId, items) {
@@ -98,7 +107,7 @@ const DEFAULT_GUNS = [
 
 module.exports = {
   preloadGunCache,
-  getGunShop, saveGunShop, getGunById, DEFAULT_GUNS,
+  getGunShop, saveGunShop, getGunById, getAllGuns, DEFAULT_GUNS,
   getGunInventory, saveGunInventory, getAllGunInventories,
   getHealth, saveHealth, getAllHealth, getStatus, MAX_HP,
 };

@@ -17,6 +17,14 @@ module.exports = {
     .addSubcommand(s => s.setName('status').setDescription('Check active war status'))
     .addSubcommand(s => s.setName('surrender').setDescription('Surrender the current war (leader only)')),
 
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused().toLowerCase();
+    const { getAllGangs } = require('../../utils/gangDb');
+    const gangs   = Object.values(getAllGangs ? getAllGangs() : {});
+    const choices = gangs.filter(g => g.name?.toLowerCase().includes(focused))
+      .slice(0,25).map(g => ({ name:`${g.color||'🏴'} ${g.name}`, value:g.id||g.name }));
+    return interaction.respond(choices.length ? choices : [{ name:'No gangs found', value:'__none__' }]);
+  },
   async execute(interaction) {
     if (await noAccount(interaction)) return;
     const sub    = interaction.options.getSubcommand();

@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getOrCreateUser, getUser, saveUser, getStore, giveItem, removeItem, hasAccount } = require('../../utils/db');
 const { getBusiness, saveBusiness, BIZ_TYPES } = require('../../utils/bizDb');
-const { getGunInventory, saveGunInventory, getGunShop, getGunById } = require('../../utils/gunDb');
+const { getGunInventory, saveGunInventory, getGunShop, getGunById, getAllGuns } = require('../../utils/gunDb');
 const { getPet, savePet, PET_TYPES } = require('../../utils/petDb');
 const { getGangByMember, getAllGangs, saveGang } = require('../../utils/gangDb');
 const { noAccount } = require('../../utils/accountCheck');
@@ -28,10 +28,26 @@ module.exports = {
         { name:'🏴 Add to Gang (Admin)', value:'gang'  },
         { name:'🏢 Business Money (Admin)', value:'bizmoney' },
       ))
-    .addStringOption(o => o.setName('item_id').setDescription('Item/Gun ID or coin ticker (use /shop or /gunshop to find IDs)').setRequired(false))
+    .addStringOption(o => o.setName('item_id').setDescription('Item/Gun ID').setRequired(false).setAutocomplete(true))
     .addIntegerOption(o => o.setName('amount').setDescription('Amount for money/tokens/bizmoney').setRequired(false).setMinValue(1))
     .addStringOption(o => o.setName('gang_id').setDescription('Gang ID (admin: add to gang)').setRequired(false)),
 
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused().toLowerCase();
+    const type    = interaction.options.getString('type') || '';
+    const { getStore } = require('../../utils/db');
+    const { getGunShop } = require('../../utils/gunDb');
+    let choices = [];
+    if (['item','drug'].includes(type)) {
+      const store = getStore();
+      choices = (store.items||[]).map(i => ({ name:`${i.name} (${i.id})`, value:i.id }));
+    } else if (type === 'gun') {
+      const guns = getGunShop().guns || [];
+      choices = guns.map(g => ({ name:`${g.emoji||'🔫'} ${g.name} (${g.id}) — $${(g.price||0).toLocaleString()}`, value:g.id }));
+    }
+    const filtered = choices.filter(c => c.name.toLowerCase().includes(focused)).slice(0,25);
+    return interaction.respond(filtered.length ? filtered : [{ name:'No items found', value:'__none__' }]);
+  },
   async execute(interaction) {
     if (await noAccount(interaction)) return;
     const target = interaction.options.getUser('user');

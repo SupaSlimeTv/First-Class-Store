@@ -222,7 +222,8 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
         const phoneTier= phone ? getStatusTier(phone.status||0) : null;
 
         // Business
-        const biz      = getBusiness(u.id);
+        const bizList  = require('../utils/bizDb').getBusinesses(u.id);
+        const biz      = bizList[0] || null;
 
         // Gang
         const gang     = getGangByMember(u.id);
@@ -966,7 +967,8 @@ app.post('/api/:guildId/guns/health/:userId/revive', requireGuildAuth, async (re
 app.post('/api/:guildId/businesses/:userId/delete', requireGuildAuth, async (req, res) => {
   try {
     const bizDb = require('../utils/bizDb');
-    bizDb.deleteBusiness(req.params.userId);
+    const bizListDel = bizDb.getBusinesses(req.params.userId);
+    for (const b of bizListDel) await bizDb.deleteBusiness(req.params.userId, b.type);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1029,7 +1031,7 @@ app.post('/api/:guildId/coins', requireGuildAuth, async (req, res) => {
     await c.insertOne({ _id: id, ...profile });
 
     // Register with live tick engine
-    try { const idx = require('../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
+    try { const idx = require('../../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
 
     // Set starting price
     const pc = await col('stockPrices');
@@ -1049,7 +1051,7 @@ app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
     const { col } = require('../utils/mongo');
     const c = await col('customCoins');
     await c.deleteOne({ _id: req.params.id });
-    try { const idx = require('../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
+    try { const idx = require('../../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

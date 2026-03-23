@@ -8,6 +8,14 @@ module.exports = {
     .setDescription('Detailed info about your gang or another.')
     .addStringOption(o => o.setName('name').setDescription('Gang name to look up').setRequired(false)),
 
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused().toLowerCase();
+    const { getAllGangs } = require('../../utils/gangDb');
+    const gangs   = Object.values(getAllGangs ? getAllGangs() : {});
+    const choices = gangs.filter(g => g.name?.toLowerCase().includes(focused))
+      .slice(0,25).map(g => ({ name:`${g.color||'🏴'} ${g.name}`, value:g.id||g.name }));
+    return interaction.respond(choices.length ? choices : [{ name:'No gangs found', value:'__none__' }]);
+  },
   async execute(interaction) {
     const userId = interaction.user.id;
     const search = interaction.options.getString('name');
