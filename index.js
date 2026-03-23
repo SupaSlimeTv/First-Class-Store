@@ -93,6 +93,36 @@ client.once('ready', async () => {
   const { preloadDrugCache } = require('./utils/drugDb');
   await preloadDrugCache();
 
+  const { preloadHomeCache } = require('./utils/homeDb');
+  await preloadHomeCache();
+
+  const { preloadPoliceCache } = require('./utils/policeDb');
+  await preloadPoliceCache();
+
+  // ── Global heat→warrant checker (called from gangDb.addHeat) ──
+  global._checkHeatWarrant = async (userId, heat) => {
+    const { checkHeatWarrant } = require('./utils/policeDb');
+    for (const [guildId, guild] of client.guilds.cache) {
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (!member) continue;
+      const issued = await checkHeatWarrant(guildId, userId, heat);
+      if (issued) {
+        // Notify in a system/log channel if configured
+        const config = require('./utils/db').getConfig(guildId);
+        const ch = config.purgeChannelId && guild.channels.cache.get(config.purgeChannelId);
+        if (ch) {
+          const { EmbedBuilder } = require('discord.js');
+          ch.send({ embeds:[new EmbedBuilder()
+            .setColor(0xff8800)
+            .setTitle('📋 Warrant Auto-Issued')
+            .setDescription(`<@${userId}> has reached **${heat} heat**. A warrant has been automatically issued.\n\nOfficers can now search or arrest them with \`/police search\` or \`/police arrest\`.`)
+          ]}).catch(()=>{});
+        }
+        break; // only issue per guild where they're found
+      }
+    }
+  };
+
   // ── Clean up corrupt business records ──
   try {
     const bizDb = require('./utils/bizDb');
@@ -2026,6 +2056,143 @@ client.on('interactionCreate', async interaction => {
     components: [],
   });
 });
+
+// ── BRIBE RESPONSE HANDLER ────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('bribe_accept_') && !customId.startsWith('bribe_decline_')) return;
+
+  const parts    = customId.split('_');
+  const action   = parts[1]; // accept or decline
+  const briberId = parts[2];
+  const amount   = parseInt(parts[3]) || 0;
+  const guildId  = interaction.guildId || interaction.message?.guildId;
+
+  const { getOrCreateUser, saveUser } = require('./utils/db');
+  const { updateOfficer, getOfficer } = require('./utils/policeDb');
+  const { EmbedBuilder } = require('discord.js');
+
+  if (action === 'accept') {
+    // Pay officer, log bribe
+    const officerUser = getOrCreateUser(interaction.user.id);
+    officerUser.wallet += amount;
+    saveUser(interaction.user.id, officerUser);
+    if (guildId) {
+      const officer = getOfficer(guildId, interaction.user.id);
+      await updateOfficer(guildId, interaction.user.id, {
+        bribesAccepted: (officer?.bribesAccepted||0) + 1,
+        credibility:    Math.max(0, (officer?.credibility||100) - 30),
+        bribedAt:       Date.now(),
+        bribedBy:       briberId,
+      });
+    }
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0xf5c518)
+      .setDescription(`💰 Bribe accepted — **$${amount.toLocaleString()}** added to your wallet. This has been logged.`)
+    ], components:[] });
+    // DM the briber
+    client.users.fetch(briberId).then(u => u.send({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+      .setDescription(`✅ <@${interaction.user.id}> accepted your bribe of **$${amount.toLocaleString()}**. They'll look the other way.`)
+    ]}).catch(()=>{})).catch(()=>{});
+  } else {
+    // Declined — refund briber, boost officer credibility
+    const briberUser = getOrCreateUser(briberId);
+    briberUser.wallet += amount;
+    saveUser(briberId, briberUser);
+    if (guildId) {
+      const officer = getOfficer(guildId, interaction.user.id);
+      await updateOfficer(guildId, interaction.user.id, {
+        credibility: Math.min(100, (officer?.credibility||100) + 5),
+      });
+    }
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x3498db)
+      .setDescription(`❌ Bribe declined. **$${amount.toLocaleString()}** refunded to sender. +5 officer credibility.`)
+    ], components:[] });
+    client.users.fetch(briberId).then(u => u.send({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+      .setDescription(`❌ <@${interaction.user.id}> declined your bribe. **$${amount.toLocaleString()}** refunded.`)
+    ]}).catch(()=>{})).catch(()=>{});
+  }
+});
+
+// ── HOME FURNISH BUTTON HANDLER ───────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton() || !interaction.customId.startsWith('home_buy_furn_')) return;
+  const furnId  = interaction.customId.replace('home_buy_furn_', '');
+  const userId  = interaction.user.id;
+  const { getHome, saveHome, FURNITURE_SHOP, HOME_TIERS } = require('./utils/homeDb');
+  const { getOrCreateUser, saveUser } = require('./utils/db');
+  const { EmbedBuilder } = require('discord.js');
+
+  const home = getHome(userId);
+  if (!home) return interaction.reply({ content:'You need a home first.', ephemeral:true });
+
+  const furn    = FURNITURE_SHOP.find(f => f.id === furnId);
+  if (!furn) return interaction.reply({ content:'Unknown furnishing.', ephemeral:true });
+
+  const tier    = HOME_TIERS[home.tier];
+  const furnMax = tier?.furnSlots || 0;
+  if ((home.furnishings||[]).length >= furnMax) return interaction.reply({ content:`Your home is full (${furnMax} furnishing slots).`, ephemeral:true });
+
+  const user = getOrCreateUser(userId);
+  if (user.wallet < furn.cost) return interaction.reply({ content:`You need $${furn.cost.toLocaleString()} to buy ${furn.name}.`, ephemeral:true });
+
+  user.wallet -= furn.cost;
+  home.furnishings = [...(home.furnishings||[]), { id: furnId, installedAt: Date.now() }];
+  saveUser(userId, user);
+  await saveHome(userId, home);
+
+  return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+    .setDescription(`${furn.name} installed in your home! ${furn.desc}`)
+  ], ephemeral:true });
+});
+
+
+// ---- HOME PASSIVE DIRTY MONEY TICK --------------------------
+setInterval(async () => {
+  try {
+    const { getAllHomes, saveHome, calcPassiveIncome } = require('./utils/homeDb');
+    const { getGangByMember } = require('./utils/gangDb');
+    const { getGangGoons, saveGangGoons } = require('./utils/goonDb');
+    const all = getAllHomes();
+    for (const [userId, home] of Object.entries(all)) {
+      const hasDirty = (home.furnishings||[]).some(f => ['drug_lab','grow_house'].includes(f.id));
+      if (!hasDirty) continue;
+      const hrsSince = (Date.now() - (home.lastDirtyTick || Date.now())) / 3600000;
+      if (hrsSince < 1) continue;
+      const passive = calcPassiveIncome(home);
+      const dirty   = Math.floor(passive * 0.4 * hrsSince);
+      if (dirty < 1) continue;
+      const gang = getGangByMember(userId);
+      if (gang) {
+        const gd = getGangGoons(gang.id);
+        gd.dirtyMoney = (gd.dirtyMoney||0) + dirty;
+        await saveGangGoons(gang.id, gd);
+      }
+      home.lastDirtyTick = Date.now();
+      await saveHome(userId, home);
+    }
+  } catch(e) { console.error('Home dirty tick error:', e.message); }
+}, 60 * 60 * 1000);
+
+// ---- POLICE SALARY TICK -------------------------------------
+setInterval(async () => {
+  try {
+    const { getOfficers, getTreasury, deductTreasury } = require('./utils/policeDb');
+    const { getOrCreateUser, saveUser } = require('./utils/db');
+    for (const [guildId] of client.guilds.cache) {
+      const officers = getOfficers(guildId);
+      for (const officer of officers) {
+        if (!officer.salary) continue;
+        const paid = await deductTreasury(guildId, officer.salary);
+        if (paid > 0) {
+          const u = getOrCreateUser(officer.userId);
+          u.wallet += paid;
+          saveUser(officer.userId, u);
+        }
+      }
+    }
+  } catch(e) { console.error('Police salary tick error:', e.message); }
+}, 15 * 60 * 1000);
 
 // Money drop tick — per-guild timer-based scheduling (not probability)
 // Each guild gets its own next-drop timestamp so they never interfere

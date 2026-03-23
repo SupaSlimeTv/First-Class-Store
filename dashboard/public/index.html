@@ -617,13 +617,57 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- POLICE -->
     <div id="section-police" class="section">
-      <p class="sub-txt">Monitor heat levels and manage arrests. High heat players are at risk of police raids. You can release players from jail or clear their record here.</p>
+      <p class="sub-txt">Monitor heat levels, manage the police force, and configure the prison system.</p>
+
+      <!-- POLICE ROLE + TREASURY -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:10px">
+          <h3>🚔 Police Role</h3>
+          <p style="font-size:12px;color:var(--muted);margin:0">Users with this role can run /police commands.</p>
+          <select class="fselect" id="police-role-select"><option value="">— Select Role —</option></select>
+          <button class="btn btn-primary" onclick="savePoliceRole()">Save</button>
+        </div>
+        <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:10px">
+          <h3>🏦 Police Treasury</h3>
+          <p style="font-size:12px;color:var(--muted);margin:0">Fund used to pay officer salaries.</p>
+          <div style="font-size:24px;font-weight:700;color:var(--gold)" id="treasury-balance">$0</div>
+          <div style="display:flex;gap:6px">
+            <input class="finput" type="number" id="treasury-amount" placeholder="Amount" min="1" style="flex:1">
+            <button class="btn btn-primary" onclick="fundTreasury()">+ Fund</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- OFFICERS TABLE -->
+      <div class="tbl-wrap" style="margin-bottom:14px">
+        <div class="tbl-head">
+          <h3>👮 Officers</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadOfficers()">⟳ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Officer</th><th>Credibility</th><th>Salary</th><th>Bribes</th><th>Actions</th></tr></thead>
+          <tbody id="officers-tbody"><tr><td colspan="5" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- HOME PRICES CONFIG -->
+      <div class="purge-panel owner-only" style="margin-bottom:14px;flex-direction:column;align-items:stretch;gap:12px">
+        <h3>🏠 Home Prices</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0">Customize home purchase prices for this server. Leave blank to use defaults.</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+          <div class="fg" style="margin:0"><label class="flabel">🏚️ Studio</label><input class="finput" type="number" id="home-price-studio" placeholder="5000"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏠 House</label><input class="finput" type="number" id="home-price-house" placeholder="25000"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏡 Mansion</label><input class="finput" type="number" id="home-price-mansion" placeholder="100000"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏰 Estate</label><input class="finput" type="number" id="home-price-estate" placeholder="500000"></div>
+        </div>
+        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveHomePrices()">Save Prices</button>
+      </div>
 
       <!-- JAIL CONFIG -->
       <div class="purge-panel owner-only" style="margin-bottom:14px">
         <div class="purge-info">
           <h3>🔒 Prison System</h3>
-          <p>Run <code>/jailcreate</code> in your server to create the Prison channel and Prisoner role automatically. Once created, select the Prisoner role below so the dashboard can jail/release users.</p>
+          <p>Run <code>/jailcreate</code> in your server first. Then select the roles/channel below.</p>
           <p id="jail-status" style="margin-top:6px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">—</p>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;min-width:200px">
@@ -1963,6 +2007,7 @@ async function refresh(){
   await loadGangs();
   await loadPolice();
   await loadJailConfig();
+  await loadOfficers();
   await loadPets();
   await loadAIEntities();
   await loadGunShop();
@@ -2285,6 +2330,16 @@ function populateItemDropdowns(selectedVal) {
     drugEl.innerHTML = '<option value="">— Link to a store item —</option>' +
       drugItems.map(i => `<option value="${i.id}"${drugCur===i.id?' selected':''}>${i.name} (${i.id})</option>`).join('');
   }
+
+  // Role dropdowns — populate from guildRoles
+  const roleOpts = '<option value="">— Choose role —</option>' +
+    (guildRoles||[]).map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
+  const erRole = document.getElementById('m-er-role');
+  if (erRole) { const cur = erRole.value; erRole.innerHTML = roleOpts; if(cur) erRole.value = cur; }
+
+  const mRole = document.getElementById('m-role');
+  if (mRole) { const cur = mRole.value; mRole.innerHTML = '<option value="">— No role reward —</option>' + (guildRoles||[]).map(r=>`<option value="${r.id}">${r.name}</option>`).join(''); if(cur) mRole.value = cur; }
 }
 
 function openAdd(){
@@ -2599,6 +2654,82 @@ function renderPurge(){
   document.getElementById('pf-desc').textContent=on?'End the purge to restore normal operations.':'No purge running. Start one — all users\' bank funds will drain to wallets immediately.';
   document.getElementById('pf-btn').textContent=on?'End Purge':'Start Purge';
   document.getElementById('pf-btn').className='btn '+(on?'btn-success':'btn-danger');
+}
+
+// ════════════════════════════════════════════════
+// POLICE DASHBOARD
+// ════════════════════════════════════════════════
+
+async function savePoliceRole() {
+  const roleId = document.getElementById('police-role-select').value;
+  const r = await api('POST', `/api/${GUILD}/config/police-role`, { roleId });
+  if (r.success) toast('Police role saved','ok'); else toast(r.error||'Failed','err');
+}
+
+async function fundTreasury() {
+  const amount = parseInt(document.getElementById('treasury-amount').value)||0;
+  if (!amount) return toast('Enter an amount','err');
+  const r = await api('POST', `/api/${GUILD}/police/fund-treasury`, { amount });
+  if (r.success) { toast(`$${amount.toLocaleString()} added to treasury`,'ok'); loadOfficers(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function loadOfficers() {
+  const [data, config] = await Promise.all([
+    api('GET', `/api/${GUILD}/police/officers`).catch(()=>({ officers:[], treasury:0 })),
+    api('GET', `/api/${GUILD}/config`).catch(()=>({})),
+  ]);
+  const bal = document.getElementById('treasury-balance');
+  if (bal) bal.textContent = '$' + (data.treasury||0).toLocaleString();
+  const prs = document.getElementById('police-role-select');
+  if (prs && guildRoles.length) {
+    prs.innerHTML = '<option value="">— Select Role —</option>' +
+      guildRoles.map(r => `<option value="${r.id}" ${config.policeRoleId===r.id?'selected':''}>${r.name}</option>`).join('');
+  }
+  const prices = config.homePrices || {};
+  ['studio','house','mansion','estate'].forEach(tier => {
+    const el = document.getElementById(`home-price-${tier}`);
+    if (el && prices[tier]) el.value = prices[tier];
+  });
+  const tb = document.getElementById('officers-tbody');
+  if (!tb) return;
+  const officers = data.officers || [];
+  if (!officers.length) { tb.innerHTML = '<tr><td colspan="5" class="empty-cell">No officers. Assign the Police Role to users.</td></tr>'; return; }
+  await resolveNames(officers.map(o=>o.userId));
+  tb.innerHTML = officers.map(o => `<tr>
+    <td>${resolveName(o.userId)}</td>
+    <td><div style="display:flex;align-items:center;gap:6px"><div style="background:${(o.credibility||100)>66?'#2ecc71':(o.credibility||100)>33?'#f5c518':'#ff3b3b'};width:${Math.min(80,o.credibility||100)}px;height:8px;border-radius:4px"></div>${o.credibility||100}/100</div></td>
+    <td class="mono c-gold">${o.salary ? '$'+o.salary.toLocaleString()+'/tick' : 'Unpaid'}</td>
+    <td>${o.bribesAccepted||0}${(o.bribesAccepted||0)>2?' ⚠️':''}</td>
+    <td style="display:flex;gap:4px">
+      <button class="btn btn-ghost btn-sm" onclick="setOfficerSalary('${o.userId}')">💰</button>
+      <button class="btn btn-danger btn-sm" onclick="fireOfficerDash('${o.userId}')">Fire</button>
+    </td>
+  </tr>`).join('');
+}
+
+async function setOfficerSalary(userId) {
+  const amt = parseInt(prompt('Set salary ($/tick, 0 = unpaid):')) || 0;
+  const r = await api('POST', `/api/${GUILD}/police/officer-salary`, { userId, salary: amt });
+  if (r.success) { toast('Salary updated','ok'); loadOfficers(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function fireOfficerDash(userId) {
+  if (!confirm('Fire this officer?')) return;
+  const r = await api('DELETE', `/api/${GUILD}/police/officers/${userId}`);
+  if (r.success) { toast('Officer fired','ok'); loadOfficers(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function saveHomePrices() {
+  const prices = {};
+  ['studio','house','mansion','estate'].forEach(tier => {
+    const val = parseInt(document.getElementById(`home-price-${tier}`)?.value)||0;
+    if (val > 0) prices[tier] = val;
+  });
+  const r = await api('POST', `/api/${GUILD}/config/home-prices`, { prices });
+  if (r.success) toast('Home prices saved','ok'); else toast(r.error||'Failed','err');
 }
 
 async function savePurgeGifs() {

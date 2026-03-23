@@ -85,6 +85,17 @@ async function addHeat(userId, amount, reason) {
   r.offenses = r.offenses || [];
   r.offenses.push({ reason, amount, at: Date.now() });
   await savePoliceRecord(userId, r);
+
+  // Auto-issue warrant if heat crosses threshold — runs silently in background
+  try {
+    const { checkHeatWarrant } = require('./policeDb');
+    // We need a guildId — check all guilds this user might be in via bot client
+    // Since gangDb doesn't have guild context, we fire a global event for index.js to handle
+    if (typeof global._checkHeatWarrant === 'function') {
+      global._checkHeatWarrant(userId, r.heat);
+    }
+  } catch {}
+
   return r.heat;
 }
 

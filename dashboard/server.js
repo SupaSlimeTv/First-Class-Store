@@ -1248,6 +1248,61 @@ app.post('/api/:guildId/users/:id/wipe-shoutout-cd', requireGuildAuth, async (re
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// ── POLICE SYSTEM ─────────────────────────────────────────────
+app.post('/api/:guildId/config/police-role', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.policeRoleId = req.body.roleId || null;
+  db.saveConfig(req.guildId, config);
+  res.json({ success: true });
+});
+
+app.post('/api/:guildId/config/home-prices', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.homePrices = req.body.prices || {};
+  db.saveConfig(req.guildId, config);
+  await writeAudit(req.guildId, req.session.user?.id, 'home_prices', { prices: JSON.stringify(config.homePrices) });
+  res.json({ success: true });
+});
+
+app.get('/api/:guildId/police/officers', requireGuildAuth, async (req, res) => {
+  try {
+    const { getOfficers, getTreasury } = require('../utils/policeDb');
+    const officers = getOfficers(req.guildId);
+    const treasury = getTreasury(req.guildId);
+    res.json({ officers, treasury: treasury.balance || 0 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/police/fund-treasury', requireGuildAuth, async (req, res) => {
+  try {
+    const amount = parseInt(req.body.amount) || 0;
+    if (amount < 1) return res.status(400).json({ error: 'Invalid amount' });
+    const { fundTreasury } = require('../utils/policeDb');
+    await fundTreasury(req.guildId, amount);
+    await writeAudit(req.guildId, req.session.user?.id, 'fund_treasury', { amount });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/police/officer-salary', requireGuildAuth, async (req, res) => {
+  try {
+    const { userId, salary } = req.body;
+    const { updateOfficer } = require('../utils/policeDb');
+    await updateOfficer(req.guildId, userId, { salary: parseInt(salary)||0 });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/:guildId/police/officers/:userId', requireGuildAuth, async (req, res) => {
+  try {
+    const { fireOfficer } = require('../utils/policeDb');
+    await fireOfficer(req.guildId, req.params.userId);
+    await writeAudit(req.guildId, req.session.user?.id, 'fire_officer', { target: `<@${req.params.userId}>` });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/:guildId/config/narcotics-role', requireGuildAuth, async (req, res) => {
   const config = db.getConfig(req.guildId);
   config.narcoticsRoleId = req.body.roleId || null;
