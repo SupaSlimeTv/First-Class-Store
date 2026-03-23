@@ -11,6 +11,21 @@ const fs             = require('fs');
 const db             = require('../utils/db');
 const { guildCol, col } = require('../utils/mongo');
 
+// ── SESSION STORE (MongoDB so sessions survive restarts) ──────
+let sessionStore;
+try {
+  const MongoStore = require('connect-mongo');
+  const mongoUri   = process.env.MONGODB_URI || process.env.MONGO_URI;
+  if (mongoUri) {
+    sessionStore = MongoStore.create({
+      mongoUrl:       mongoUri,
+      collectionName: 'dashboardSessions',
+      ttl:            7 * 24 * 60 * 60, // 7 days
+    });
+    console.log('✅ Dashboard sessions stored in MongoDB');
+  }
+} catch(e) { console.warn('connect-mongo not available, using memory sessions:', e.message); }
+
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
@@ -23,9 +38,10 @@ const REDIRECT_URI          = process.env.DASHBOARD_URL
 app.use(express.json());
 app.set('trust proxy', 1);
 app.use(session({
-  secret:            process.env.SESSION_SECRET || 'fcs_secret_key_2026',
-  resave:            true,
-  saveUninitialized: true,
+  secret:            process.env.SESSION_SECRET,
+  resave:            false,
+  saveUninitialized: false,
+  store:             sessionStore || undefined,
   cookie:            { secure: true, sameSite: 'none', maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
 
@@ -1031,7 +1047,7 @@ app.post('/api/:guildId/coins', requireGuildAuth, async (req, res) => {
     await c.insertOne({ _id: id, ...profile });
 
     // Register with live tick engine
-    try { const idx = require('../../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
+    try { const idx = require('../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
 
     // Set starting price
     const pc = await col('stockPrices');
@@ -1051,7 +1067,7 @@ app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
     const { col } = require('../utils/mongo');
     const c = await col('customCoins');
     await c.deleteOne({ _id: req.params.id });
-    try { const idx = require('../../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
+    try { const idx = require('../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
