@@ -1930,26 +1930,25 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <button class="btn btn-gold" onclick="saveItem()">Save Item</button>
     </div>
   </div>
-</div>
 
     <!-- ILLUMINATI -->
     <div id="section-illuminati" class="section">
-      <p class="sub-txt">The shadow organization. View membership, vault balance, and operation history. Set ranks via Users → Give/Take.</p>
-      <div class="stats-grid" style="margin-bottom:20px">
+      <p class="sub-txt">The shadow organization for this server. View members, vault balance, and operation log. Set ranks via Users → Give/Take → Illuminati Rank.</p>
+      <div class="stats-grid">
         <div class="stat-card"><div class="stat-label">Members</div><div class="stat-val c-gold" id="illum-count">—</div></div>
-        <div class="stat-card"><div class="stat-label">Vault Balance</div><div class="stat-val c-green" id="illum-vault">—</div></div>
-        <div class="stat-card"><div class="stat-label">Operations Run</div><div class="stat-val c-blue" id="illum-ops">—</div></div>
+        <div class="stat-card"><div class="stat-label">Vault</div><div class="stat-val c-green" id="illum-vault">—</div></div>
+        <div class="stat-card"><div class="stat-label">Ops Run</div><div class="stat-val c-blue" id="illum-ops">—</div></div>
         <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="illum-status">—</div></div>
       </div>
-      <div class="tbl-wrap" style="margin-bottom:20px">
+      <div class="tbl-wrap" style="margin-bottom:16px">
         <div class="tbl-head"><h3>🔺 Members</h3><button class="btn btn-ghost btn-sm" onclick="loadIlluminati()">⟳ Refresh</button></div>
         <table>
-          <thead><tr><th>User</th><th>Rank</th><th>Contribution</th><th>Joined</th><th>Actions</th></tr></thead>
+          <thead><tr><th>User</th><th>Rank</th><th>Contributed</th><th>Joined</th><th>Actions</th></tr></thead>
           <tbody id="illum-tbody"><tr><td colspan="5" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
       <div class="tbl-wrap">
-        <div class="tbl-head"><h3>⚡ Operation Log</h3></div>
+        <div class="tbl-head"><h3>⚡ Recent Operations</h3></div>
         <table>
           <thead><tr><th>Type</th><th>By</th><th>Target</th><th>When</th></tr></thead>
           <tbody id="illum-ops-tbody"><tr><td colspan="4" class="empty-cell">No operations recorded.</td></tr></tbody>
@@ -1959,14 +1958,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- CREDIT SCORES -->
     <div id="section-credit" class="section">
-      <p class="sub-txt">All user credit profiles. Adjust scores via Users → Give/Take → Credit Score. Freeze/unfreeze accounts. View fraud history.</p>
-      <div class="stats-grid" style="margin-bottom:20px">
+      <p class="sub-txt">All member credit profiles — scores, cards, loans. Adjust scores via Users → Give/Take → Credit Score.</p>
+      <div class="stats-grid">
         <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-val c-gold" id="credit-avg">—</div></div>
-        <div class="stat-card"><div class="stat-label">Excellent (800+)</div><div class="stat-val c-green" id="credit-excellent">—</div></div>
-        <div class="stat-card"><div class="stat-label">Poor (&lt;580)</div><div class="stat-val c-red" id="credit-poor">—</div></div>
+        <div class="stat-card"><div class="stat-label">💎 Excellent 800+</div><div class="stat-val c-green" id="credit-excellent">—</div></div>
+        <div class="stat-card"><div class="stat-label">🔴 Poor &lt;580</div><div class="stat-val c-red" id="credit-poor">—</div></div>
         <div class="stat-card"><div class="stat-label">Cards Active</div><div class="stat-val c-blue" id="credit-cards">—</div></div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
         <select class="fselect" id="credit-filter" onchange="loadCreditScores()" style="width:180px">
           <option value="all">All Tiers</option>
           <option value="excellent">💎 Excellent (800+)</option>
@@ -1987,19 +1986,19 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- LAPTOPS -->
     <div id="section-laptops" class="section">
-      <p class="sub-txt">Create laptop app items in bulk. Each app unlocks a specific hacking or finance capability on the user's laptop. Apps are store items users buy then install via <code>/laptop appstore</code>.</p>
-      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:14px;margin-bottom:20px">
-        <h3>🔧 Bulk App Creator (up to 7 at once)</h3>
-        <p style="font-size:12px;color:var(--muted);margin:0">Each row creates one laptop app item in your store. Fill in as many as you need.</p>
-        <div id="app-creator-rows">
+      <p class="sub-txt">Create laptop app items in bulk — up to 7 at once. Users buy these from the store then install them via <code>/laptop appstore</code>.</p>
+      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:12px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3>🔧 App Batch Creator</h3>
+          <button class="btn btn-ghost btn-sm" onclick="addAppRow()">+ Add Row</button>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="addAppRow()" style="align-self:flex-start">+ Add Another App</button>
-        <button class="btn btn-primary" onclick="saveAppBatch()">💾 Create All Apps</button>
+        <div id="app-creator-rows"></div>
+        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveAppBatch()">💾 Create Apps</button>
       </div>
       <div class="tbl-wrap">
-        <div class="tbl-head"><h3>💻 Existing Laptop App Items</h3><button class="btn btn-ghost btn-sm" onclick="loadLaptopApps()">⟳ Refresh</button></div>
+        <div class="tbl-head"><h3>💻 Existing Laptop Apps</h3><button class="btn btn-ghost btn-sm" onclick="loadLaptopApps()">⟳ Refresh</button></div>
         <table>
-          <thead><tr><th>Name</th><th>App Type</th><th>Quality</th><th>Price</th><th>Success Rate</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>App Type</th><th>Quality</th><th>Price</th><th>Est. Success</th><th>Actions</th></tr></thead>
           <tbody id="laptop-apps-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
@@ -2007,67 +2006,42 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- TOR MARKET -->
     <div id="section-tor" class="section">
-      <p class="sub-txt">Global dark web marketplace. Listings are visible across all servers. Trigger manual data leaks, configure max simultaneous leaks, and remove listings instantly.</p>
-
-      <!-- STATS -->
-      <div class="stats-grid" style="margin-bottom:20px">
+      <p class="sub-txt">Global dark web marketplace. Listings span all servers. Trigger leaks, set limits, remove listings.</p>
+      <div class="stats-grid">
         <div class="stat-card"><div class="stat-label">Active Listings</div><div class="stat-val c-red" id="tor-active">—</div></div>
-        <div class="stat-card"><div class="stat-label">Data Leaks Active</div><div class="stat-val c-orange" id="tor-leaks">—</div></div>
+        <div class="stat-card"><div class="stat-label">Data Leaks Live</div><div class="stat-val c-orange" id="tor-leaks">—</div></div>
         <div class="stat-card"><div class="stat-label">Total Sold</div><div class="stat-val c-gold" id="tor-total">—</div></div>
         <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-val c-blue" id="tor-volume">—</div></div>
       </div>
-
-      <!-- CONTROLS -->
-      <div class="purge-panel owner-only" style="margin-bottom:16px;flex-direction:column;align-items:stretch;gap:14px">
-        <h3>⚙️ Data Leak Controls</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end">
-          <div class="fg" style="margin:0">
-            <label class="flabel">Max Simultaneous Leaks</label>
-            <input class="finput" type="number" id="tor-max-leaks" placeholder="5" min="1" max="50">
-            <div class="hint">How many auto-leak listings can be active at once.</div>
-          </div>
-          <div class="fg" style="margin:0">
-            <label class="flabel">Leak Interval (hours)</label>
-            <input class="finput" type="number" id="tor-leak-interval" placeholder="6" min="1" max="72">
-            <div class="hint">How often the auto-leak system runs.</div>
-          </div>
-          <div class="fg" style="margin:0">
-            <label class="flabel">Leaks Per Cycle</label>
-            <input class="finput" type="number" id="tor-leak-count" placeholder="2" min="1" max="10">
-            <div class="hint">How many accounts leaked each cycle.</div>
-          </div>
+      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:12px;margin-bottom:20px">
+        <h3>⚙️ Leak Controls</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="fg" style="margin:0"><label class="flabel">Max Active Leaks</label><input class="finput" type="number" id="tor-max-leaks" placeholder="5" min="1" max="50"></div>
+          <div class="fg" style="margin:0"><label class="flabel">Leak Interval (hrs)</label><input class="finput" type="number" id="tor-leak-interval" placeholder="6" min="1" max="72"></div>
+          <div class="fg" style="margin:0"><label class="flabel">Leaks Per Cycle</label><input class="finput" type="number" id="tor-leak-count" placeholder="2" min="1" max="10"></div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="saveTorConfig()">💾 Save Config</button>
-          <button class="btn btn-danger" onclick="triggerManualLeak()">🔓 Trigger Manual Data Leak Now</button>
+          <button class="btn btn-primary" onclick="saveTorConfig()">💾 Save</button>
+          <button class="btn btn-danger" onclick="triggerManualLeak()">🔓 Trigger Leak Now</button>
           <button class="btn btn-ghost btn-sm" onclick="clearExpiredListings()">🗑️ Clear Expired</button>
         </div>
         <p id="tor-config-status" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace">—</p>
       </div>
-
-      <!-- ACTIVE LEAK LISTINGS (highlighted) -->
       <div class="tbl-wrap" style="margin-bottom:16px">
-        <div class="tbl-head">
-          <h3>🔓 Active Data Leaks</h3>
-          <button class="btn btn-ghost btn-sm" onclick="loadTorListings()">⟳ Refresh</button>
-        </div>
+        <div class="tbl-head"><h3>🔓 Active Data Leaks</h3><button class="btn btn-ghost btn-sm" onclick="loadTorListings()">⟳</button></div>
         <table>
-          <thead><tr><th>ID</th><th>Victim (display name)</th><th>Wealth</th><th>SSN</th><th>Price</th><th>Expires</th><th>Actions</th></tr></thead>
-          <tbody id="tor-leaks-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
+          <thead><tr><th>ID</th><th>Victim</th><th>Wealth</th><th>Price</th><th>Expires</th><th>Actions</th></tr></thead>
+          <tbody id="tor-leaks-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
         </table>
       </div>
-
-      <!-- ALL USER LISTINGS -->
       <div class="tbl-wrap">
         <div class="tbl-head">
-          <h3>🌐 User-Listed Data</h3>
-          <div style="display:flex;gap:6px">
-            <select class="fselect" id="tor-filter" onchange="loadTorListings()" style="width:140px">
-              <option value="all">All</option>
-              <option value="active">Active only</option>
-              <option value="sold">Sold</option>
-            </select>
-          </div>
+          <h3>🌐 User Listings</h3>
+          <select class="fselect" id="tor-filter" onchange="loadTorListings()" style="width:130px">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="sold">Sold</option>
+          </select>
         </div>
         <table>
           <thead><tr><th>ID</th><th>Type</th><th>Seller</th><th>Victim</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
@@ -2075,8 +2049,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </table>
       </div>
     </div>
-
-
+  </div>
+</div>
 <!-- GUN MODAL -->
 <div id="gun-modal" class="backdrop">
   <div class="modal" style="max-width:560px">
@@ -2232,7 +2206,7 @@ function nav(n){
   if (n === 'purge')       { loadDepressionState(); }
   if (n === 'illuminati')  { loadIlluminati(); }
   if (n === 'credit')      { loadCreditScores(); }
-  if (n === 'laptops')     { loadLaptopApps(); addAppRow(); }
+  if (n === 'laptops')     { loadLaptopApps(); if(!document.getElementById('app-creator-rows').children.length) addAppRow(); }
   if (n === 'tor')         { loadTorListings(); }
 }
 
@@ -5497,42 +5471,49 @@ document.getElementById('confirm-modal').addEventListener('click', function(e) {
 // ILLUMINATI DASHBOARD
 // ════════════════════════════════════════════════
 async function loadIlluminati() {
-  const data = await api('GET', `/api/${GUILD}/illuminati`).catch(()=>({}));
+  const data = await api('GET', `/api/${GUILD}/illuminati`).catch(() => ({}));
   const org  = data.org;
 
-  document.getElementById('illum-count').textContent  = org ? org.members.length : '—';
+  document.getElementById('illum-count').textContent  = org ? (org.members||[]).length : '—';
   document.getElementById('illum-vault').textContent  = org ? '$' + (org.vault||0).toLocaleString() : '—';
   document.getElementById('illum-ops').textContent    = org ? (org.operations||[]).length : '—';
   document.getElementById('illum-status').textContent = !org ? 'Not Founded' : org.exposed ? '🚨 Exposed' : '🔺 Active';
 
   const tbody = document.getElementById('illum-tbody');
-  if (!org || !org.members.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">No Illuminati in this server.</td></tr>'; return; }
-
-  const rankLabels = { initiate:'🔺 Initiate', operative:'👁️ Operative', elder:'💎 Elder', grandmaster:'⚡ Grandmaster' };
-  tbody.innerHTML = await Promise.all((org.members||[]).map(async m => {
-    const name = await resolveUser(m.userId);
-    return `<tr>
-      <td>${name}</td>
-      <td><span class="tag t-gold">${rankLabels[m.rank]||m.rank}</span></td>
-      <td>$${(m.contribution||0).toLocaleString()}</td>
-      <td>${new Date(m.joinedAt||0).toLocaleDateString()}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="illumExcommunicate('${m.userId}')">☠️ Excommunicate</button></td>
-    </tr>`;
-  })).then(rows => rows.join(''));
+  if (!org || !(org.members||[]).length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">No Illuminati in this server yet.</td></tr>';
+  } else {
+    const rankLabels = { initiate:'🔺 Initiate', operative:'👁️ Operative', elder:'💎 Elder', grandmaster:'⚡ Grandmaster' };
+    tbody.innerHTML = (await Promise.all((org.members||[]).map(async m => {
+      const name = await resolveUser(m.userId).catch(() => m.userId);
+      return `<tr>
+        <td>${name}</td>
+        <td><span class="tag t-gold">${rankLabels[m.rank]||m.rank}</span></td>
+        <td>$${(m.contribution||0).toLocaleString()}</td>
+        <td>${m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : '—'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="illumExcommunicate('${m.userId}')">☠️ Remove</button></td>
+      </tr>`;
+    }))).join('');
+  }
 
   const opsTbody = document.getElementById('illum-ops-tbody');
-  const ops = (org.operations||[]).slice(-10).reverse();
-  if (!ops.length) { opsTbody.innerHTML = '<tr><td colspan="4" class="empty-cell">No operations.</td></tr>'; return; }
-  opsTbody.innerHTML = ops.map(o =>
-    `<tr><td>${o.type}</td><td><@${o.by}></td><td>${o.target||'—'}</td><td>${new Date(o.at).toLocaleString()}</td></tr>`
-  ).join('');
+  const ops = (org?.operations||[]).slice(-10).reverse();
+  if (!ops.length) {
+    opsTbody.innerHTML = '<tr><td colspan="4" class="empty-cell">No operations logged.</td></tr>';
+  } else {
+    opsTbody.innerHTML = (await Promise.all(ops.map(async o => {
+      const byName = await resolveUser(o.by).catch(() => o.by||'?');
+      const tgName = o.target ? await resolveUser(o.target).catch(() => o.target) : '—';
+      return `<tr><td><code>${o.type}</code></td><td>${byName}</td><td>${tgName}</td><td style="font-size:11px">${o.at ? new Date(o.at).toLocaleString() : '—'}</td></tr>`;
+    }))).join('');
+  }
 }
 
 async function illumExcommunicate(userId) {
-  if (!confirm('Excommunicate this member?')) return;
+  if (!confirm('Remove this member from the Illuminati?')) return;
   const r = await api('POST', `/api/${GUILD}/illuminati/excommunicate`, { userId });
-  if (r.success) { toast('Member excommunicated','ok'); loadIlluminati(); }
-  else toast(r.error||'Failed','err');
+  if (r.success) { toast('Member removed', 'ok'); loadIlluminati(); }
+  else toast(r.error || 'Failed', 'err');
 }
 
 // ════════════════════════════════════════════════
@@ -5540,31 +5521,33 @@ async function illumExcommunicate(userId) {
 // ════════════════════════════════════════════════
 async function loadCreditScores() {
   const filter = document.getElementById('credit-filter')?.value || 'all';
-  const data   = await api('GET', `/api/${GUILD}/credit-scores?filter=${filter}`).catch(()=>({ profiles:[] }));
+  const data   = await api('GET', `/api/${GUILD}/credit-scores?filter=${filter}`).catch(() => ({ profiles: [] }));
   const profiles = data.profiles || [];
 
-  // Stats
-  const scores = profiles.map(p=>p.score||0);
-  document.getElementById('credit-avg').textContent       = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
-  document.getElementById('credit-excellent').textContent = profiles.filter(p=>p.score>=800).length;
-  document.getElementById('credit-poor').textContent      = profiles.filter(p=>p.score<580).length;
-  document.getElementById('credit-cards').textContent     = profiles.filter(p=>p.card).length;
+  const scores = profiles.map(p => p.score || 0);
+  document.getElementById('credit-avg').textContent       = scores.length ? Math.round(scores.reduce((a,b) => a+b, 0) / scores.length) : '—';
+  document.getElementById('credit-excellent').textContent = profiles.filter(p => (p.score||0) >= 800).length;
+  document.getElementById('credit-poor').textContent      = profiles.filter(p => (p.score||0) < 580).length;
+  document.getElementById('credit-cards').textContent     = profiles.filter(p => p.card).length;
 
   const tbody = document.getElementById('credit-tbody');
-  if (!profiles.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No credit profiles found.</td></tr>'; return; }
+  if (!profiles.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No credit profiles found.</td></tr>';
+    return;
+  }
 
   const tierColor = { '💎 Excellent':'t-gold', '🟢 Very Good':'t-green', '🟡 Good':'t-cyan', '🟠 Fair':'t-orange', '🔴 Poor':'t-red' };
   tbody.innerHTML = (await Promise.all(profiles.map(async p => {
-    const name = await resolveUser(p.userId);
-    const tierClass = tierColor[p.tier] || 't-muted';
+    const name = await resolveUser(p.userId).catch(() => p.userId);
+    const tc   = tierColor[p.tier] || 't-muted';
     return `<tr>
       <td>${name}</td>
       <td><strong>${p.score}</strong></td>
-      <td><span class="tag ${tierClass}">${p.tier}</span></td>
-      <td>${p.card||'—'}</td>
-      <td>${p.balance>0?'$'+p.balance.toLocaleString():'$0'}</td>
-      <td>${p.frozen?'<span class="tag t-blue">❄️ Frozen</span>':'No'}</td>
-      <td>${(p.loans||0)} active</td>
+      <td><span class="tag ${tc}">${p.tier}</span></td>
+      <td>${p.card || '—'}</td>
+      <td>${p.balance > 0 ? '$' + p.balance.toLocaleString() : '$0'}</td>
+      <td>${p.frozen ? '<span class="tag t-blue">❄️ Frozen</span>' : 'No'}</td>
+      <td>${p.loans || 0}</td>
     </tr>`;
   }))).join('');
 }
@@ -5572,96 +5555,93 @@ async function loadCreditScores() {
 // ════════════════════════════════════════════════
 // LAPTOP APP CREATOR
 // ════════════════════════════════════════════════
-const BUILTIN_APP_TYPES = [
-  { id:'ssn_scanner',    name:'🪪 SSN Scanner',      desc:'Steal target SSN',              basePct:40 },
-  { id:'credit_cracker', name:'💳 Credit Cracker',   desc:'Commit credit fraud',           basePct:35 },
-  { id:'card_drainer',   name:'💸 Card Drainer',      desc:'Drain credit cards',            basePct:45 },
-  { id:'biz_intrude',    name:'🏢 Biz Intruder',      desc:'Access business accounts',      basePct:50 },
-  { id:'keylogger',      name:'⌨️ Keylogger Pro',    desc:'+20% phishing success',         basePct:null },
-  { id:'vpn_shield',     name:'🛡️ VPN Shield',       desc:'-60% trace risk on TOR',        basePct:null },
-  { id:'bank_mirror',    name:'🏦 Bank Mirror',       desc:'Read any routing number',       basePct:100 },
-  { id:'launder_bot',    name:'🧺 LaunderBot',        desc:'Better launder rate 65-85%',    basePct:65 },
-  { id:'stalker_app',    name:'👁️ Stalker App',      desc:'Full intel on any user',        basePct:60 },
-  { id:'dark_search',    name:'🔍 DarkSearch',        desc:'Search SSN database',           basePct:55 },
+const APP_TYPES = [
+  { id:'ssn_scanner',    name:'🪪 SSN Scanner',    desc:'Steal SSN',          pct:40 },
+  { id:'credit_cracker', name:'💳 Credit Cracker', desc:'Credit fraud',       pct:35 },
+  { id:'card_drainer',   name:'💸 Card Drainer',   desc:'Drain cards',        pct:45 },
+  { id:'biz_intrude',    name:'🏢 Biz Intruder',   desc:'Access biz accounts',pct:50 },
+  { id:'keylogger',      name:'⌨️ Keylogger',      desc:'+20% phish success', pct:null },
+  { id:'vpn_shield',     name:'🛡️ VPN Shield',     desc:'-60% TOR trace risk',pct:null },
+  { id:'bank_mirror',    name:'🏦 Bank Mirror',     desc:'Read routing numbers',pct:100 },
+  { id:'launder_bot',    name:'🧺 LaunderBot',      desc:'Better launder rate',pct:65 },
+  { id:'stalker_app',    name:'👁️ Stalker App',    desc:'Full user intel',    pct:60 },
+  { id:'dark_search',    name:'🔍 DarkSearch',      desc:'Search SSN database',pct:55 },
 ];
 
-let _appRowCount = 0;
-
+let _rowN = 0;
 function buildAppRow() {
-  _appRowCount++;
-  const n = _appRowCount;
-  const appOptions = BUILTIN_APP_TYPES.map(a =>
-    `<option value="${a.id}">${a.name} — ${a.desc} (base: ${a.basePct!==null?a.basePct+'%':'passive'})</option>`
+  _rowN++;
+  const n = _rowN;
+  const opts = APP_TYPES.map(a =>
+    `<option value="${a.id}">${a.name} — ${a.desc}</option>`
   ).join('');
-  return `<div id="app-row-${n}" style="display:grid;grid-template-columns:2fr 2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px">
-    <div class="fg" style="margin:0"><label class="flabel">Item Name</label><input class="finput" id="app-name-${n}" placeholder="e.g. Pro SSN Scanner"></div>
-    <div class="fg" style="margin:0"><label class="flabel">App Type</label><select class="fselect" id="app-type-${n}" onchange="updateAppSuccessHint(${n})">${appOptions}</select></div>
-    <div class="fg" style="margin:0"><label class="flabel">Quality (1-5)</label><input class="finput" type="number" id="app-quality-${n}" value="1" min="1" max="5" oninput="updateAppSuccessHint(${n})"></div>
-    <div class="fg" style="margin:0"><label class="flabel">Price ($)</label><input class="finput" type="number" id="app-price-${n}" placeholder="10000" min="1"></div>
-    <div class="fg" style="margin:0"><label class="flabel" id="app-success-label-${n}">Success: ~40%</label><input class="finput" type="number" id="app-success-${n}" placeholder="override" min="1" max="95"></div>
-    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('app-row-${n}').remove()" style="margin-bottom:0">✕</button>
+  return `<div id="app-row-${n}" style="display:grid;grid-template-columns:2fr 2fr 80px 120px 80px 32px;gap:8px;align-items:end;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px">
+    <div class="fg" style="margin:0"><label class="flabel">Name</label><input class="finput" id="app-name-${n}" placeholder="e.g. Pro SSN Scanner"></div>
+    <div class="fg" style="margin:0"><label class="flabel">App Type</label><select class="fselect" id="app-type-${n}" onchange="updateHint(${n})">${opts}</select></div>
+    <div class="fg" style="margin:0"><label class="flabel">Quality</label><input class="finput" type="number" id="app-q-${n}" value="1" min="1" max="5" oninput="updateHint(${n})"></div>
+    <div class="fg" style="margin:0"><label class="flabel">Price ($)</label><input class="finput" type="number" id="app-p-${n}" placeholder="10000"></div>
+    <div class="fg" style="margin:0"><label class="flabel" id="app-hint-${n}" style="font-size:10px;color:var(--muted)">~40%</label><input class="finput" type="number" id="app-s-${n}" placeholder="override" min="1" max="95"></div>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('app-row-${n}').remove()" style="padding:6px 8px">✕</button>
   </div>`;
 }
 
-function updateAppSuccessHint(n) {
-  const appId   = document.getElementById(`app-type-${n}`)?.value;
-  const quality = parseInt(document.getElementById(`app-quality-${n}`)?.value)||1;
-  const def     = BUILTIN_APP_TYPES.find(a=>a.id===appId);
-  const base    = def?.basePct;
-  const label   = document.getElementById(`app-success-label-${n}`);
-  if (!label) return;
-  if (base === null) { label.textContent = 'Success: passive'; return; }
-  label.textContent = `Success: ~${Math.min(95, base + (quality-1)*5)}%`;
+function updateHint(n) {
+  const appId = document.getElementById(`app-type-${n}`)?.value;
+  const q     = parseInt(document.getElementById(`app-q-${n}`)?.value) || 1;
+  const def   = APP_TYPES.find(a => a.id === appId);
+  const lbl   = document.getElementById(`app-hint-${n}`);
+  if (!lbl) return;
+  lbl.textContent = def?.pct != null ? `~${Math.min(95, def.pct + (q-1)*5)}%` : 'passive';
 }
 
 function addAppRow() {
-  const container = document.getElementById('app-creator-rows');
-  const rows = container.querySelectorAll('[id^="app-row-"]').length;
-  if (rows >= 7) { toast('Max 7 apps per batch','err'); return; }
-  container.insertAdjacentHTML('beforeend', buildAppRow());
-  updateAppSuccessHint(_appRowCount);
+  const rows = document.getElementById('app-creator-rows').querySelectorAll('[id^="app-row-"]').length;
+  if (rows >= 7) { toast('Max 7 per batch', 'err'); return; }
+  document.getElementById('app-creator-rows').insertAdjacentHTML('beforeend', buildAppRow());
+  updateHint(_rowN);
 }
 
 async function saveAppBatch() {
   const rows = document.getElementById('app-creator-rows').querySelectorAll('[id^="app-row-"]');
-  if (!rows.length) { toast('Add at least one app row first','err'); return; }
-
+  if (!rows.length) { toast('Add at least one app row', 'err'); return; }
   const apps = [];
   for (const row of rows) {
-    const n = row.id.replace('app-row-','');
+    const n = row.id.replace('app-row-', '');
     const name    = document.getElementById(`app-name-${n}`)?.value?.trim();
     const appType = document.getElementById(`app-type-${n}`)?.value;
-    const quality = parseInt(document.getElementById(`app-quality-${n}`)?.value)||1;
-    const price   = parseInt(document.getElementById(`app-price-${n}`)?.value)||0;
-    const success = parseInt(document.getElementById(`app-success-${n}`)?.value)||null;
-    if (!name || !price) { toast(`Row ${n}: fill in name and price`,'err'); return; }
-    apps.push({ name, appType, quality, price, successOverride:success });
+    const quality = parseInt(document.getElementById(`app-q-${n}`)?.value) || 1;
+    const price   = parseInt(document.getElementById(`app-p-${n}`)?.value) || 0;
+    const success = parseInt(document.getElementById(`app-s-${n}`)?.value) || null;
+    if (!name || !price) { toast(`Row ${n}: fill name and price`, 'err'); return; }
+    apps.push({ name, appType, quality, price, successOverride: success });
   }
-
   const r = await api('POST', `/api/${GUILD}/store/create-apps`, { apps });
   if (r.success) {
-    toast(`✅ Created ${apps.length} app item(s)`,'ok');
+    toast(`✅ Created ${r.created} app item(s)`, 'ok');
     document.getElementById('app-creator-rows').innerHTML = '';
-    _appRowCount = 0;
-    loadLaptopApps();
-  } else toast(r.error||'Failed','err');
+    _rowN = 0;
+    await loadLaptopApps();
+  } else toast(r.error || 'Failed', 'err');
 }
 
 async function loadLaptopApps() {
-  const store = await api('GET', `/api/${GUILD}/store`).catch(()=>({ items:[] }));
-  const apps  = (store.items||[]).filter(i => i.effect?.type === 'laptop_app');
+  const store = await api('GET', `/api/${GUILD}/store`).catch(() => ({ items: [] }));
+  const apps  = (store.items || []).filter(i => i.effect?.type === 'laptop_app');
   const tbody = document.getElementById('laptop-apps-tbody');
-  if (!apps.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No laptop apps in store yet. Use the creator above.</td></tr>'; return; }
-  const def = { ssn_scanner:40, credit_cracker:35, card_drainer:45, biz_intrude:50, stalker_app:60, dark_search:55, launder_bot:65, bank_mirror:100 };
+  if (!apps.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No laptop app items yet. Use the creator above.</td></tr>';
+    return;
+  }
+  const basePct = { ssn_scanner:40, credit_cracker:35, card_drainer:45, biz_intrude:50, stalker_app:60, dark_search:55, launder_bot:65, bank_mirror:100 };
   tbody.innerHTML = apps.map(a => {
-    const q = a.effect?.quality||1;
-    const base = a.effect?.successOverride || (def[a.effect?.appId]!=null ? Math.min(95, def[a.effect?.appId]+(q-1)*5) : null);
+    const q    = a.effect?.quality || 1;
+    const base = a.effect?.successOverride || (basePct[a.effect?.appId] != null ? Math.min(95, basePct[a.effect?.appId] + (q-1)*5) : null);
     return `<tr>
       <td>${a.emoji||'💻'} ${a.name}</td>
       <td><code>${a.effect?.appId||'?'}</code></td>
-      <td>${'⭐'.repeat(q)}</td>
+      <td>${'⭐'.repeat(Math.min(q,5))}</td>
       <td>$${(a.price||0).toLocaleString()}</td>
-      <td>${base!=null?base+'%':'passive'}</td>
+      <td>${base != null ? base + '%' : 'passive'}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="editItemById('${a.id}')">Edit</button></td>
     </tr>`;
   }).join('');
@@ -5671,55 +5651,53 @@ async function loadLaptopApps() {
 // TOR MARKET DASHBOARD
 // ════════════════════════════════════════════════
 async function loadTorListings() {
-  const data     = await api('GET', `/api/${GUILD}/tor`).catch(()=>({ listings:[], config:{} }));
+  const data     = await api('GET', `/api/${GUILD}/tor`).catch(() => ({ listings:[], config:{} }));
   const listings = data.listings || [];
   const config   = data.config   || {};
   const now      = Date.now();
 
-  const active = listings.filter(l => !l.sold && l.expiresAt > now);
+  const active = listings.filter(l => !l.sold && (l.expiresAt||0) > now);
   const leaks  = active.filter(l => l.isLeak);
-  const sold   = listings.filter(l => l.sold);
 
   document.getElementById('tor-active').textContent = active.length;
   document.getElementById('tor-leaks').textContent  = leaks.length;
-  document.getElementById('tor-total').textContent  = sold.length;
+  document.getElementById('tor-total').textContent  = listings.filter(l => l.sold).length;
   document.getElementById('tor-volume').textContent = '$' + listings.reduce((s,l) => s+(l.price||0), 0).toLocaleString();
 
-  // Load config fields
-  if (document.getElementById('tor-max-leaks'))     document.getElementById('tor-max-leaks').value     = config.maxLeaks     || 5;
-  if (document.getElementById('tor-leak-interval')) document.getElementById('tor-leak-interval').value = config.leakInterval || 6;
-  if (document.getElementById('tor-leak-count'))    document.getElementById('tor-leak-count').value    = config.leakCount    || 2;
+  const maxEl = document.getElementById('tor-max-leaks');
+  const intEl = document.getElementById('tor-leak-interval');
+  const cntEl = document.getElementById('tor-leak-count');
+  if (maxEl) maxEl.value = config.maxLeaks     || 5;
+  if (intEl) intEl.value = config.leakInterval || 6;
+  if (cntEl) cntEl.value = config.leakCount    || 2;
 
   const statusEl = document.getElementById('tor-config-status');
-  if (statusEl) statusEl.textContent = config.maxLeaks
-    ? `Config: max ${config.maxLeaks} leaks · every ${config.leakInterval||6}h · ${config.leakCount||2}/cycle`
-    : 'Using defaults: max 5 leaks · every 6h · 2/cycle';
+  if (statusEl) statusEl.textContent = `Max ${config.maxLeaks||5} leaks · every ${config.leakInterval||6}h · ${config.leakCount||2}/cycle`;
 
-  // ── Leak listings table ──
+  // Leaks table
   const leaksTbody = document.getElementById('tor-leaks-tbody');
   if (!leaks.length) {
-    leaksTbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No active data leaks right now.</td></tr>';
+    leaksTbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No active data leaks.</td></tr>';
   } else {
     leaksTbody.innerHTML = (await Promise.all(leaks.map(async l => {
-      const victimName = await resolveUser(l.victimId).catch(() => l.victimId?.slice(0,10)||'Unknown');
-      const exp = new Date(l.expiresAt).toLocaleString();
-      const ssnMasked = l.data?.ssn ? l.data.ssn.replace(/(\d{3})-(\d{2})-(\d{4})/, '$1-XX-XXXX') : '???';
+      const victim = await resolveUser(l.victimId).catch(() => l.victimId||'?');
+      const exp    = new Date(l.expiresAt).toLocaleString();
+      const ssn    = l.data?.ssn ? l.data.ssn.replace(/\d{4}$/, 'XXXX') : '???';
       return `<tr style="background:rgba(255,59,48,.04)">
         <td><code style="color:#ff8080">${l.id?.slice(-6)||'?'}</code></td>
-        <td><strong>${victimName}</strong></td>
-        <td style="color:var(--gold)">$${((l.victimWealth||0)).toLocaleString()}</td>
-        <td><code style="color:var(--muted)">${ssnMasked}</code></td>
+        <td><strong>${victim}</strong></td>
+        <td>$${((l.victimWealth||0)).toLocaleString()}</td>
         <td><strong style="color:#ff8080">$${(l.price||0).toLocaleString()}</strong></td>
-        <td style="font-size:11px;color:var(--muted)">${exp}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕ Remove</button></td>
+        <td style="font-size:11px">${exp}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button></td>
       </tr>`;
     }))).join('');
   }
 
-  // ── User listings table ──
+  // User listings table
   const filterVal = document.getElementById('tor-filter')?.value || 'all';
   let userListings = listings.filter(l => !l.isLeak);
-  if (filterVal === 'active') userListings = userListings.filter(l => !l.sold && l.expiresAt > now);
+  if (filterVal === 'active') userListings = userListings.filter(l => !l.sold && (l.expiresAt||0) > now);
   if (filterVal === 'sold')   userListings = userListings.filter(l => l.sold);
 
   const tbody = document.getElementById('tor-tbody');
@@ -5727,26 +5705,23 @@ async function loadTorListings() {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No user listings found.</td></tr>';
     return;
   }
-
   const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊' };
-  tbody.innerHTML = (await Promise.all(userListings.slice(0, 30).map(async l => {
+  tbody.innerHTML = (await Promise.all(userListings.slice(0,30).map(async l => {
     const seller = await resolveUser(l.sellerId).catch(() => `\`${l.sellerHandle||'?'}\``);
     const victim = await resolveUser(l.victimId).catch(() => l.victimId?.slice(0,10)||'?');
     const status = l.sold
-      ? '<span class="tag t-green">✅ Sold</span>'
-      : l.expiresAt > now
-        ? '<span class="tag t-orange">⏳ Active</span>'
+      ? '<span class="tag t-green">Sold</span>'
+      : (l.expiresAt||0) > now
+        ? '<span class="tag t-orange">Active</span>'
         : '<span class="tag t-muted">Expired</span>';
     return `<tr>
       <td><code>${l.id?.slice(-6)||'?'}</code></td>
-      <td>${typeEmoji[l.type]||'📦'} ${l.typeName||l.type}</td>
+      <td>${typeEmoji[l.type]||'📦'} ${l.typeName||l.type||'?'}</td>
       <td>${seller}</td>
       <td>${victim}</td>
       <td>$${(l.price||0).toLocaleString()}</td>
       <td>${status}</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button>
-      </td>
+      <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button></td>
     </tr>`;
   }))).join('');
 }
@@ -5757,31 +5732,31 @@ async function saveTorConfig() {
   const leakCount    = parseInt(document.getElementById('tor-leak-count')?.value)    || 2;
   const r = await api('POST', `/api/${GUILD}/tor/config`, { maxLeaks, leakInterval, leakCount });
   if (r.success) { toast('TOR config saved ✅', 'ok'); loadTorListings(); }
-  else toast(r.error||'Failed', 'err');
+  else toast(r.error || 'Failed', 'err');
 }
 
 async function triggerManualLeak() {
   const confirmed = await showConfirmModal(
     '🔓 Trigger Data Leak?',
-    'This will immediately put 1-3 random users\' SSN data on the dark web and DM them a breach notification.',
+    'This will immediately put random users\' SSN data on the dark web and DM them a breach notification.',
     'Trigger Leak'
   );
   if (!confirmed) return;
   const r = await api('POST', `/api/${GUILD}/tor/trigger-leak`);
-  if (r.success) { toast(`🔓 Data leak triggered — ${r.leaked} account(s) exposed`, 'ok'); loadTorListings(); }
-  else toast(r.error||'Failed', 'err');
+  if (r.success) { toast(`🔓 Leak triggered — ${r.leaked} account(s) exposed`, 'ok'); loadTorListings(); }
+  else toast(r.error || 'Failed', 'err');
 }
 
 async function clearExpiredListings() {
   const r = await api('POST', `/api/${GUILD}/tor/clear-expired`);
   if (r.success) { toast(`Cleared ${r.cleared} expired listings`, 'ok'); loadTorListings(); }
-  else toast(r.error||'Failed', 'err');
+  else toast(r.error || 'Failed', 'err');
 }
 
 async function torRemoveListing(id) {
   const r = await api('DELETE', `/api/${GUILD}/tor/listing/${id}`);
   if (r.success) { toast('Listing removed', 'ok'); loadTorListings(); }
-  else toast(r.error||'Failed', 'err');
+  else toast(r.error || 'Failed', 'err');
 }
 
 // Initialize on nav

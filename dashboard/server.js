@@ -953,30 +953,34 @@ app.post('/api/:guildId/tor/config', requireGuildAuth, async (req, res) => {
 
 app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllCredit } = require('./utils/creditDb');
+    const { getAllCredit }               = require('./utils/creditDb');
     const { createDataLeak, getActiveListings } = require('./utils/torDb');
-    const config    = db.getConfig(req.guildId);
-    const maxLeaks  = config.torMaxLeaks  || 5;
-    const leakCount = Math.min(config.torLeakCount || 2, 5);
-    const activeLeaks = getActiveListings().filter(l=>l.isLeak).length;
-    const canLeak   = Math.max(0, maxLeaks - activeLeaks);
-    if (!canLeak) return res.status(400).json({ error: `Already at max leaks (${maxLeaks}). Remove some or raise the limit.` });
+    const config      = db.getConfig(req.guildId);
+    const maxLeaks    = config.torMaxLeaks   || 5;
+    const leakCount   = Math.min(config.torLeakCount || 2, 10);
+    const activeLeaks = getActiveListings().filter(l => l.isLeak).length;
+    const canLeak     = Math.max(0, maxLeaks - activeLeaks);
+    if (!canLeak) return res.status(400).json({ error: `At max leaks (${maxLeaks}) — remove some or increase the limit.` });
     const allUsers  = db.getAllUsers();
     const allCredit = getAllCredit();
     const eligible  = Object.keys(allUsers).filter(id => allCredit[id]?.ssn);
-    if (!eligible.length) return res.status(400).json({ error:'No users with SSNs found.' });
-    const toLeakCount = Math.min(canLeak, leakCount);
-    const victims   = eligible.sort(()=>Math.random()-0.5).slice(0, toLeakCount);
+    if (!eligible.length) return res.status(400).json({ error: 'No users with SSNs found yet. Users get SSNs when they open an account.' });
+    const toLeakCount = Math.min(canLeak, leakCount, eligible.length);
+    const victims     = eligible.sort(() => Math.random() - 0.5).slice(0, toLeakCount);
     let leaked = 0;
     for (const userId of victims) {
       const credit = allCredit[userId];
       if (!credit?.ssn) continue;
-      await createDataLeak(userId, { ssn:credit.ssn, score:credit.score||680, card:credit.card||null, limit:credit.limit||0 });
-      leaked++;
+      // Mark a pending DM so the bot process picks it up and sends it
+      const listing = await createDataLeak(userId, {
+        ssn: credit.ssn, score: credit.score || 680,
+        card: credit.card || null, limit: credit.limit || 0,
+      });
+      if (listing) leaked++;
     }
     await writeAudit(req.guildId, req.session.user?.id, 'tor_manual_leak', { leaked });
-    res.json({ success:true, leaked });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+    res.json({ success: true, leaked });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) => {
@@ -1699,15 +1703,13 @@ app.post('/api/:guildId/send-embed', requireGuildAuth, async (req, res) => {
 
 async function writeAudit(guildId, userId, action, data={}) {
   try {
-    const { col } = require('../utils/mongo');
     const c = await col('auditLog');
     await c.insertOne({ guildId, userId, action, data, ts: Date.now() });
-  } catch {}
+  } catch(e) { console.error('writeAudit error:', e.message); }
 }
 
 app.get('/api/:guildId/audit-log', requireGuildAuth, async (req, res) => {
   try {
-    const { col } = require('../utils/mongo');
     const c    = await col('auditLog');
     const logs = await c.find({ guildId: req.guildId }).sort({ ts: -1 }).limit(100).toArray();
     res.json(logs.map(l => ({ userId: l.userId, action: l.action, data: l.data, ts: l.ts })));
