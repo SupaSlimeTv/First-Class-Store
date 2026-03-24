@@ -123,9 +123,24 @@ async function requireGuildAuth(req, res, next) {
   const ok = await isAdminInGuild(req.session.user.id, guildId);
   if (!ok) return res.status(403).json({ error: 'You are not an admin in this server' });
   req.guildId = guildId;
-  // Set guild context so all db calls in this request use the right guild
   db.setGuildContext(guildId);
   next();
+}
+
+// Owner-only: checks user is the actual guild owner via Discord API
+async function requireOwnerAuth(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+  const guildId = req.params.guildId || req.query.guildId || req.body?.guildId;
+  if (!guildId) return res.status(400).json({ error: 'guildId required' });
+  try {
+    const guild = await fetchBotAPI(`/guilds/${guildId}`);
+    if (!guild || guild.owner_id !== req.session.user.id) {
+      return res.status(403).json({ error: 'Only the server owner can do this.' });
+    }
+    req.guildId = guildId;
+    db.setGuildContext(guildId);
+    next();
+  } catch(e) { res.status(500).json({ error: e.message }); }
 }
 
 // ── STATIC FILES ──────────────────────────────────────────────
@@ -746,6 +761,51 @@ app.post('/api/:guildId/purge/end', requireGuildAuth, async (req, res) => { awai
   const config = db.getConfig(req.guildId);
   config.purgeActive = false; config.purgeStartTime = null;
   db.saveConfig(req.guildId, config); res.json({ success: true });
+});
+
+// ── GREAT DEPRESSION ──────────────────────────────────────────
+app.post('/api/:guildId/depression/start', requireOwnerAuth, async (req, res) => {
+  try {
+    await writeAudit(req.guildId, req.session.user?.id, 'depression_start', {});
+    const config = db.getConfig(req.guildId);
+    if (config.depressionActive) return res.status(400).json({ error: 'Depression already active' });
+
+    // Fetch guild members via bot and wipe their economy
+    const members = await fetchAllMembers(req.guildId);
+    const memberIds = new Set((members||[]).map(m => m.user?.id).filter(Boolean));
+    const allUsers  = db.getAllUsers();
+    let wiped = 0;
+    for (const [id, u] of Object.entries(allUsers)) {
+      if (!memberIds.has(id)) continue;
+      u.wallet = 0; u.bank = 0;
+      db.saveUser(id, u);
+      wiped++;
+    }
+
+    config.depressionActive    = true;
+    config.depressionStartTime = Date.now();
+    config.depressionBy        = req.session.user?.id;
+    db.saveConfig(req.guildId, config);
+    res.json({ success: true, wiped });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/depression/end', requireOwnerAuth, async (req, res) => {
+  try {
+    await writeAudit(req.guildId, req.session.user?.id, 'depression_end', {});
+    const config = db.getConfig(req.guildId);
+    config.depressionActive    = false;
+    config.depressionStartTime = null;
+    db.saveConfig(req.guildId, config);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/:guildId/config/depression-gif', requireOwnerAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.depressionGif = req.body.gifUrl || null;
+  db.saveConfig(req.guildId, config);
+  res.json({ success: true });
 });
 
 // ── GUILD ROLES ───────────────────────────────────────────────

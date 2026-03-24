@@ -789,6 +789,36 @@ tr:hover td{background:rgba(255,255,255,.015)}
         📢 @everyone is notified in your announcement channel<br>
         ✅ Everything restores to normal when you end it
       </div>
+
+      <!-- GREAT DEPRESSION — OWNER ONLY -->
+      <div class="purge-panel owner-only" id="depression-panel" style="margin-top:20px;flex-direction:column;align-items:stretch;gap:14px;border-color:rgba(44,44,44,.8);background:rgba(20,20,20,.6)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+          <div>
+            <h3 style="color:#aaa">📉 The Great Depression</h3>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 0">Wipes every member's wallet and bank to $0. Also drains business revenues and gang dirty money. Cannot be undone. <strong style="color:#ff3b3b">Owner only.</strong></p>
+            <p id="depression-status" style="margin-top:6px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">—</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
+            <button class="btn btn-danger" id="depression-btn" onclick="triggerDepression()" style="background:#2c2c2c;border-color:#555">📉 Crash Economy</button>
+            <button class="btn btn-ghost btn-sm" onclick="endDepression()">↺ End Depression</button>
+          </div>
+        </div>
+        <div class="fg" style="margin:0">
+          <label class="flabel">📽️ Custom GIF URL (optional)</label>
+          <input class="finput" id="depression-gif" placeholder="https://... leave blank for default">
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button class="btn btn-primary btn-sm" onclick="saveDepressionGif()">💾 Save GIF</button>
+            <button class="btn btn-ghost btn-sm" onclick="previewDepressionGif()">👁 Preview</button>
+          </div>
+          <div id="depression-gif-preview" style="display:none;margin-top:8px">
+            <img id="depression-gif-img" src="" style="max-width:300px;border-radius:6px;border:1px solid var(--border)">
+          </div>
+        </div>
+        <div class="info-box" style="background:rgba(30,10,10,.4);border-color:rgba(100,0,0,.3)">
+          ⚠️ <strong>This is irreversible.</strong> All wallets and banks across this server will be permanently wiped to $0.<br>
+          Use <code>/depression CONFIRM</code> or <code>!depression CONFIRM</code> in Discord, or click the button above.
+        </div>
+      </div>
     </div>
 
     <!-- EMBEDS -->
@@ -1998,6 +2028,7 @@ function nav(n){
   if (n === 'embeds')      { loadEmbedChannels(); loadEmbedTriggers(); }
   if (n === 'drugs')       { loadDrugs(); loadNarcoticsRole(); }
   if (n === 'influencers') { loadInfluencers(); loadSponsorships(); }
+  if (n === 'purge')       { loadDepressionState(); }
 }
 
 async function api(m,u,b){
@@ -2021,6 +2052,7 @@ async function refresh(){
   await loadPolice();
   await loadJailConfig();
   await loadOfficers();
+  await loadDepressionState();
   await loadPets();
   await loadAIEntities();
   await loadGunShop();
@@ -2760,6 +2792,61 @@ function previewPurgeGif() {
   const img  = document.getElementById('purge-gif-img');
   img.src = url;
   prev.style.display = 'block';
+}
+
+// ════════════════════════════════════════════════
+// GREAT DEPRESSION
+// ════════════════════════════════════════════════
+
+async function triggerDepression() {
+  if (!confirm('⚠️ IRREVERSIBLE: This will wipe every member\'s wallet and bank to $0.\n\nAre you absolutely sure?')) return;
+  if (!confirm('Last chance. Click OK to crash the economy.')) return;
+  const r = await api('POST', `/api/${GUILD}/depression/start`);
+  if (r.success) {
+    toast(`📉 Economy crashed — ${r.wiped} accounts wiped`, 'ok');
+    loadDepressionState();
+  } else toast(r.error||'Failed','err');
+}
+
+async function endDepression() {
+  const r = await api('POST', `/api/${GUILD}/depression/end`);
+  if (r.success) { toast('Economy restored','ok'); loadDepressionState(); }
+  else toast(r.error||'Failed','err');
+}
+
+async function saveDepressionGif() {
+  const gifUrl = document.getElementById('depression-gif').value.trim() || null;
+  const r = await api('POST', `/api/${GUILD}/config/depression-gif`, { gifUrl });
+  if (r.success) toast('GIF saved','ok'); else toast(r.error||'Failed','err');
+}
+
+function previewDepressionGif() {
+  const url = document.getElementById('depression-gif').value.trim() ||
+              'https://media.giphy.com/media/l2JehQ2GitHGdVG9a/giphy.gif';
+  const prev = document.getElementById('depression-gif-preview');
+  const img  = document.getElementById('depression-gif-img');
+  img.src = url;
+  prev.style.display = 'block';
+}
+
+async function loadDepressionState() {
+  const config = await api('GET', `/api/${GUILD}/config`).catch(()=>({}));
+  const btn    = document.getElementById('depression-btn');
+  const status = document.getElementById('depression-status');
+  const panel  = document.getElementById('depression-panel');
+  if (!panel) return;
+
+  if (config.depressionActive) {
+    if (btn) { btn.textContent = '📉 ACTIVE'; btn.disabled = true; btn.style.background = '#1a1a1a'; }
+    if (status) { status.textContent = `🔴 Depression active since ${new Date(config.depressionStartTime).toLocaleString()}`; status.style.color = '#ff3b3b'; }
+  } else {
+    if (btn) { btn.textContent = '📉 Crash Economy'; btn.disabled = false; }
+    if (status) { status.textContent = config.depressionStartTime ? `Last crashed: ${new Date(config.depressionStartTime).toLocaleString()}` : 'No depression active.'; status.style.color = 'var(--muted)'; }
+  }
+
+  // Load saved GIF
+  const gifEl = document.getElementById('depression-gif');
+  if (gifEl && config.depressionGif) gifEl.value = config.depressionGif;
 }
 
 async function forceClearPurge() {

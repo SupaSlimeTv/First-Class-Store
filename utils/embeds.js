@@ -155,6 +155,24 @@ function rouletteEmbed(betType, betDesc, result, resultColor, bet, won, payout, 
     .setTimestamp();
 }
 
+function depressionEmbed(starting, gifUrl) {
+  if (starting) {
+    const embed = new EmbedBuilder()
+      .setColor(0x2c2c2c)
+      .setTitle('📉 THE GREAT DEPRESSION HAS BEGUN')
+      .setDescription('**The economy has collapsed.**\n\n> 💸 All wallets wiped to $0\n> 🏦 All banks wiped to $0\n> 📈 All stock holdings liquidated\n> 💊 Dirty money seized\n> 💼 Business revenue drained\n\n**Everyone starts from zero. Rebuild or perish.**\n\n*The server owner triggered a full economic reset.*')
+      .setTimestamp();
+    if (gifUrl) embed.setImage(gifUrl);
+    else embed.setImage('https://media.giphy.com/media/l2JehQ2GitHGdVG9a/giphy.gif');
+    return embed;
+  }
+  return new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle('📈 THE ECONOMY HAS RECOVERED')
+    .setDescription('**The Great Depression has ended.**\n\n> 💵 Economic activity can resume\n> 🏦 Deposits and withdrawals restored\n> 📈 Markets are open again\n\nTime to rebuild.')
+    .setTimestamp();
+}
+
 function purgeEmbed(starting, gifUrl) {
   if (starting) {
     const embed = new EmbedBuilder()
@@ -190,5 +208,5 @@ function gameEmbed(title, description, won) {
 module.exports = {
   COLORS, balanceEmbed, depositEmbed, withdrawEmbed, dailyEmbed,
   robSuccessEmbed, robFailEmbed, shopEmbed, purchaseEmbed,
-  coinflipEmbed, rouletteEmbed, purgeEmbed, successEmbed, errorEmbed, gameEmbed,
+  coinflipEmbed, rouletteEmbed, purgeEmbed, depressionEmbed, successEmbed, errorEmbed, gameEmbed,
 };

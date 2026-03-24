@@ -348,6 +348,18 @@ client.on('messageCreate', async (message) => {
     return message.reply({ embeds: [dailyEmbed(DAILY_AMOUNT, user.wallet)] });
   }
 
+  // ---- depression (owner only) ----
+  if (commandName === 'depression') {
+    if (message.author.id !== message.guild.ownerId) return message.reply('🚫 Only the **server owner** can trigger the Great Depression.');
+    if (args[0] !== 'CONFIRM') return message.reply('⚠️ This will wipe the entire server economy. Type `' + prefix + 'depression CONFIRM` to execute.');
+    const { runDepression } = require('./commands/moderation/depression');
+    const { depressionEmbed } = require('./utils/embeds');
+    const config = getConfig(message.guildId);
+    const wiped  = await runDepression(message.guild, config, message.author.id);
+    await message.reply({ embeds:[depressionEmbed(true, config.depressionGif||null)] });
+    return;
+  }
+
   // ---- rob ----
   if (commandName === 'rob') {
     if (needsAccount()) return;
@@ -1498,7 +1510,31 @@ setInterval(async () => {
   } catch(e) { console.error('Purge watcher error:', e.message); }
 }, 5000);
 
-// ---- JAIL RELEASE WATCHER ----
+// ---- DEPRESSION WATCHER ──────────────────────────────────────
+const lastDepressionStates = new Map();
+setInterval(async () => {
+  try {
+    const { getConfig } = require('./utils/db');
+    const { depressionEmbed } = require('./utils/embeds');
+    for (const [guildId] of client.guilds.cache) {
+      const config       = getConfig(guildId);
+      const currentState = !!config.depressionActive;
+      const lastState    = lastDepressionStates.get(guildId);
+      if (lastState === undefined) { lastDepressionStates.set(guildId, currentState); continue; }
+      if (currentState === lastState) continue;
+      lastDepressionStates.set(guildId, currentState);
+      const channelId = config.purgeChannelId; // reuse purge channel for announcement
+      if (!channelId) continue;
+      const channel = await client.channels.fetch(channelId).catch(()=>null);
+      if (!channel) continue;
+      await channel.send({
+        content: '@everyone',
+        embeds: [depressionEmbed(currentState, config.depressionGif||null)],
+        allowedMentions: { parse: ['everyone'] },
+      });
+    }
+  } catch(e) { console.error('Depression watcher error:', e.message); }
+}, 5000);
 setInterval(async () => {
   try {
     const { getAllPoliceRecords, savePoliceRecord } = require('./utils/gangDb');
@@ -2111,6 +2147,57 @@ client.on('interactionCreate', async interaction => {
     client.users.fetch(briberId).then(u => u.send({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
       .setDescription(`❌ <@${interaction.user.id}> declined your bribe. **$${amount.toLocaleString()}** refunded.`)
     ]}).catch(()=>{})).catch(()=>{});
+  }
+});
+
+// ── RAID TIP-OFF BUTTON HANDLER ──────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('raid_tipoff_') && !customId.startsWith('raid_ignore_')) return;
+
+  const { EmbedBuilder } = require('discord.js');
+
+  if (customId.startsWith('raid_ignore_')) {
+    return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888)
+      .setDescription('You stayed silent. The raid proceeds.')
+    ], components:[] });
+  }
+
+  // raid_tipoff_{leaderId}_{gangName}
+  const parts    = customId.replace('raid_tipoff_', '').split('_');
+  const leaderId = parts[0];
+  const gangName = parts.slice(1).join('_');
+
+  // DM the gang leader
+  try {
+    const leader = await interaction.client.users.fetch(leaderId);
+    await leader.send({ embeds:[new EmbedBuilder()
+      .setColor(0xff3b3b)
+      .setTitle('🚨 RAID WARNING')
+      .setDescription(`⚠️ **Police are raiding ${gangName}!**
+
+You have less than 60 seconds. Move illegal items to your home stash NOW.
+
+\`/home stash action:store\``)
+    ]});
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+      .setDescription(`✅ Gang leader warned. -10 credibility.`)
+    ], components:[] });
+
+    // Credibility cost
+    const { getOfficer, updateOfficer } = require('./utils/policeDb');
+    const guildId = interaction.guildId || interaction.message?.guildId;
+    if (guildId) {
+      const off = getOfficer(guildId, interaction.user.id);
+      await updateOfficer(guildId, interaction.user.id, {
+        credibility: Math.max(0, (off?.credibility||100) - 10),
+      });
+    }
+  } catch {
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+      .setDescription("Couldn't reach the gang leader.")
+    ], components:[] });
   }
 });
 
