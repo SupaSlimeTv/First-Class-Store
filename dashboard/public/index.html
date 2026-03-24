@@ -1512,6 +1512,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="edit_balance">💵 Edit Balance — give or take money from user/target on use</option>
               <option value="edit_items">🎒 Edit Items — give or take a specific item from user/target on use</option>
               <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
+              <option value="break_in">🔧 Break-In Kit — attempt to break into target's home</option>
               <option value="ai">🤖 AI Entity — spawn an AI with personality, moods, and autonomy</option>
               <option value="consume">🍽️ Consume — edible/drinkable item that gives a timed buff or debuff</option>
               <option value="magic">🔮 Magic — fully customizable spell with chained actions</option>
@@ -1707,6 +1708,16 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <div class="fg"><label class="flabel">Role</label><select class="fselect" id="m-er-role"><option value="">— Choose role —</option></select></div>
             </div>
             <div class="fg"><label class="flabel">Target</label><select class="fselect" id="m-er-target"><option value="self">🙋 Self</option><option value="target">🎯 Target</option></select></div>
+          </div>
+
+          <!-- BREAK IN fields -->
+          <div id="ef-break-in" class="ef-section">
+            <hr class="divider">
+            <div class="fg">
+              <label class="flabel">Kit Bonus % <span style="color:var(--muted)">(added to success chance)</span></label>
+              <input class="finput" type="number" id="m-breakin-bonus" placeholder="0" min="0" max="80">
+              <div class="hint">Base success = (100 - home defense) + this bonus. Defense: Studio 40%, House 55%, Mansion 70%, Estate 85%.<br>Example: Kit Bonus 20 on a Mansion = (100-70)+20 = <strong>50% success</strong>.</div>
+            </div>
           </div>
 
           <!-- AI ENTITY fields -->
@@ -2240,8 +2251,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/${GUILD}/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',emp:'⚡ EMP Device',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',emp:'t-gold',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',emp:'⚡ EMP Device',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',break_in:'🔧 Break-In Kit',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',emp:'t-gold',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',break_in:'t-orange',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -2441,6 +2452,9 @@ function openEdit(id){
     document.getElementById('m-ei-item').value=ef.itemId||'';
     document.getElementById('m-ei-target').value=ef.target||'self';
   }
+  if(ef.type==='break_in'){
+    document.getElementById('m-breakin-bonus').value = ef.kitBonus||0;
+  }
   if(ef.type==='edit_roles'){
     document.getElementById('m-er-action').value=ef.action||'add';
     document.getElementById('m-er-role').value=ef.roleId||'';
@@ -2537,7 +2551,7 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',emp:'ef-emp',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',emp:'ef-emp',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',break_in:'ef-break-in',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
 
@@ -2646,6 +2660,9 @@ async function saveItem(){
         effect.action=document.getElementById('m-ei-action').value;
         effect.itemId=document.getElementById('m-ei-item').value;
         effect.target=document.getElementById('m-ei-target').value;
+      }
+      if(et==='break_in'){
+        effect.kitBonus = parseInt(document.getElementById('m-breakin-bonus').value)||0;
       }
       if(et==='edit_roles'){
         effect.action=document.getElementById('m-er-action').value;

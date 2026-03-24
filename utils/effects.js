@@ -628,11 +628,11 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
     // ----------------------------------------------------------
     case 'break_in': {
       return {
-        success:       true,
-        needsBreakIn:  true,
-        kitLevel:      effect.kitLevel || 0, // 0=basic, 1=advanced, 2=pro
-        title:         '🔧 Break-In Initiated',
-        description:   `Attempting to break into <@${targetId}>'s home...`,
+        success:      true,
+        needsBreakIn: true,
+        kitBonus:     effect.kitBonus || 0, // admin-configurable success % bonus
+        title:        '🔧 Break-In Initiated',
+        description:  `Attempting to break into <@${targetId}>'s home...`,
       };
     }
 

@@ -217,7 +217,7 @@ module.exports = {
       if (furnishings.some(f => f.id === 'vault'))         defense += 10;
 
       // Kit level bonus (0=basic, 1=advanced, 2=pro)
-      const kitBonus = [0, 15, 30][result.kitLevel || 0] || 0;
+      const kitBonus = result.kitBonus || 0;
       const successChance = Math.max(5, Math.min(90, (100 - defense) + kitBonus));
 
       // Security camera DM
