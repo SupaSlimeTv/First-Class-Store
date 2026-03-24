@@ -22,22 +22,17 @@ module.exports = {
     .setName('business')
     .setDescription('Start, view, or manage your business.')
     .addSubcommand(s => s.setName('start').setDescription('Start a new business')
-      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Business type').setRequired(true)
-        .addChoices(...Object.entries(BIZ_TYPES).map(([id,t]) => ({ name:`${t.emoji} ${t.name} ($${t.baseCost.toLocaleString()})`, value:id }))))
+      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Business type').setRequired(true))
       .addStringOption(o => o.setName('name').setDescription('Your business name').setRequired(true)))
     .addSubcommand(s => s.setName('view').setDescription('View your businesses')
-      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to view (leave blank for your main legit one)').setRequired(false)
-        .addChoices(...Object.entries(BIZ_TYPES).map(([id,t]) => ({ name:`${t.emoji} ${t.name}`, value:id })))))
+      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to view (leave blank for your main legit one)').setRequired(false)))
     .addSubcommand(s => s.setName('collect').setDescription('Collect revenue from a business')
-      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to collect from (leave blank for legit)').setRequired(false)
-        .addChoices(...Object.entries(BIZ_TYPES).map(([id,t]) => ({ name:`${t.emoji} ${t.name}`, value:id })))))
+      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to collect from (leave blank for legit)').setRequired(false)))
     .addSubcommand(s => s.setName('upgrade').setDescription('Upgrade a business')
-      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to upgrade (leave blank for legit)').setRequired(false)
-        .addChoices(...Object.entries(BIZ_TYPES).map(([id,t]) => ({ name:`${t.emoji} ${t.name}`, value:id })))))
+      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to upgrade (leave blank for legit)').setRequired(false)))
     .addSubcommand(s => s.setName('list').setDescription('List all your businesses'))
     .addSubcommand(s => s.setName('close').setDescription('Permanently close a business')
-      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to close').setRequired(true)
-        .addChoices(...Object.entries(BIZ_TYPES).map(([id,t]) => ({ name:`${t.emoji} ${t.name}`, value:id }))))),
+      .addStringOption(o => o.setName('type').setAutocomplete(true).setDescription('Which business to close').setRequired(true))),
 
 
   async autocomplete(interaction) {
