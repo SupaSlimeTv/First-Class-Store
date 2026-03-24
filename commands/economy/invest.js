@@ -33,11 +33,8 @@ module.exports = {
 
   async execute(interaction) {
     if (await noAccount(interaction)) return;
-    const coinId = interaction.options.getString('coin').toUpperCase();
+    const coinId    = interaction.options.getString('coin').toUpperCase();
     const amountRaw = interaction.options.getString('amount').toLowerCase().trim();
-    const user0 = getOrCreateUser(userId);
-    const amount = amountRaw === 'all' ? user0.wallet : parseInt(amountRaw.replace(/,/g,''));
-    if (isNaN(amount) || amount < 1) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setDescription('Enter a valid amount or type `all`.')], ephemeral:true });
 
     // Get current price from MongoDB
     const pc   = await col('stockPrices');
@@ -59,7 +56,12 @@ module.exports = {
       ? { id: coinId, name: customCoin.name, emoji: customCoin.emoji || '🪙' }
       : defaultCoin || { id: coinId, name: coinId, emoji: '🪙' };
 
-    const user = getOrCreateUser(interaction.user.id);
+    // Fetch user AFTER coin check so "all" uses current wallet
+    const user  = getOrCreateUser(interaction.user.id);
+    const amount = amountRaw === 'all' ? user.wallet : parseInt(amountRaw.replace(/,/g,''));
+    if (isNaN(amount) || amount < 1) {
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setDescription(amountRaw === 'all' ? 'Your wallet is empty!' : 'Enter a valid amount or type `all`.')], ephemeral:true });
+    }
     if (amount > user.wallet) {
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setDescription(`You only have **$${user.wallet.toLocaleString()}** in your wallet.`)], ephemeral:true });
     }
