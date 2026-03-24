@@ -11,6 +11,9 @@ const path           = require('path');
 const fs             = require('fs');
 const db             = require('../utils/db');
 const { guildCol, col } = require('../utils/mongo');
+const illuminatiDb   = require('../utils/illuminatiDb');
+const creditDb       = require('../utils/creditDb');
+const torDb          = require('../utils/torDb');
 
 // ── SESSION STORE (MongoDB so sessions survive restarts) ──────
 let sessionStore;
@@ -346,9 +349,9 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
           gangName:        gang?.name || null,
           gangId:          gang?.id   || null,
           isGangLeader:    gang?.leaderId === u.id,
-          isIlluminati:    (() => { try { const { getIlluminati } = require('./utils/illuminatiDb'); const org = getIlluminati(req.guildId); return !!(org?.members||[]).find(m2 => m2.userId === u.id); } catch { return false; } })(),
-          artistTier:      (() => { try { const p = require('./utils/phoneDb').getPhone(u.id); if (!p?.artistCareer) return 'unsigned'; return p.artistCareer.tier||'unsigned'; } catch { return 'unsigned'; } })(),
-          artistTierLabel: (() => { try { const p = require('./utils/phoneDb').getPhone(u.id); const { getArtistTier } = require('./utils/phoneDb'); if (!p?.artistCareer) return null; return getArtistTier(p.artistCareer.fame||0).label; } catch { return null; } })(),
+          isIlluminati:    (() => { try { const org = illuminatiDb.getIlluminati(req.guildId); return !!(org?.members||[]).find(m2 => m2.userId === u.id); } catch { return false; } })(),
+          artistTier:      (() => { try { const { getPhone } = require('../utils/phoneDb'); const p = getPhone(u.id); if (!p?.artistCareer) return 'unsigned'; return p.artistCareer.tier||'unsigned'; } catch { return 'unsigned'; } })(),
+          artistTierLabel: (() => { try { const { getPhone, getArtistTier } = require('../utils/phoneDb'); const p = getPhone(u.id); if (!p?.artistCareer) return null; return getArtistTier(p.artistCareer.fame||0).label; } catch { return null; } })(),
         };
       })
       .sort((a, b) => {
@@ -858,19 +861,17 @@ app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req
 // ── ILLUMINATI DASHBOARD ──────────────────────────────────────
 app.get('/api/:guildId/illuminati', requireGuildAuth, async (req, res) => {
   try {
-    const { getIlluminati } = require('./utils/illuminatiDb');
-    const org = getIlluminati(req.guildId);
+    const org = illuminatiDb.getIlluminati(req.guildId);
     res.json({ org: org || null });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
 app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req, res) => {
   try {
-    const { getIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
-    const org = getIlluminati(req.guildId);
+    const org = illuminatiDb.getIlluminati(req.guildId);
     if (!org) return res.status(400).json({ error:'No Illuminati.' });
     org.members = (org.members||[]).filter(m => m.userId !== req.body.userId);
-    await saveIlluminati(req.guildId, org);
+    await illuminatiDb.saveIlluminati(req.guildId, org);
     await writeAudit(req.guildId, req.session.user?.id, 'illum_excommunicate', { userId:req.body.userId });
     res.json({ success:true });
   } catch(e) { res.status(500).json({ error:e.message }); }
@@ -879,7 +880,8 @@ app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req,
 // ── CREDIT SCORES DASHBOARD ───────────────────────────────────
 app.get('/api/:guildId/credit-scores', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllCredit, getCreditTier } = require('./utils/creditDb');
+    const { getCreditTier } = creditDb;
+    const getAllCredit = creditDb.getAllCredit;
     const filterTier = req.query.filter || 'all';
     const members    = await fetchAllMembers(req.guildId);
     const memberIds  = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
@@ -923,7 +925,7 @@ app.post('/api/:guildId/store/create-apps', requireGuildAuth, async (req, res) =
 // ── TOR DASHBOARD ─────────────────────────────────────────────
 app.get('/api/:guildId/tor', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllListings, getActiveListings } = require('./utils/torDb');
+    const { getAllListings, getActiveListings } = torDb;
     const config   = db.getConfig(req.guildId);
     const all      = Object.values(getAllListings());
     const now      = Date.now();
@@ -958,8 +960,8 @@ app.post('/api/:guildId/tor/config', requireGuildAuth, async (req, res) => {
 
 app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllCredit }               = require('./utils/creditDb');
-    const { createDataLeak, getActiveListings } = require('./utils/torDb');
+    const { getAllCredit } = creditDb;
+    const { createDataLeak, getActiveListings } = torDb;
     const config      = db.getConfig(req.guildId);
     const maxLeaks    = config.torMaxLeaks   || 5;
     const leakCount   = Math.min(config.torLeakCount || 2, 10);
@@ -990,7 +992,7 @@ app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) =>
 
 app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllListings, saveListing } = require('./utils/torDb');
+    const { getAllListings, saveListing } = torDb;
     const all = getAllListings();
     const now = Date.now();
     let cleared = 0;
@@ -1007,7 +1009,7 @@ app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) =
 
 app.delete('/api/:guildId/tor/listing/:id', requireGuildAuth, async (req, res) => {
   try {
-    const { getListing, saveListing } = require('./utils/torDb');
+    const { getListing, saveListing } = torDb;
     const listing = getListing(req.params.id);
     if (!listing) return res.status(404).json({ error:'Not found.' });
     listing.sold = true; listing.removedByAdmin = true;

@@ -20,8 +20,8 @@ function isAdmin(member) {
          member.guild.ownerId === member.id;
 }
 
-const ADMIN_TYPES = ['pet','gang','bizmoney','phonestatus','phonefollowers','phonehype',
-                     'creditscore','artistfame','artisttier','laptopapp','heat'];
+// ALL types require admin — /give is admin-only
+// Regular users use /pay for money transfers
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -114,11 +114,13 @@ module.exports = {
     if (target.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You can't give to yourself.")], ephemeral:true });
     if (!hasAccount(target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${target.id}> doesn't have an account yet.`)], ephemeral:true });
 
-    // Block non-admins from admin-only types
-    if (ADMIN_TYPES.includes(type) && !admin) {
+    // /give is admin-only — all types
+    if (!admin) {
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
         .setTitle('🔒 Admin Only')
-        .setDescription(`The **${type}** give type requires **Administrator** or **Manage Server** permission.`)
+        .setDescription(`\`/give\` is restricted to **Administrators** and **Server Owners**.
+
+Use \`/pay @user amount:\` to transfer money to another player.`)
       ], ephemeral:true });
     }
 
@@ -128,9 +130,7 @@ module.exports = {
     if (type === 'money') {
       if (!amount) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify an `amount:`.')], ephemeral:true });
       const giver = getOrCreateUser(userId);
-      if (!admin && giver.wallet < amount) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription(`You only have **${fmtMoney(giver.wallet)}** in your wallet.`)], ephemeral:true });
-      if (!admin) { giver.wallet -= amount; saveUser(userId, giver); }
+      // Admin gives from server — no wallet deduction
       const recv = getOrCreateUser(target.id);
       recv.wallet += amount;
       saveUser(target.id, recv);
@@ -147,10 +147,7 @@ module.exports = {
       const store = getStore(interaction.guildId);
       const item  = store.items.find(i => i.id === itemId);
       if (!item) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Item not found. Use \`/shop\` to browse.`)], ephemeral:true });
-      if (!admin) {
-        const removed = removeItem(userId, itemId);
-        if (!removed) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You don't have **${item.name}** in your inventory.`)], ephemeral:true });
-      }
+      // Admin gives from store — no inventory required
       giveItem(target.id, itemId);
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x9b59b6)
         .setTitle(`🎒 ${item.name} Given`)
@@ -161,35 +158,18 @@ module.exports = {
     // ── GUN ───────────────────────────────────────────────────────
     if (type === 'gun') {
       if (!itemId || itemId === '__none__') return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Type to search for a gun in `item_id`.')], ephemeral:true });
-      if (admin) {
-        const gun = getGunById(itemId);
-        if (!gun) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Gun not found.')], ephemeral:true });
-        const inv = getGunInventory(target.id);
-        inv.push({ gunId:itemId, boughtAt:Date.now(), ammo:gun.capacity*3, gifted:true });
-        await saveGunInventory(target.id, inv);
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle(`${gun.emoji} Gun Given`).setDescription(`${gun.emoji} **${gun.name}** given to <@${target.id}>!`)]});
-      }
-      const myInv = getGunInventory(userId);
-      const idx   = myInv.findIndex(g => g.gunId === itemId);
-      if (idx === -1) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You don't have that gun. Use \`/guns\` to see yours.`)], ephemeral:true });
-      const [g] = myInv.splice(idx, 1);
-      await saveGunInventory(userId, myInv);
-      const theirInv = getGunInventory(target.id);
-      theirInv.push(g);
-      await saveGunInventory(target.id, theirInv);
-      const info = getGunById(itemId);
-      return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle(`${info?.emoji||'🔫'} Gun Transferred`).setDescription(`<@${userId}> gave **${info?.name||itemId}** to <@${target.id}>!`)]});
+      const gun = getGunById(itemId);
+      if (!gun) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Gun not found. Type to search in `item_id`.')], ephemeral:true });
+      const inv = getGunInventory(target.id);
+      inv.push({ gunId:itemId, boughtAt:Date.now(), ammo:gun.capacity*3, gifted:true });
+      await saveGunInventory(target.id, inv);
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle(`${gun.emoji} Gun Given`).setDescription(`${gun.emoji} **${gun.name}** given to <@${target.id}>!`)]});
     }
 
     // ── PET TOKENS ────────────────────────────────────────────────
     if (type === 'tokens') {
       if (!amount) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify an `amount:`.')], ephemeral:true });
-      if (!admin) {
-        const myPet = getPet(userId);
-        if (!myPet || (myPet.tokens||0) < amount) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Not enough pet tokens.`)], ephemeral:true });
-        myPet.tokens -= amount;
-        await savePet(userId, myPet);
-      }
+      // Admin gives tokens from server directly
       const theirPet = getPet(target.id);
       if (!theirPet) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${target.id}> doesn't have a pet.`)], ephemeral:true });
       theirPet.tokens = (theirPet.tokens||0) + amount;
