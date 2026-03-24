@@ -89,71 +89,127 @@ module.exports = {
 
     // ── APP STORE ─────────────────────────────────────────────
     if (sub === 'appstore') {
-      // Find laptop app items in inventory
-      const appItems = store.items.filter(i =>
-        i.effect?.type === 'laptop_app' &&
-        (user.inventory||[]).includes(i.id)
+      const storeApps  = store.items.filter(i => i.effect?.type === 'laptop_app');
+      const invAppItems = store.items.filter(i =>
+        i.effect?.type === 'laptop_app' && (user.inventory||[]).includes(i.id)
       );
+      const installedIds = (laptop.apps||[]).map(a => a.id);
+      const basePct = { ssn_scanner:40, credit_cracker:35, card_drainer:45, biz_intrude:50, stalker_app:60, dark_search:55, launder_bot:65, bank_mirror:100 };
 
-      // Also show built-in apps that can be purchased via store
-      const storeApps = store.items.filter(i => i.effect?.type === 'laptop_app');
+      // ── BUILD STORE BROWSE EMBED ──────────────────────────────
+      const buildBrowseEmbed = () => {
+        if (!storeApps.length) return new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle('💻 App Store — Browse')
+          .setDescription('No laptop apps have been added to the store yet.\n\nAsk an admin to add some via the dashboard.');
 
-      if (!appItems.length) return interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle('💻 App Store')
-        .setDescription('No app items in your inventory.\n\nBuy laptop apps from `/shop` to install capabilities:\n\n' +
-          Object.entries(BUILTIN_APPS).map(([id,a]) =>
-            `${a.emoji} **${a.name}** — *${a.desc}*`
-          ).join('\n'))
-        .setFooter({ text:'Purchase apps from the item store then return here to install' })
-      ], ephemeral:true });
+        const lines = storeApps.map(i => {
+          const appId   = i.effect?.appId || i.id;
+          const def     = BUILTIN_APPS[appId] || {};
+          const q       = i.effect?.quality || 1;
+          const pct     = i.effect?.successOverride || (basePct[appId] != null ? Math.min(95, basePct[appId]+(q-1)*5) : null);
+          const owned   = (user.inventory||[]).includes(i.id);
+          const instd   = installedIds.includes(appId);
+          const status  = instd ? '✅ Installed' : owned ? '📦 In Inventory' : `$${(i.price||0).toLocaleString()}`;
+          return `${i.emoji||'💻'} **${i.name}** — ${def.desc||i.description||''}\nQuality: ${'⭐'.repeat(q)} · Success: ${pct!=null?pct+'%':'passive'} · ${status}`;
+        }).join('\n\n');
 
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId('laptop_install')
-        .setPlaceholder('Choose an app to install...')
-        .addOptions(appItems.map(i => {
+        return new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle(`💻 App Store — ${storeApps.length} Apps Available`)
+          .setDescription(lines)
+          .setFooter({ text:'Select an app below to buy or install it' });
+      };
+
+      // ── SELECT MENU (buy or install) ─────────────────────────
+      const buildMenu = () => {
+        const opts = storeApps.slice(0,25).map(i => {
           const appId  = i.effect?.appId || i.id;
           const def    = BUILTIN_APPS[appId] || {};
-          const already= hasApp(userId, appId);
+          const owned  = (user.inventory||[]).includes(i.id);
+          const instd  = installedIds.includes(appId);
+          const label  = instd ? `✅ ${i.name} (installed)` : owned ? `📦 ${i.name} (install)` : `🛒 ${i.name} — $${(i.price||0).toLocaleString()}`;
           return new StringSelectMenuOptionBuilder()
-            .setLabel(`${already?'✅ ':''} ${def.emoji||'📦'} ${i.name}`)
-            .setDescription(`${already?'Already installed · ':(def.desc||i.description||'').slice(0,80)}`)
-            .setValue(i.id);
-        }));
+            .setLabel(label.slice(0,100))
+            .setDescription((def.desc||i.description||'').slice(0,100))
+            .setValue(i.id)
+            .setEmoji(i.emoji||'💻');
+        });
+        if (!opts.length) return null;
+        return new StringSelectMenuBuilder()
+          .setCustomId('laptop_appstore_select')
+          .setPlaceholder('Buy or install an app...')
+          .addOptions(opts);
+      };
 
-      await interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle('💻 Install App')
-        .setDescription(`You have **${appItems.length}** app item(s) ready to install. Select one below.`)
-      ], components:[new ActionRowBuilder().addComponents(menu)], ephemeral:true });
+      const menu = buildMenu();
+      const components = menu ? [new ActionRowBuilder().addComponents(menu)] : [];
+      await interaction.reply({ embeds:[buildBrowseEmbed()], components, ephemeral:true });
 
+      if (!menu) return;
       const msg  = await interaction.fetchReply();
-      const coll = msg.createMessageComponentCollector({ filter:i=>i.user.id===userId, time:60_000, max:1 });
+      const coll = msg.createMessageComponentCollector({ filter:i=>i.user.id===userId, time:90_000 });
 
       coll.on('collect', async si => {
         const itemId = si.values[0];
-        const item   = store.items.find(i=>i.id===itemId);
+        const item   = store.items.find(i => i.id===itemId);
         if (!item) return si.update({ content:'Item not found.', components:[] });
 
         const appId   = item.effect?.appId || itemId;
-        const def     = BUILTIN_APPS[appId] || { name:item.name, emoji:'📦' };
+        const def     = BUILTIN_APPS[appId] || { name:item.name, emoji:'📦', desc:'' };
         const quality = item.effect?.quality || 1;
+        const pct     = item.effect?.successOverride || (basePct[appId] != null ? Math.min(95, basePct[appId]+(quality-1)*5) : null);
 
-        if (hasApp(userId, appId)) return si.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription(`${def.emoji} **${def.name}** is already installed.`)], components:[] });
+        // Already installed
+        if (installedIds.includes(appId)) {
+          return si.update({ embeds:[new EmbedBuilder().setColor(0x888888)
+            .setDescription(`${def.emoji} **${def.name}** is already installed on your laptop.`)
+          ], components });
+        }
 
-        // Remove from inventory, add to laptop
-        const inv = user.inventory || [];
-        const idx = inv.indexOf(itemId);
-        if (idx !== -1) { inv.splice(idx, 1); saveUser(userId, user); }
+        // Owned in inventory — install it
+        if ((user.inventory||[]).includes(itemId)) {
+          const inv = user.inventory;
+          inv.splice(inv.indexOf(itemId), 1);
+          saveUser(userId, user);
+          laptop.apps = [...(laptop.apps||[]), { id:appId, itemId, quality, installedAt:Date.now() }];
+          await saveLaptop(userId, laptop);
+          installedIds.push(appId);
+          return si.update({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+            .setTitle(`${def.emoji} ${def.name} Installed!`)
+            .setDescription(`**Quality Tier ${quality}** · Success rate: **${pct!=null?pct+'%':'passive'}**
+*${def.desc}*
 
+Use \`/laptop run\` to execute it.`)
+          ], components:[new ActionRowBuilder().addComponents(buildMenu())] });
+        }
+
+        // Not owned — buy it now
+        if (user.wallet < item.price) {
+          return si.update({ embeds:[new EmbedBuilder().setColor(0xe74c3c)
+            .setDescription(`${def.emoji} **${def.name}** costs **$${(item.price||0).toLocaleString()}**.
+You have **$${user.wallet.toLocaleString()}** — not enough.
+
+Deposit more money first.`)
+          ], components });
+        }
+
+        user.wallet -= item.price;
+        // Add to inventory then immediately install
         laptop.apps = [...(laptop.apps||[]), { id:appId, itemId, quality, installedAt:Date.now() }];
+        saveUser(userId, user);
         await saveLaptop(userId, laptop);
+        installedIds.push(appId);
 
-        await si.update({ embeds:[new EmbedBuilder()
-          .setColor(0x2ecc71)
-          .setTitle(`${def.emoji} ${def.name} Installed!`)
-          .setDescription(`**Quality Tier ${quality}**\n*${def.desc||''}*\n\nUse \`/laptop run app:${appId}\` to execute.`)
-        ], components:[] });
+        return si.update({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+          .setTitle(`${def.emoji} ${def.name} Purchased & Installed!`)
+          .setDescription(`**$${(item.price||0).toLocaleString()}** deducted · Quality Tier ${quality} · Success: **${pct!=null?pct+'%':'passive'}**
+*${def.desc}*
+
+Use \`/laptop run\` to execute it.
+
+Wallet: **$${user.wallet.toLocaleString()}**`)
+        ], components:[new ActionRowBuilder().addComponents(buildMenu())] });
       });
       return;
     }

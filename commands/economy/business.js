@@ -53,49 +53,47 @@ module.exports = {
 
       const isCash = !!bizType.isCashBusiness;
 
-      // ── LEGIT: max 1 (or 2 for Illuminati members) ──
+      // ── LEGIT: max 1 normally, 2 for Illuminati ──
       if (!isCash) {
-        const existing = getBusiness(userId);
-        if (existing) {
-          // Check if Illuminati member — they get 2 legit biz slots
-          const { isMember: isIllumMember } = require('../../utils/illuminatiDb');
-          const hasIllumSlot = isIllumMember(interaction.guildId, userId);
-          if (!hasIllumSlot) {
-            return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-              .setTitle('❌ Already have a legit business')
-              .setDescription(`You already own **${existing.name}** (${BIZ_TYPES[existing.type]?.name}).\n\nClose it first with \`/business close type:${existing.type}\` before starting another.\n\n*🔺 Illuminati members can own 2 legit businesses.*`)
-            ], ephemeral:true });
-          }
-          // They're Illuminati — check they don't already have 2
-          const { getAllBusinesses } = require('../../utils/bizDb');
-          const allBiz  = getAllBusinesses();
-          const myLegit = Object.values(allBiz).flat().filter(b => b.ownerId === userId && !BIZ_TYPES[b.type]?.isCashBusiness);
-          if (myLegit.length >= 2) {
-            return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-              .setTitle('❌ Business Limit Reached')
-              .setDescription(`Even Illuminati members are capped at **2 legit businesses**. Close one first.`)
-            ], ephemeral:true });
-          }
+        const { isMember: isIllumMember } = require('../../utils/illuminatiDb');
+        const isIllum  = isIllumMember(interaction.guildId, userId);
+        const legitMax = isIllum ? 2 : 1;
+        const myLegit  = getBusinesses(userId).filter(b => !BIZ_TYPES[b.type]?.isCashBusiness);
+
+        if (myLegit.length >= legitMax) {
+          const existing = myLegit[0];
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setTitle('❌ Business Limit Reached')
+            .setDescription(
+              isIllum
+                ? `Illuminati members can own **2 legit businesses**. You already have ${myLegit.length}. Close one first.`
+                : `You already own **${existing?.name}** (${BIZ_TYPES[existing?.type]?.name || 'business'}).\n\nClose it first or join the Illuminati to unlock a 2nd slot.\n\n*🔺 Illuminati members can own 2 legit businesses.*`
+            )
+          ], ephemeral:true });
         }
       }
 
-      // ── CASH: gang owners only, max 3 ──
+      // ── CASH: gang leaders OR Illuminati members, max 3 ──
       if (isCash) {
-        const gang = getGangByMember(userId);
-        if (!gang || gang.leaderId !== userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setTitle('🏴 Gang Leader Only')
-          .setDescription('Cash/laundering businesses can only be opened by **gang leaders**.\n\nCreate or lead a gang first.')
+        const { isMember: isIllumMember } = require('../../utils/illuminatiDb');
+        const isIllum = isIllumMember(interaction.guildId, userId);
+        const gang    = getGangByMember(userId);
+        const isLeader= gang?.leaderId === userId;
+
+        if (!isLeader && !isIllum) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setTitle('🔒 Restricted')
+          .setDescription('Cash/laundering businesses require:\n• 🏴 **Gang Leader** — lead a gang\n• 🔺 **Illuminati Member** — join the shadow org\n\n*The Illuminati operate money laundering on a global scale.*')
         ], ephemeral:true });
 
         const cashBizs = getCashBusinesses(userId);
         if (cashBizs.length >= CASH_MAX) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
           .setTitle(`❌ Max ${CASH_MAX} Cash Businesses`)
-          .setDescription(`You already own **${cashBizs.length}** cash businesses (max ${CASH_MAX}).\n\nClose one with \`/business close type:\` before opening another.`)
+          .setDescription(`You already have **${cashBizs.length}/${CASH_MAX}** cash businesses. Close one first:\n${cashBizs.map(b=>`• **${b.name}** — \`/business close type:${b.type}\``).join('\n')}`)
         ], ephemeral:true });
 
         // Can't own same type twice
         if (getBusinessByType(userId, type)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription(`You already own a **${bizType.name}**. Each type can only be opened once.`)
+          .setDescription(`You already own a **${bizType.name}**. Pick a different cash business type.`)
         ], ephemeral:true });
       }
 

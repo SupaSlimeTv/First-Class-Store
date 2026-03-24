@@ -1,7 +1,4 @@
-// ============================================================
-// utils/coinAutocomplete.js
-// Shared coin autocomplete helper for shoutout, hate, invest, etc.
-// ============================================================
+// utils/coinAutocomplete.js — with timeout fallback so it never shows "Loading options failed"
 const { col } = require('./mongo');
 
 const DEFAULT_COINS = [
@@ -23,35 +20,35 @@ const fmtP = (p) => {
   return '$' + p.toFixed(4);
 };
 
-async function coinAutocomplete(interaction, optionName = 'coin') {
-  try {
-    const typed = (interaction.options.getFocused() || '').toUpperCase();
+async function coinAutocomplete(interaction) {
+  const typed = (interaction.options.getFocused() || '').toUpperCase();
 
-    const [pdoc, custom] = await Promise.all([
-      col('stockPrices').then(c => c.findOne({ _id:'prices' })).catch(()=>null),
-      col('customCoins').then(c => c.find({}).toArray()).catch(()=>[]),
-    ]);
+  // Race MongoDB against a 2s timeout — always respond within Discord's window
+  const dbFetch = Promise.all([
+    col('stockPrices').then(c => c.findOne({ _id:'prices' })).catch(() => null),
+    col('customCoins').then(c => c.find({}).toArray()).catch(() => []),
+  ]);
+  const timeout = new Promise(res => setTimeout(() => res([null, []]), 2000));
 
-    const prices    = pdoc ? { ...pdoc } : {};
-    delete prices._id;
-    const customMap = Object.fromEntries(custom.map(c => [c._id, c]));
+  const [pdoc, custom] = await Promise.race([dbFetch, timeout]);
 
-    const allCoins = [
-      ...DEFAULT_COINS,
-      ...custom.map(c => ({ id:c._id, name:c.name, emoji:c.emoji||'🪙', owner:c.ownerId })),
-    ];
+  const prices = pdoc ? { ...pdoc } : {};
+  delete prices._id;
 
-    const opts = allCoins
-      .filter(c => !typed || c.id.includes(typed) || c.name.toUpperCase().includes(typed))
-      .slice(0, 25)
-      .map(c => {
-        const p    = prices[c.id];
-        const tag  = customMap[c.id] ? ' 💻' : '';
-        return { name:`${c.emoji} ${c.name} (${c.id}) — ${fmtP(p)}${tag}`, value:c.id };
-      });
+  const allCoins = [
+    ...DEFAULT_COINS,
+    ...(custom || []).map(c => ({ id: c._id, name: c.name, emoji: c.emoji || '🪙' })),
+  ];
 
-    await interaction.respond(opts.length ? opts : [{ name:'No coins found', value:'DOGE2' }]);
-  } catch { await interaction.respond([{ name:'Error loading coins', value:'DOGE2' }]); }
+  const opts = allCoins
+    .filter(c => !typed || c.id.includes(typed) || c.name.toUpperCase().includes(typed))
+    .slice(0, 25)
+    .map(c => ({
+      name: `${c.emoji} ${c.name} (${c.id})${prices[c.id] ? ' — ' + fmtP(prices[c.id]) : ''}`,
+      value: c.id,
+    }));
+
+  await interaction.respond(opts.length ? opts : DEFAULT_COINS.map(c => ({ name: `${c.emoji} ${c.name}`, value: c.id }))).catch(() => null);
 }
 
 module.exports = { coinAutocomplete, DEFAULT_COINS, fmtP };
