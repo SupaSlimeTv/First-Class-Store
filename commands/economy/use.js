@@ -5,6 +5,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUser, getOrCreateUser, removeItem, getStore, isBotBanned, saveUser } = require('../../utils/db');
+const { getHome, saveHome, isSleeping, wakeUp, hasSecurityCamera, HOME_TIERS, FURNITURE_SHOP } = require('../../utils/homeDb');
 const { executeEffect } = require('../../utils/effects');
 const { errorEmbed, COLORS } = require('../../utils/embeds');
 const { isRestricted } = require('../../utils/permissions');
@@ -86,7 +87,7 @@ module.exports = {
     }
 
     const targetId = targetUser?.id || null;
-    const allAttackTypes = ['drain_wallet', 'drain_all', 'silence', 'hitman', 'minigame_drain'];
+    const allAttackTypes = ['drain_wallet', 'drain_all', 'silence', 'hitman', 'minigame_drain', 'break_in'];
 
     if (targetId && item.effect && allAttackTypes.includes(item.effect.type)) {
       if (isRestricted(interaction.member)) {
@@ -187,6 +188,110 @@ module.exports = {
         else await memberToEdit.roles.remove(result.roleId);
         return interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLORS.SUCCESS).setTitle(`🏅 Role ${result.action === 'add' ? 'Added' : 'Removed'}`).setDescription(`**${roleName}** was ${result.action === 'add' ? 'given to' : 'removed from'} ${result.target === 'target' ? `<@${result.targetId}>` : 'you'}.`).setFooter({ text: `${item.name} — ${item.reusable ? '♻️ Reusable' : '🗑️ Single-use'}` })] });
       } catch { return interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setTitle('❌ Role Error').setDescription('Could not modify role. Make sure the bot has permission.')] }); }
+    }
+
+    // ---- BREAK-IN FLOW ----
+    if (result.needsBreakIn) {
+      if (!targetId) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Break-in requires a target. Use `/use item:break-in-kit target:@user`')] });
+
+      const targetHome = getHome(targetId);
+
+      // Target has no home
+      if (!targetHome) {
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`<@${targetId}> doesn't own a home. Nothing to break into.`)
+        ]});
+      }
+
+      // Defense calculation
+      const { getConfig } = require('../../utils/db');
+      const _cfg = getConfig(interaction.guildId);
+      const _customDef = _cfg.breakInDefense || {};
+      const tierDefense = { studio:40, house:55, mansion:70, estate:85 };
+      let defense = _customDef[targetHome.tier] || tierDefense[targetHome.tier] || 40;
+
+      // Furnishing bonuses
+      const furnishings = targetHome.furnishings || [];
+      if (furnishings.some(f => f.id === 'security_cam')) defense += 10;
+      if (furnishings.some(f => f.id === 'safe'))          defense += 5;
+      if (furnishings.some(f => f.id === 'vault'))         defense += 10;
+
+      // Kit level bonus (0=basic, 1=advanced, 2=pro)
+      const kitBonus = [0, 15, 30][result.kitLevel || 0] || 0;
+      const successChance = Math.max(5, Math.min(90, (100 - defense) + kitBonus));
+
+      // Security camera DM
+      if (hasSecurityCamera(targetHome)) {
+        interaction.client.users.fetch(targetId).then(u => u.send({ embeds:[new EmbedBuilder()
+          .setColor(0xff8800)
+          .setTitle('📷 Break-In Attempt!')
+          .setDescription(`🚨 Your security camera caught **${interaction.user.username}** attempting to break into your home!
+
+(${successChance}% chance of success)`)
+        ]}).catch(()=>{})).catch(()=>{});
+      }
+
+      const success = Math.random() * 100 < successChance;
+
+      if (!success) {
+        // Failed — item consumed, +15 heat
+        try {
+          const { addHeat } = require('../../utils/gangDb');
+          await addHeat(userId, 15, 'failed break-in');
+        } catch {}
+        // DM target
+        interaction.client.users.fetch(targetId).then(u => u.send({ embeds:[new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('🏠 Break-In Failed!')
+          .setDescription(`Someone tried to break into your home and failed! Your **${HOME_TIERS[targetHome.tier]?.name}** held strong.`)
+        ]}).catch(()=>{})).catch(()=>{});
+
+        return interaction.editReply({ embeds:[new EmbedBuilder()
+          .setColor(COLORS.ERROR)
+          .setTitle('❌ Break-In Failed!')
+          .setDescription(`Couldn't get past the defenses of <@${targetId}>'s **${HOME_TIERS[targetHome.tier]?.name}**.
+
+🔒 Defense: **${defense}%** · Your kit bonus: **+${kitBonus}%** · Success chance was **${successChance}%**
+
++15 heat added to your record.`)
+        ]});
+      }
+
+      // SUCCESS — wake the target if sleeping
+      const wasAsleep = isSleeping(targetHome);
+      if (wasAsleep) {
+        wakeUp(targetHome);
+        await saveHome(targetId, targetHome);
+        interaction.client.users.fetch(targetId).then(u => u.send({ embeds:[new EmbedBuilder()
+          .setColor(0xff3b3b)
+          .setTitle('🚨 You Were Broken Into!')
+          .setDescription(`Someone broke into your home while you were sleeping! You've been woken up.`)
+        ]}).catch(()=>{})).catch(()=>{});
+      }
+
+      // Give attacker a choice: loot stash OR rob wallet
+      const { ActionRowBuilder: ARB, ButtonBuilder: BB, ButtonStyle: BS } = require('discord.js');
+      const stashCount = (targetHome.stash || []).length;
+      const targetUser = getOrCreateUser(targetId);
+      const robAmount  = Math.floor(targetUser.wallet * 0.30);
+
+      const choiceRow = new ARB().addComponents(
+        new BB().setCustomId(`breakin_loot_${targetId}`).setLabel(`🎒 Loot Stash (${stashCount} items)`).setStyle(BS.Primary).setDisabled(stashCount === 0),
+        new BB().setCustomId(`breakin_rob_${targetId}`).setLabel(`💰 Rob Wallet ($${robAmount.toLocaleString()})`).setStyle(BS.Danger).setDisabled(robAmount === 0),
+      );
+
+      return interaction.editReply({ embeds:[new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('🔓 Break-In Successful!')
+        .setDescription(`You broke into <@${targetId}>'s **${HOME_TIERS[targetHome.tier]?.name}**!
+
+${wasAsleep ? '😴 They were **sleeping** — woken up!\n\n' : ''}Choose what to do:`)
+        .addFields(
+          { name:'🎒 Loot Stash', value:stashCount > 0 ? `${stashCount} items available — steal up to 2` : 'Stash is empty', inline:true },
+          { name:'💰 Rob Wallet', value:robAmount > 0 ? `Steal **$${robAmount.toLocaleString()}** (30%)` : 'Wallet is empty', inline:true },
+        )
+        .setFooter({ text:'You have 30 seconds to choose' })
+      ], components:[choiceRow] });
     }
 
     // ---- NORMAL FLOW ----

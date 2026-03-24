@@ -35,7 +35,9 @@ module.exports = {
         .addChoices({ name:'Store item', value:'store' }, { name:'Retrieve item', value:'retrieve' }))
       .addStringOption(o => o.setName('item_id').setDescription('Item ID').setRequired(true).setAutocomplete(true)))
     .addSubcommand(s => s.setName('collect').setDescription('Collect passive income from your home'))
-    .addSubcommand(s => s.setName('sell').setDescription('Sell your home (50% refund)')),
+    .addSubcommand(s => s.setName('sell').setDescription('Sell your home (50% refund)'))
+    .addSubcommand(s => s.setName('sleep').setDescription('Go to sleep at home — immune to attacks for 8hrs (true AFK, locked from all commands)'))
+    .addSubcommand(s => s.setName('wake').setDescription('Wake up and resume normal activity')),
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
@@ -446,6 +448,48 @@ module.exports = {
           .setDescription(`Your ${tier?.name} was sold for **${fmtMoney(refund)}**.`)
         ], components:[] });
       });
+    }
+
+    // ── SLEEP ─────────────────────────────────────────────────
+    if (sub === 'sleep') {
+      const home = getHome(userId);
+      if (!home) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You need a home to sleep in. Use `/home buy`.")], ephemeral:true });
+      if (isSleeping(home)) {
+        const mins = Math.ceil(sleepTimeLeft(home) / 60000);
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x5865f2).setDescription(`😴 You're already sleeping. **${mins} minutes** remaining.
+Use \`/home wake\` to wake up early.`)], ephemeral:true });
+      }
+      if (!canSleep(home)) {
+        const hrs = Math.ceil(sleepCooldownLeft(home) / 3600000);
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`😴 You can't sleep again for **${hrs} more hour(s)**. (12hr cooldown)`)], ephemeral:true });
+      }
+      home.sleepingUntil = Date.now() + SLEEP_DURATION_MS;
+      home.lastSleepAt   = Date.now();
+      await saveHome(userId, home);
+      const tier = HOME_TIERS[home.tier];
+      return interaction.reply({ embeds:[new EmbedBuilder()
+        .setColor(0x2c2f73)
+        .setTitle(`😴 Sleeping at ${tier?.name || 'Home'}`)
+        .setDescription(`You're now asleep and **protected from all attacks** for **8 hours**.
+
+⚠️ You are **locked out** of all bot commands while sleeping.
+Use \`/home wake\` to wake up early.
+
+🔒 The higher your home tier, the harder it is to break in.`)
+        .setFooter({ text:'Wakes automatically after 8 hours' })
+      ]});
+    }
+
+    // ── WAKE ──────────────────────────────────────────────────
+    if (sub === 'wake') {
+      const home = getHome(userId);
+      if (!home || !isSleeping(home)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription("You're already awake.")], ephemeral:true });
+      wakeUp(home);
+      await saveHome(userId, home);
+      return interaction.reply({ embeds:[new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setDescription('☀️ You woke up early. Protection removed — you can use all commands again.')
+      ]});
     }
   },
 };

@@ -203,6 +203,25 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
+  // ── SLEEP CHECK — block all commands if user is sleeping ─────
+  if (command.data.name !== 'home') {
+    const { getHome, isSleeping } = require('./utils/homeDb');
+    const sleepHome = getHome(interaction.user.id);
+    if (isSleeping(sleepHome)) {
+      const { EmbedBuilder } = require('discord.js');
+      const minsLeft = Math.ceil((sleepHome.sleepingUntil - Date.now()) / 60000);
+      return interaction.reply({ embeds:[new EmbedBuilder()
+        .setColor(0x2c2f73)
+        .setTitle('😴 You\'re Sleeping')
+        .setDescription(`You're asleep at home and locked out of all commands.
+
+**${minsLeft} minutes** remaining.
+
+Use \`/home wake\` to wake up early.`)
+      ], ephemeral:true });
+    }
+  }
+
   try {
     await command.execute(interaction);
   } catch (error) {
@@ -362,6 +381,11 @@ client.on('messageCreate', async (message) => {
 
   // ---- rob ----
   if (commandName === 'rob') {
+    // Check if attacker is sleeping
+    const { getHome: getRobHome, isSleeping: isRobSleeping } = require('./utils/homeDb');
+    const robberHome = getRobHome(message.author.id);
+    if (isRobSleeping(robberHome)) return message.reply('😴 You\'re sleeping! Use /home wake to wake up first.');
+
     if (needsAccount()) return;
     if (silenced(message.author.id)) return;
     const target = message.mentions.users.first();
@@ -1587,6 +1611,27 @@ setInterval(async () => {
   } catch(e) { console.error('Jail watcher error:', e.message); }
 }, 15_000); // check every 15 seconds
 
+// ---- AUTO WAKE TICK ─────────────────────────────────────────
+setInterval(async () => {
+  try {
+    const { getAllHomes, saveHome, isSleeping, wakeUp } = require('./utils/homeDb');
+    const all = getAllHomes();
+    for (const [userId, home] of Object.entries(all)) {
+      if (!home.sleepingUntil) continue;
+      if (Date.now() < home.sleepingUntil) continue;
+      // Time's up — wake them
+      wakeUp(home);
+      await saveHome(userId, home);
+      // DM them
+      client.users.fetch(userId).then(u => u.send({ embeds:[new (require('discord.js').EmbedBuilder)()
+        .setColor(0x2ecc71)
+        .setTitle('☀️ Good Morning!')
+        .setDescription('Your 8-hour sleep has ended. You\'re now awake and can use all commands again.')
+      ]}).catch(()=>{})).catch(()=>{});
+    }
+  } catch(e) { console.error('Auto-wake tick error:', e.message); }
+}, 60_000); // check every minute
+
 // ---- PASSIVE INCOME TICK ENGINE ----
 const { tickPassiveIncome } = require('./utils/effects');
 setInterval(async () => {
@@ -2307,6 +2352,80 @@ client.on('interactionCreate', async interaction => {
       .setColor(COLORS.ERROR)
       .setDescription(`<@${offer.officerId}> declined your payroll offer. **$${offer.amount.toLocaleString()}** refunded to your wallet.`)
     ]}).catch(()=>{})).catch(()=>{});
+  }
+});
+
+// ── BREAK-IN CHOICE BUTTON HANDLER ──────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('breakin_loot_') && !customId.startsWith('breakin_rob_')) return;
+
+  const isLoot   = customId.startsWith('breakin_loot_');
+  const targetId = customId.split('_').pop();
+  const userId   = interaction.user.id;
+  const { EmbedBuilder } = require('discord.js');
+  const { getHome, saveHome } = require('./utils/homeDb');
+  const { getOrCreateUser, saveUser, getStore } = require('./utils/db');
+
+  const targetHome = getHome(targetId);
+  const targetUser = getOrCreateUser(targetId);
+
+  if (isLoot) {
+    const stash = targetHome?.stash || [];
+    if (!stash.length) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Stash is empty.')], components:[] });
+    // Steal up to 2 random items
+    const stolen = [];
+    const shuffled = [...stash].sort(()=>Math.random()-0.5);
+    const toSteal  = Math.min(2, shuffled.length);
+    for (let i = 0; i < toSteal; i++) {
+      stolen.push(shuffled[i]);
+      const idx = targetHome.stash.indexOf(shuffled[i]);
+      if (idx !== -1) targetHome.stash.splice(idx, 1);
+    }
+    const attackerUser = getOrCreateUser(userId);
+    attackerUser.inventory = [...(attackerUser.inventory||[]), ...stolen];
+    saveUser(userId, attackerUser);
+    await saveHome(targetId, targetHome);
+
+    const store = getStore(interaction.guildId);
+    const names = stolen.map(id => store.items.find(i=>i.id===id)?.name || id).join(', ');
+
+    // DM target
+    interaction.client.users.fetch(targetId).then(u => u.send({ embeds:[new EmbedBuilder()
+      .setColor(0xff3b3b)
+      .setTitle('🏠 Your Home Was Looted!')
+      .setDescription(`Someone broke in and stole from your stash: **${names}**`)
+    ]}).catch(()=>{})).catch(()=>{});
+
+    await interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🎒 Stash Looted!')
+      .setDescription(`You stole **${names}** from <@${targetId}>'s home stash!`)
+    ], components:[] });
+
+  } else {
+    // Rob wallet — 30%
+    const robAmount = Math.floor(targetUser.wallet * 0.30);
+    if (robAmount === 0) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Their wallet is empty.')], components:[] });
+
+    targetUser.wallet -= robAmount;
+    const attacker = getOrCreateUser(userId);
+    attacker.wallet += robAmount;
+    saveUser(targetId, targetUser);
+    saveUser(userId, attacker);
+
+    interaction.client.users.fetch(targetId).then(u => u.send({ embeds:[new EmbedBuilder()
+      .setColor(0xff3b3b)
+      .setTitle('🏠 Robbed in Your Own Home!')
+      .setDescription(`Someone broke in and stole **$${robAmount.toLocaleString()}** from your wallet!`)
+    ]}).catch(()=>{})).catch(()=>{});
+
+    await interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('💰 Robbery Successful!')
+      .setDescription(`You stole **$${robAmount.toLocaleString()}** from <@${targetId}> while inside their home!`)
+    ], components:[] });
   }
 });
 

@@ -623,6 +623,20 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
     }
 
     // ----------------------------------------------------------
+    // BREAK IN — attempt to break into target's home
+    // Success chance based on home tier defense vs kit level
+    // ----------------------------------------------------------
+    case 'break_in': {
+      return {
+        success:       true,
+        needsBreakIn:  true,
+        kitLevel:      effect.kitLevel || 0, // 0=basic, 1=advanced, 2=pro
+        title:         '🔧 Break-In Initiated',
+        description:   `Attempting to break into <@${targetId}>'s home...`,
+      };
+    }
+
+    // ----------------------------------------------------------
     // EDIT ROLES — add or remove a Discord role from user/target
     // effect.action: 'add' | 'remove'
     // effect.roleId: string — Discord role ID

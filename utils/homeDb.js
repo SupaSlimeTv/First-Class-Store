@@ -77,6 +77,36 @@ function getStashLimit(home) {
   return tier.stashSlots + furnBonus;
 }
 
+// ── SLEEP SYSTEM ──────────────────────────────────────────────
+const SLEEP_DURATION_MS  = 8  * 60 * 60 * 1000; // 8 hours
+const SLEEP_COOLDOWN_MS  = 12 * 60 * 60 * 1000; // 12hr cooldown
+
+function isSleeping(home) {
+  if (!home?.sleepingUntil) return false;
+  if (Date.now() > home.sleepingUntil) return false;
+  return true;
+}
+
+function sleepTimeLeft(home) {
+  if (!isSleeping(home)) return 0;
+  return home.sleepingUntil - Date.now();
+}
+
+function wakeUp(home) {
+  home.sleepingUntil = null;
+  return home;
+}
+
+function canSleep(home) {
+  if (!home?.lastSleepAt) return true;
+  return Date.now() - home.lastSleepAt >= SLEEP_COOLDOWN_MS;
+}
+
+function sleepCooldownLeft(home) {
+  if (canSleep(home)) return 0;
+  return (home.lastSleepAt + SLEEP_COOLDOWN_MS) - Date.now();
+}
+
 function hasPanicRoom(home) {
   return (home.furnishings||[]).some(f => f.id === 'panic_room' && !f.used);
 }
@@ -96,4 +126,6 @@ module.exports = {
   preloadHomeCache, getHome, getAllHomes, saveHome, deleteHome,
   HOME_TIERS, UPGRADE_PATH, FURNITURE_SHOP,
   calcPassiveIncome, getStashLimit, hasPanicRoom, usePanicRoom, hasSecurityCamera,
+  isSleeping, sleepTimeLeft, wakeUp, canSleep, sleepCooldownLeft,
+  SLEEP_DURATION_MS, SLEEP_COOLDOWN_MS,
 };
