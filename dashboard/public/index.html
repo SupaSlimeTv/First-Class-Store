@@ -227,18 +227,6 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
       </div>
 
-      <div class="purge-panel owner-only" style="margin-bottom:0">
-        <div class="purge-info">
-          <h3>🔫 Shot Timeout</h3>
-          <p>When a player is hit by a gun, they are silenced from all bot commands for this many minutes. Set to <strong>0</strong> to disable. During purge timeouts still apply.</p>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <input id="shot-timeout-input" type="number" min="0" step="1" style="background:var(--bg4);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;padding:6px 12px;width:90px;outline:none;text-align:center" placeholder="5">
-          <div style="font-size:12px;color:var(--muted)">min</div>
-          <button class="btn btn-primary" onclick="saveShotTimeout()">Save</button>
-        </div>
-      </div>
-
       <!-- MONEY DROP CONFIG -->
       <div class="purge-panel owner-only" style="margin-top:14px;flex-direction:column;align-items:stretch;gap:12px">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -2799,8 +2787,12 @@ function previewPurgeGif() {
 // ════════════════════════════════════════════════
 
 async function triggerDepression() {
-  if (!confirm('⚠️ IRREVERSIBLE: This will wipe every member\'s wallet and bank to $0.\n\nAre you absolutely sure?')) return;
-  if (!confirm('Last chance. Click OK to crash the economy.')) return;
+  const confirmed = await showConfirmModal(
+    '📉 Crash the Economy?',
+    `<strong style="color:#ff3b3b">⚠️ IRREVERSIBLE.</strong> This will wipe every member's wallet and bank to <strong>$0</strong>.<br><br>Business revenues and gang dirty money will also be drained.<br><br>All assets (homes, items, pets, fame, guns) are kept.`,
+    'Crash Economy'
+  );
+  if (!confirmed) return;
   const r = await api('POST', `/api/${GUILD}/depression/start`);
   if (r.success) {
     toast(`📉 Economy crashed — ${r.wiped} accounts wiped`, 'ok');
@@ -5229,6 +5221,37 @@ async function manualRefresh() {
 
 safeRefresh();
 setInterval(safeRefresh, 15000);
+</script>
+<!-- CONFIRM MODAL — replaces browser confirm() dialogs -->
+<div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <h3 id="confirm-modal-title" style="margin:0 0 12px;font-size:18px"></h3>
+    <p id="confirm-modal-body" style="color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 24px"></p>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="resolveConfirmModal(false)">Cancel</button>
+      <button id="confirm-modal-ok" class="btn btn-danger" onclick="resolveConfirmModal(true)">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _confirmResolve = null;
+function showConfirmModal(title, body, okLabel = 'Confirm') {
+  document.getElementById('confirm-modal-title').textContent = title;
+  document.getElementById('confirm-modal-body').innerHTML = body;
+  document.getElementById('confirm-modal-ok').textContent = okLabel;
+  const modal = document.getElementById('confirm-modal');
+  modal.style.display = 'flex';
+  return new Promise(res => { _confirmResolve = res; });
+}
+function resolveConfirmModal(result) {
+  document.getElementById('confirm-modal').style.display = 'none';
+  if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
+}
+// Close on backdrop click
+document.getElementById('confirm-modal').addEventListener('click', function(e) {
+  if (e.target === this) resolveConfirmModal(false);
+});
 </script>
 </body>
 </html>
