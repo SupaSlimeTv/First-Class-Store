@@ -193,14 +193,26 @@ app.get('/auth/me',     requireAuth, (req, res) => res.json(req.session.user));
 
 app.get('/api/my-guilds', requireAuth, async (req, res) => {
   try {
-    const userGuilds  = await fetchDiscordAPI('/users/@me/guilds', req.session.accessToken);
-    if (!userGuilds) return res.json({ botGuilds: [], addableGuilds: [] });
+    if (!req.session.accessToken) {
+      console.log('my-guilds: no access token in session for user', req.session.user?.id);
+      return res.status(401).json({ error: 'Session expired', redirect: '/auth/login' });
+    }
+
+    const userGuilds = await fetchDiscordAPI('/users/@me/guilds', req.session.accessToken);
+    if (!userGuilds) {
+      console.log('my-guilds: Discord returned null for user guilds — token likely expired for', req.session.user?.id);
+      // Token expired — clear it and tell frontend to re-login
+      req.session.accessToken = null;
+      req.session.save(()=>{});
+      return res.status(401).json({ error: 'Discord token expired', redirect: '/auth/login' });
+    }
+
     const botGuilds   = await fetchBotAPI('/users/@me/guilds');
     const botGuildIds = new Set((botGuilds || []).map(g => g.id));
 
     const adminGuilds = userGuilds.filter(g => g.owner || (BigInt(g.permissions || 0) & 0x8n) === 0x8n);
 
-    const botPresent  = adminGuilds.filter(g => botGuildIds.has(g.id)).map(g => ({
+    const botPresent = adminGuilds.filter(g => botGuildIds.has(g.id)).map(g => ({
       id: g.id, name: g.name,
       icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : null,
       isOwner: !!g.owner,
@@ -212,7 +224,10 @@ app.get('/api/my-guilds', requireAuth, async (req, res) => {
     }));
 
     res.json({ botGuilds: botPresent, addableGuilds: addable, clientId: process.env.CLIENT_ID || '' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('my-guilds error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Serve dashboard for a specific guild — auth check then send index.html
@@ -1125,7 +1140,7 @@ app.post('/api/:guildId/coins', requireGuildAuth, async (req, res) => {
     await c.insertOne({ _id: id, ...profile });
 
     // Register with live tick engine
-    try { const idx = require('../../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
+    try { const idx = require('../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
 
     // Set starting price
     const pc = await col('stockPrices');
@@ -1145,7 +1160,7 @@ app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
     const { col } = require('../utils/mongo');
     const c = await col('customCoins');
     await c.deleteOne({ _id: req.params.id });
-    try { const idx = require('../../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
+    try { const idx = require('../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

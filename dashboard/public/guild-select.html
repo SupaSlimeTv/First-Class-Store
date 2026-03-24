@@ -67,9 +67,15 @@ async function load() {
       '<span>Logged in as <strong>' + me.username + '</strong></span>' +
       '<a href="/auth/logout">Logout</a>';
 
-    const data = await fetch('/api/my-guilds', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : { botGuilds: [], addableGuilds: [] })
-      .catch(() => ({ botGuilds: [], addableGuilds: [] }));
+    const resp = await fetch('/api/my-guilds', { credentials: 'include' });
+
+    // Token expired or session invalid — redirect to re-login
+    if (resp.status === 401) {
+      window.location.href = '/auth/login';
+      return;
+    }
+
+    const data = resp.ok ? await resp.json() : { botGuilds: [], addableGuilds: [] };
 
     const botGuilds     = Array.isArray(data) ? data        : (data.botGuilds     || []);
     const addableGuilds = Array.isArray(data) ? []          : (data.addableGuilds || []);
