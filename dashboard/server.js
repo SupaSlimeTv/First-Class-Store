@@ -797,7 +797,21 @@ app.post('/api/:guildId/depression/end', requireOwnerAuth, async (req, res) => {
     config.depressionActive    = false;
     config.depressionStartTime = null;
     db.saveConfig(req.guildId, config);
-    res.json({ success: true });
+
+    // Pay $200 survival payment to every member in this guild
+    const SURVIVAL_PAY = 200;
+    const members = await fetchAllMembers(req.guildId);
+    const memberIds = new Set((members||[]).map(m => m.user?.id).filter(Boolean));
+    let paid = 0;
+    for (const id of memberIds) {
+      if (!db.hasAccount(id)) continue;
+      const u = db.getOrCreateUser(id);
+      u.wallet = (u.wallet||0) + SURVIVAL_PAY;
+      db.saveUser(id, u);
+      paid++;
+    }
+
+    res.json({ success: true, paid, survivalPay: SURVIVAL_PAY });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

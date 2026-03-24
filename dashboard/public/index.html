@@ -2810,8 +2810,10 @@ async function triggerDepression() {
 
 async function endDepression() {
   const r = await api('POST', `/api/${GUILD}/depression/end`);
-  if (r.success) { toast('Economy restored','ok'); loadDepressionState(); }
-  else toast(r.error||'Failed','err');
+  if (r.success) {
+    toast(`Economy restored — $200 paid to ${r.paid||0} members`, 'ok');
+    loadDepressionState();
+  } else toast(r.error||'Failed','err');
 }
 
 async function saveDepressionGif() {

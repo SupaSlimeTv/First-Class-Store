@@ -1523,13 +1523,41 @@ setInterval(async () => {
       if (lastState === undefined) { lastDepressionStates.set(guildId, currentState); continue; }
       if (currentState === lastState) continue;
       lastDepressionStates.set(guildId, currentState);
+
+      // When depression ENDS — pay every member $200 survival payment
+      if (!currentState) {
+        const SURVIVAL_PAY = 200;
+        const { getOrCreateUser, saveUser, hasAccount } = require('./utils/db');
+        try {
+          const guildObj = client.guilds.cache.get(guildId);
+          if (guildObj) {
+            const members = await guildObj.members.fetch();
+            for (const [memberId] of members) {
+              if (!hasAccount(memberId)) continue;
+              const u = getOrCreateUser(memberId);
+              u.wallet = (u.wallet||0) + SURVIVAL_PAY;
+              saveUser(memberId, u);
+            }
+          }
+        } catch(e) { console.error('Survival pay error:', e.message); }
+      }
+
       const channelId = config.purgeChannelId; // reuse purge channel for announcement
       if (!channelId) continue;
       const channel = await client.channels.fetch(channelId).catch(()=>null);
       if (!channel) continue;
+
+      const embedToSend = currentState
+        ? depressionEmbed(true, config.depressionGif||null)
+        : new (require('discord.js').EmbedBuilder)()
+            .setColor(0x2ecc71)
+            .setTitle('📈 THE ECONOMY HAS RECOVERED')
+            .setDescription('**The Great Depression has ended.**\n\n> 💵 Economic activity can resume\n> 🏦 Deposits and withdrawals restored\n> 💰 Every member received **$200** survival payment\n\nTime to rebuild.')
+            .setTimestamp();
+
       await channel.send({
         content: '@everyone',
-        embeds: [depressionEmbed(currentState, config.depressionGif||null)],
+        embeds: [embedToSend],
         allowedMentions: { parse: ['everyone'] },
       });
     }
