@@ -1367,6 +1367,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <option value="phoneshoutout">📣 Coin Shoutout Power (multiplier)</option>
           <option value="creditscore">📊 Credit Score (adjust)</option>
           <option value="illuminatirank">🔺 Illuminati Rank (set)</option>
+          <option value="artistfame">🎵 Artist Fame</option>
+          <option value="artisttier">🎤 Artist Tier (set directly)</option>
+          <option value="laptopapp">💻 Install Laptop App</option>
+          <option value="heat">🔥 Heat Level (adjust)</option>
+          <option value="wallet">💰 Wallet (set exact amount)</option>
+          <option value="bank">🏦 Bank (set exact amount)</option>
         </select>
       </div>
       <!-- Store item -->
@@ -1458,6 +1464,61 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <label class="flabel" style="margin-top:8px">Payout ($)</label>
         <input class="finput" id="give-phonedeals-payout" type="number" min="1" placeholder="5000">
         <div class="hint">Grants a custom active sponsor deal. User collects it with <code>/phone sponsors</code>.</div>
+      </div>
+      <!-- Artist Fame -->
+      <div id="give-artistfame-section" class="fg" style="display:none">
+        <label class="flabel">Fame Points</label>
+        <input class="finput" id="give-artistfame-amount" type="number" placeholder="e.g. 5000 or -5000">
+        <div class="hint">Adds or removes artist fame. Negative = reduce. Tier auto-updates.</div>
+      </div>
+      <!-- Artist Tier -->
+      <div id="give-artisttier-section" class="fg" style="display:none">
+        <label class="flabel">Set Artist Tier</label>
+        <select class="fselect" id="give-artisttier-select">
+          <option value="unsigned">🎙️ Unsigned (0 fame)</option>
+          <option value="local_buzz">🌆 Local Buzz (500 fame)</option>
+          <option value="indie_artist">🎵 Indie Artist (2,000 fame)</option>
+          <option value="rising_star">📻 Rising Star (8,000 fame)</option>
+          <option value="mainstream">🎤 Mainstream (25,000 fame)</option>
+          <option value="platinum">🏆 Platinum Artist (75,000 fame)</option>
+          <option value="legend">👑 Music Legend (200,000 fame)</option>
+        </select>
+        <div class="hint">Sets fame to the minimum required for this tier.</div>
+      </div>
+      <!-- Laptop App -->
+      <div id="give-laptopapp-section" class="fg" style="display:none">
+        <label class="flabel">Select App to Install</label>
+        <select class="fselect" id="give-laptopapp-select">
+          <option value="ssn_scanner">🪪 SSN Scanner</option>
+          <option value="credit_cracker">💳 Credit Cracker</option>
+          <option value="card_drainer">💸 Card Drainer</option>
+          <option value="biz_intrude">🏢 Biz Intruder</option>
+          <option value="keylogger">⌨️ Keylogger</option>
+          <option value="vpn_shield">🛡️ VPN Shield</option>
+          <option value="bank_mirror">🏦 Bank Mirror</option>
+          <option value="launder_bot">🧺 LaunderBot</option>
+          <option value="stalker_app">👁️ Stalker App</option>
+          <option value="dark_search">🔍 DarkSearch</option>
+        </select>
+        <div class="hint">Installs this app directly onto the user's laptop (requires a laptop item in inventory).</div>
+      </div>
+      <!-- Heat -->
+      <div id="give-heat-section" class="fg" style="display:none">
+        <label class="flabel">Heat Adjustment</label>
+        <input class="finput" id="give-heat-amount" type="number" placeholder="e.g. 25 or -25">
+        <div class="hint">Adds or removes heat. Negative reduces heat. Heat affects police attention.</div>
+      </div>
+      <!-- Wallet set -->
+      <div id="give-wallet-section" class="fg" style="display:none">
+        <label class="flabel">Set Wallet to ($)</label>
+        <input class="finput" id="give-wallet-amount" type="number" min="0" placeholder="50000">
+        <div class="hint">Sets wallet to this exact amount. Use with care.</div>
+      </div>
+      <!-- Bank set -->
+      <div id="give-bank-section" class="fg" style="display:none">
+        <label class="flabel">Set Bank to ($)</label>
+        <input class="finput" id="give-bank-amount" type="number" min="0" placeholder="100000">
+        <div class="hint">Sets bank balance to this exact amount. Use with care.</div>
       </div>
       <div class="hint" id="give-modal-hint" style="margin-top:8px"></div>
     </div>
@@ -3543,7 +3604,7 @@ let giveTakeUserId = '';
 function onGiveCategoryChange() {
   const cat  = document.getElementById('give-category').value;
   const take = giveTakeMode === 'take';
-  ['item','money','tokens','petlevel','gun','gang','business','phonestatus','phonefollowers','phonehype','phonedeals','phoneshoutout'].forEach(s => {
+  ['item','money','tokens','petlevel','gun','gang','business','phonestatus','phonefollowers','phonehype','phonedeals','phoneshoutout','creditscore','illuminatirank','artistfame','artisttier','laptopapp','heat','wallet','bank'].forEach(s => {
     const el = document.getElementById(`give-${s}-section`);
     if (el) el.style.display = cat===s?'block':'none';
   });
@@ -3790,6 +3851,53 @@ async function confirmGiveTake() {
     const mult = parseFloat(document.getElementById('give-phoneshoutout-mult').value);
     const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/phone-shoutout-mult`, { mult });
     if (r.success) { toast(`Coin shoutout power set to ${mult}×!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'creditscore') {
+    const delta = parseInt(document.getElementById('give-creditscore-amount').value)||0;
+    if (!delta) return toast('Enter a score adjustment (e.g. 50 or -50)','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/credit-score`, { delta });
+    if (r.success) { toast(`Credit score ${delta>0?'+':''}${delta}!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'illuminatirank') {
+    const rank = document.getElementById('give-illuminatirank-select').value;
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/illuminati-rank`, { rank });
+    if (r.success) { toast(`Illuminati rank set to ${rank}!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'artistfame') {
+    const delta = parseInt(document.getElementById('give-artistfame-amount').value)||0;
+    if (!delta) return toast('Enter fame amount (e.g. 5000 or -5000)','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/artist-fame`, { delta });
+    if (r.success) { toast(`Artist fame ${delta>0?'+':''}${delta}!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'artisttier') {
+    const tier = document.getElementById('give-artisttier-select').value;
+    const fameMap = { unsigned:0, local_buzz:500, indie_artist:2000, rising_star:8000, mainstream:25000, platinum:75000, legend:200000 };
+    const fame = fameMap[tier] || 0;
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/artist-fame`, { delta: fame, setAbsolute: true });
+    if (r.success) { toast(`Artist tier set to ${tier}!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'laptopapp') {
+    const appId = document.getElementById('give-laptopapp-select').value;
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/laptop-app`, { appId });
+    if (r.success) { toast(`App ${appId} installed!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'heat') {
+    const delta = parseInt(document.getElementById('give-heat-amount').value)||0;
+    if (!delta) return toast('Enter heat adjustment','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/heat`, { delta });
+    if (r.success) { toast(`Heat ${delta>0?'+':''}${delta}!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'wallet') {
+    const amount = parseInt(document.getElementById('give-wallet-amount').value);
+    if (isNaN(amount)||amount<0) return toast('Enter a valid wallet amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { setWallet: amount });
+    if (r.success) { toast(`Wallet set to $${amount.toLocaleString()}!`,'ok'); closeGiveTakeModal(); refresh(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'bank') {
+    const amount = parseInt(document.getElementById('give-bank-amount').value);
+    if (isNaN(amount)||amount<0) return toast('Enter a valid bank amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { setBank: amount });
+    if (r.success) { toast(`Bank set to $${amount.toLocaleString()}!`,'ok'); closeGiveTakeModal(); refresh(); }
     else toast(r.error||'Failed','err');
   }
 }

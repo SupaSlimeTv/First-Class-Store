@@ -479,9 +479,11 @@ app.post('/api/:guildId/users/:id/phone-shoutout-mult', requireGuildAuth, async 
 
 app.post('/api/:guildId/users/:id/money', requireGuildAuth, async (req, res) => {
   const user = db.getOrCreateUser(req.params.id);
-  const { wallet, bank, addWallet, announce, announceType } = req.body;
+  const { wallet, bank, addWallet, setWallet, setBank, announce, announceType } = req.body;
   if (wallet    != null) user.wallet = Math.max(0, parseInt(wallet)||0);
   if (bank      != null) user.bank   = Math.max(0, parseInt(bank)||0);
+  if (setWallet != null) user.wallet = Math.max(0, parseInt(setWallet)||0);
+  if (setBank   != null) user.bank   = Math.max(0, parseInt(setBank)||0);
   const added = parseInt(addWallet)||0;
   if (added !== 0) user.wallet = Math.max(0, user.wallet + added);
   db.saveUser(req.params.id, user);
@@ -1012,6 +1014,56 @@ app.delete('/api/:guildId/tor/listing/:id', requireGuildAuth, async (req, res) =
     await saveListing(req.params.id, listing);
     await writeAudit(req.guildId, req.session.user?.id, 'tor_remove', { id:req.params.id });
     res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+
+// ── ARTIST FAME GIVE/TAKE ─────────────────────────────────────
+app.post('/api/:guildId/users/:id/artist-fame', requireGuildAuth, async (req, res) => {
+  try {
+    const { getPhone, savePhone, getArtistTier } = require('./utils/phoneDb');
+    const phone = getPhone(req.params.id);
+    if (!phone) return res.status(400).json({ error:'User has no phone.' });
+    if (!phone.artistCareer) phone.artistCareer = { fame:0, tier:'unsigned', isPlant:false };
+    if (req.body.setAbsolute) {
+      phone.artistCareer.fame = Math.max(0, parseInt(req.body.delta)||0);
+    } else {
+      phone.artistCareer.fame = Math.max(0, (phone.artistCareer.fame||0) + (parseInt(req.body.delta)||0));
+    }
+    const newTier = getArtistTier(phone.artistCareer.fame);
+    phone.artistCareer.tier = newTier.id;
+    await savePhone(req.params.id, phone);
+    await writeAudit(req.guildId, req.session.user?.id, 'artist_fame', { delta: req.body.delta, target: `<@${req.params.id}>`, newTier: newTier.label });
+    res.json({ success:true, fame: phone.artistCareer.fame, tier: newTier.label });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── LAPTOP APP INSTALL (admin) ────────────────────────────────
+app.post('/api/:guildId/users/:id/laptop-app', requireGuildAuth, async (req, res) => {
+  try {
+    const { getLaptop, saveLaptop, BUILTIN_APPS } = require('./utils/laptopDb');
+    const appId = req.body.appId;
+    if (!appId) return res.status(400).json({ error:'appId required.' });
+    const laptop = getLaptop(req.params.id) || { userId:req.params.id, apps:[] };
+    if (!laptop.apps) laptop.apps = [];
+    if (laptop.apps.find(a => a.id === appId)) return res.status(400).json({ error:'App already installed.' });
+    laptop.apps.push({ id:appId, quality:5, installedAt:Date.now(), adminInstalled:true });
+    await saveLaptop(req.params.id, laptop);
+    await writeAudit(req.guildId, req.session.user?.id, 'give_laptop_app', { appId, target: `<@${req.params.id}>` });
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── HEAT GIVE/TAKE ────────────────────────────────────────────
+app.post('/api/:guildId/users/:id/heat', requireGuildAuth, async (req, res) => {
+  try {
+    const { getOrCreateUser, saveUser } = db;
+    const user  = getOrCreateUser(req.params.id);
+    const delta = parseInt(req.body.delta)||0;
+    user.heat   = Math.max(0, Math.min(100, (user.heat||0) + delta));
+    saveUser(req.params.id, user);
+    await writeAudit(req.guildId, req.session.user?.id, delta > 0 ? 'give_heat' : 'take_heat', { delta, target: `<@${req.params.id}>` });
+    res.json({ success:true, heat: user.heat });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
