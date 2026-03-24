@@ -1655,6 +1655,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
               <option value="break_in">🔧 Break-In Kit — attempt to break into target's home</option>
               <option value="laptop_app">💻 Laptop App — installs a hacking/finance/intel app on the user's laptop</option>
+              <option value="laptop">🖥️ Laptop Device — the laptop itself. Required to use /laptop and TOR</option>
               <option value="ai">🤖 AI Entity — spawn an AI with personality, moods, and autonomy</option>
               <option value="consume">🍽️ Consume — edible/drinkable item that gives a timed buff or debuff</option>
               <option value="magic">🔮 Magic — fully customizable spell with chained actions</option>
@@ -2424,8 +2425,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/${GUILD}/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',emp:'⚡ EMP Device',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',break_in:'🔧 Break-In Kit',laptop_app:'💻 Laptop App',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',emp:'t-gold',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',break_in:'t-orange',laptop_app:'t-cyan',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',emp:'⚡ EMP Device',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',break_in:'🔧 Break-In Kit',laptop_app:'💻 Laptop App',laptop:'🖥️ Laptop Device',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',emp:'t-gold',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',break_in:'t-orange',laptop_app:'t-cyan',laptop:'t-blue',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -2730,7 +2731,7 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',emp:'ef-emp',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',break_in:'ef-break-in',laptop_app:'ef-laptop-app',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',emp:'ef-emp',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',break_in:'ef-break-in',laptop_app:'ef-laptop-app',laptop:'ef-laptop-app',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
 
