@@ -271,7 +271,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="fg" style="margin:0"><label class="flabel">🏡 Mansion</label><input class="finput" type="number" id="home-price-mansion" placeholder="100000 (default)"></div>
           <div class="fg" style="margin:0"><label class="flabel">🏰 Estate</label><input class="finput" type="number" id="home-price-estate" placeholder="500000 (default)"></div>
         </div>
-        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveHomePrices()">Save Prices</button>
+        <h3 style="margin-top:8px">🔧 Break-In Defense % (per tier)</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0">How hard it is to break into each tier. Higher % = harder. Defaults: Studio 40%, House 55%, Mansion 70%, Estate 85%.</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+          <div class="fg" style="margin:0"><label class="flabel">🏚️ Studio %</label><input class="finput" type="number" id="breakin-defense-studio" placeholder="40" min="1" max="95"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏠 House %</label><input class="finput" type="number" id="breakin-defense-house" placeholder="55" min="1" max="95"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏡 Mansion %</label><input class="finput" type="number" id="breakin-defense-mansion" placeholder="70" min="1" max="95"></div>
+          <div class="fg" style="margin:0"><label class="flabel">🏰 Estate %</label><input class="finput" type="number" id="breakin-defense-estate" placeholder="85" min="1" max="95"></div>
+        </div>
+        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveHomePrices()">Save Prices & Defense</button>
       </div>
 
       <!-- AUDIT LOG -->
@@ -2719,10 +2727,13 @@ async function loadOfficers() {
     prs.innerHTML = '<option value="">— Select Role —</option>' +
       guildRoles.map(r => `<option value="${r.id}" ${config.policeRoleId===r.id?'selected':''}>${r.name}</option>`).join('');
   }
-  const prices = config.homePrices || {};
+  const prices  = config.homePrices  || {};
+  const defense = config.breakInDefense || {};
   ['studio','house','mansion','estate'].forEach(tier => {
     const el = document.getElementById(`home-price-${tier}`);
     if (el && prices[tier]) el.value = prices[tier];
+    const de = document.getElementById(`breakin-defense-${tier}`);
+    if (de && defense[tier]) de.value = defense[tier];
   });
   const tb = document.getElementById('officers-tbody');
   if (!tb) return;
@@ -2757,12 +2768,15 @@ async function fireOfficerDash(userId) {
 
 async function saveHomePrices() {
   const prices = {};
+  const defense = {};
   ['studio','house','mansion','estate'].forEach(tier => {
-    const val = parseInt(document.getElementById(`home-price-${tier}`)?.value)||0;
-    if (val > 0) prices[tier] = val;
+    const p = parseInt(document.getElementById(`home-price-${tier}`)?.value)||0;
+    const d = parseInt(document.getElementById(`breakin-defense-${tier}`)?.value)||0;
+    if (p > 0) prices[tier]  = p;
+    if (d > 0) defense[tier] = Math.min(95, Math.max(1, d));
   });
-  const r = await api('POST', `/api/${GUILD}/config/home-prices`, { prices });
-  if (r.success) toast('Home prices saved','ok'); else toast(r.error||'Failed','err');
+  const r = await api('POST', `/api/${GUILD}/config/home-prices`, { prices, defense });
+  if (r.success) toast('Home prices & defense saved','ok'); else toast(r.error||'Failed','err');
 }
 
 async function savePurgeGifs() {

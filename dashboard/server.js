@@ -1349,7 +1349,8 @@ app.post('/api/:guildId/config/police-role', requireGuildAuth, async (req, res) 
 
 app.post('/api/:guildId/config/home-prices', requireGuildAuth, async (req, res) => {
   const config = db.getConfig(req.guildId);
-  config.homePrices = req.body.prices || {};
+  config.homePrices     = req.body.prices  || {};
+  config.breakInDefense = req.body.defense || {};
   db.saveConfig(req.guildId, config);
   await writeAudit(req.guildId, req.session.user?.id, 'home_prices', { prices: JSON.stringify(config.homePrices) });
   res.json({ success: true });

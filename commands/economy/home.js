@@ -36,8 +36,7 @@ module.exports = {
       .addStringOption(o => o.setName('item_id').setDescription('Item ID').setRequired(true).setAutocomplete(true)))
     .addSubcommand(s => s.setName('collect').setDescription('Collect passive income from your home'))
     .addSubcommand(s => s.setName('sell').setDescription('Sell your home (50% refund)'))
-    .addSubcommand(s => s.setName('sleep').setDescription('Go to sleep at home — immune to attacks for 8hrs (true AFK, locked from all commands)'))
-    .addSubcommand(s => s.setName('wake').setDescription('Wake up and resume normal activity')),
+    .addSubcommand(s => s.setName('sleep').setDescription('Go to sleep at home — immune to attacks for 8hrs (true AFK, locked from all commands)')),
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
@@ -477,18 +476,6 @@ Use \`/home wake\` to wake up early.
 
 🔒 The higher your home tier, the harder it is to break in.`)
         .setFooter({ text:'Wakes automatically after 8 hours' })
-      ]});
-    }
-
-    // ── WAKE ──────────────────────────────────────────────────
-    if (sub === 'wake') {
-      const home = getHome(userId);
-      if (!home || !isSleeping(home)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription("You're already awake.")], ephemeral:true });
-      wakeUp(home);
-      await saveHome(userId, home);
-      return interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(0x2ecc71)
-        .setDescription('☀️ You woke up early. Protection removed — you can use all commands again.')
       ]});
     }
   },
