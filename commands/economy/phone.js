@@ -274,15 +274,36 @@ module.exports = {
 
       const tier = getStatusTier(phone.status || 0);
 
-      // Celebrity+ only
+      // Celebrity+ influencer OR Platinum+ artist can shout out coins
       const REQUIRED_TIERS = ['celebrity','superstar','icon'];
-      if (!REQUIRED_TIERS.includes(tier.id)) {
-        const celebrityTier = STATUS_TIERS.find(t => t.id === 'celebrity');
+      const isInfluencerEligible = REQUIRED_TIERS.includes(tier.id);
+      const artistCareer  = phone.artistCareer || {};
+      const artistFame    = artistCareer.fame || 0;
+      const ARTIST_SHOUT_THRESHOLD = 75000; // Platinum Artist
+      const isArtistEligible = artistFame >= ARTIST_SHOUT_THRESHOLD;
+
+      if (!isInfluencerEligible && !isArtistEligible) {
+        const celebrityTier  = STATUS_TIERS.find(t => t.id === 'celebrity');
+        const fameNeeded     = Math.max(0, ARTIST_SHOUT_THRESHOLD - artistFame);
+        const statusNeeded   = Math.max(0, celebrityTier.minStatus - (phone.status||0));
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setTitle('⭐ Celebrity Required')
-          .setDescription(`Coin shoutouts are only available to **⭐ Celebrity** and above.\n\nYour current status: **${tier.label}**\n\nYou need **${((celebrityTier.minStatus - (phone.status||0)).toLocaleString())}** more status points to unlock shoutouts.\n\nKeep posting to level up!`)
+          .setTitle('🔒 Not Eligible for Coin Shoutouts')
+          .setDescription(
+            `Coin shoutouts require **one** of the following:
+
+` +
+            `⭐ **Celebrity** influencer status — need **${statusNeeded.toLocaleString()}** more status pts
+` +
+            `🏆 **Platinum Artist** tier — need **${fameNeeded.toLocaleString()}** more fame pts
+
+` +
+            `Keep posting to level up on either path!`
+          )
         ], ephemeral:true });
       }
+
+      // Artist shoutout gets a fame boost multiplier on top of coin power
+      const artistShoutBonus = isArtistEligible ? Math.min(2.0, 1.0 + (artistFame / 200000)) : 1.0;
 
       const ticker  = interaction.options.getString('coin').toUpperCase().trim();
       const message = interaction.options.getString('message') || null;
@@ -312,7 +333,11 @@ module.exports = {
 
       // ── CALCULATE SHOUTOUT POWER ──────────────────────────────
       const customMult  = phone.coinShoutoutMult || 1.0;
-      const totalPower  = tier.coinHypeMult * customMult;
+      // Artists get a bonus multiplier on coin shoutout power based on fame
+      const basePower   = isArtistEligible && !isInfluencerEligible
+        ? 2.5  // Platinum artist base coin power (between Influencer and Celebrity)
+        : tier.coinHypeMult;
+      const totalPower  = basePower * customMult * (isArtistEligible ? artistShoutBonus : 1.0);
 
       // Price boost — scales massively with tier (up to 8× for Cultural Icon)
       const priceBoost  = Math.min(8.0, 1 + (totalPower * 0.15));
@@ -405,15 +430,22 @@ module.exports = {
       } catch {}
 
       const freshInfluencer = getOrCreateUser(userId);
-      if (!illuminatiRedirected && !illuminatiSilenced) {
+      if (!illuminatiRedirected) {
         freshInfluencer.wallet += influencerCut;
       }
       // If redirected, influencer earns nothing from their cut
       phone.totalEarned = (phone.totalEarned||0) + (illuminatiRedirected ? 0 : influencerCut);
       saveUser(userId, freshInfluencer);
 
-      // Update phone shoutout cooldown
+      // Update phone shoutout cooldown + artist fame boost
       phone.lastShoutout = { ...(phone.lastShoutout||{}), [ticker]: Date.now() };
+      if (isArtistEligible) {
+        // Artists gain fame from coin shoutouts — it builds their brand
+        const famGain = Math.floor(coinHype * 0.05);
+        if (!phone.artistCareer) phone.artistCareer = { fame:0, tier:'unsigned' };
+        phone.artistCareer.fame = (phone.artistCareer.fame||0) + famGain;
+        phone.artistCareer.tier = getArtistTier(phone.artistCareer.fame).label;
+      }
       await savePhone(userId, phone);
 
       // DM coin owner
@@ -426,11 +458,15 @@ module.exports = {
       }
 
       const isViral = totalPower >= 5;
+      const artistFameGained = isArtistEligible ? Math.floor(coinHype * 0.05) : 0;
+      const shoutLabel = isArtistEligible && !isInfluencerEligible
+        ? `🏆 ${interaction.user.username} (Platinum Artist)`
+        : `${tier.label} ${interaction.user.username}`;
 
       return interaction.editReply({ embeds:[new EmbedBuilder()
         .setColor(isViral ? 0xff3b3b : 0xf5c518)
         .setTitle(`📣 ${isViral ? '🚨 MEGA SHOUTOUT' : 'Shoutout'} — ${coin.emoji||'🪙'} ${coin.name}${isViral ? ' 🚨' : ''}`)
-        .setDescription(`${message ? `*"${message}"*\n\n` : ''}**${fmtNum(tier.fanCount)} fans** just heard about **${coin.name}**.${isViral ? '\n\n🚨 **The market is going crazy.**' : ''}`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}**${shoutLabel}** put on for **${coin.name}**.${isViral ? '\n\n🚨 **The market is going crazy.**' : ''}`)
         .addFields(
           { name:'📈 Price Spike',      value:`+${Math.round((priceBoost-1)*100)}% (${oldPrice.toFixed(4)} → ${newPrice.toFixed(4)})`, inline:false },
           { name:'👥 Fans Investing',   value:fmtNum(investingFans),                                         inline:true },
@@ -439,9 +475,10 @@ module.exports = {
           { name:'📊 Liquidity Bump',   value:`+${liquidityBump.toLocaleString()} units`,                   inline:true },
           { name:'💵 Your Cut',         value:`+$${influencerCut.toLocaleString()} (${Math.round(influencerPct*100)}%)`, inline:true },
           ...(ownerCut > 0 ? [{ name:'🏢 Owner Revenue', value:`+$${ownerCut.toLocaleString()}`,             inline:true }] : []),
-          { name:'📣 Shoutout Power',   value:`${tier.coinHypeMult}× tier × ${customMult}× custom = **${totalPower.toFixed(1)}×**`, inline:true },
+          { name:'📣 Shoutout Power',   value:`${basePower.toFixed(1)}× base × ${customMult}× custom = **${totalPower.toFixed(1)}×**`, inline:true },
+          ...(artistFameGained > 0 ? [{ name:'🎵 Artist Fame', value:`+${artistFameGained.toLocaleString()} fame (coin shoutout bonus)`, inline:true }] : []),
         )
-        .setFooter({ text:`${tier.label} · Cooldown: ${config.shoutoutCooldownMins||30}min` })
+        .setFooter({ text:`${isArtistEligible && !isInfluencerEligible ? '🏆 Platinum Artist shoutout' : tier.label} · Cooldown: ${config.shoutoutCooldownMins||30}min` })
       ]});
     }
 
