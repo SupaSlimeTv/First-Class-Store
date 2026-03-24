@@ -41,10 +41,11 @@ app.use(express.json());
 // ── RATE LIMITING ─────────────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path.includes('/purge/') || req.path.includes('/config/'),
+  keyGenerator: (req) => req.session?.user?.id || req.ip, // rate limit per user not per IP
+  skip: (req) => req.path.includes('/purge/') || req.path.includes('/config/') || req.path.includes('/store'),
   message: { error: 'Too many requests, slow down.' },
 });
 const authLimiter = rateLimit({
