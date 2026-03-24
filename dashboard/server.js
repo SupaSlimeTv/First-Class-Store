@@ -346,6 +346,8 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
           gangId:          gang?.id   || null,
           isGangLeader:    gang?.leaderId === u.id,
           isIlluminati:    (() => { try { const { getIlluminati } = require('./utils/illuminatiDb'); const org = getIlluminati(req.guildId); return !!(org?.members||[]).find(m2 => m2.userId === u.id); } catch { return false; } })(),
+          artistTier:      (() => { try { const p = require('./utils/phoneDb').getPhone(u.id); if (!p?.artistCareer) return 'unsigned'; return p.artistCareer.tier||'unsigned'; } catch { return 'unsigned'; } })(),
+          artistTierLabel: (() => { try { const p = require('./utils/phoneDb').getPhone(u.id); const { getArtistTier } = require('./utils/phoneDb'); if (!p?.artistCareer) return null; return getArtistTier(p.artistCareer.fame||0).label; } catch { return null; } })(),
         };
       })
       .sort((a, b) => {

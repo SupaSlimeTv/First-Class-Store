@@ -2199,7 +2199,7 @@ function nav(n){
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('section-'+n).classList.add('active');
   document.querySelector(`[data-s="${n}"]`).classList.add('active');
-  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop',embeds:'✉️ Embed Builder',drugs:'💊 Drug Market',influencers:'📱 Influencers'}[n]||n;
+  document.getElementById('page-title').textContent={overview:'Overview',users:'Users',store:'Item Store',effects:'Live Effects',purge:'Purge Control',roleincome:'Role Income',protected:'Protected Roles',stocks:'📈 Stock Market',entrepreneur:'🏢 Entrepreneur',gangs:'🏴 Gangs',police:'🚔 Police',petsboard:'🐾 Pet Shop',aiboard:'🤖 AI Entities',gunshop:'🔫 Gun Shop',embeds:'✉️ Embed Builder',drugs:'💊 Drug Market',influencers:'📱 Influencers',illuminati:'🔺 Illuminati',credit:'💳 Credit Scores',laptops:'💻 Laptops',tor:'🌐 TOR Market'}[n]||n;
   if (n === 'embeds')      { loadEmbedChannels(); loadEmbedTriggers(); }
   if (n === 'drugs')       { loadDrugs(); loadNarcoticsRole(); }
   if (n === 'influencers') { loadInfluencers(); loadSponsorships(); }
@@ -2358,6 +2358,7 @@ function renderUsers(list) {
       if (u.businessName)                  civilRoles.push(`<span class="tag" style="font-size:9px;background:rgba(255,107,53,.15);color:#ff6b35;border:1px solid rgba(255,107,53,.3)">🏢 Biz</span>`);
       if (u.phoneType)                     civilRoles.push(`<span class="tag t-blue" style="font-size:9px">${phoneEmoji(u.phoneType)} ${phoneLabel(u.phoneType)}</span>`);
       if (u.influencerTier && u.influencerTier !== 'nobody') civilRoles.push(`<span class="tag" style="font-size:9px;background:rgba(245,197,24,.15);color:#f5c518;border:1px solid rgba(245,197,24,.3)">${tierEmoji(u.influencerTier)}</span>`);
+      if (u.artistTier && u.artistTier !== 'unsigned')       civilRoles.push(`<span class="tag" style="font-size:9px;background:rgba(255,59,48,.15);color:#ff8080;border:1px solid rgba(255,59,48,.3)">🎵 ${u.artistTierLabel||u.artistTier}</span>`);
       if (!civilRoles.length)              civilRoles.push(`<span class="tag t-muted" style="font-size:9px">👤 Civilian</span>`);
       const civilCell = civilRoles.join(' ');
 

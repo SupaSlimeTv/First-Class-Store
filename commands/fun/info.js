@@ -75,10 +75,12 @@ const PAGES = [
   new EmbedBuilder().setColor(0xf5c518)
     .setTitle('📱 Phone & Influence (8/16)')
     .addFields(
-      { name:'📱 Getting Started', value:'`/phoneshop` — Browse phone tiers\nBetter phones = higher hype multiplier\n`/phone status` — View your profile', inline:false },
-      { name:'📣 Posting & Growing', value:'`/phone post platform:<platform>` — Post on Flexgram/Chirp/Streamz\nEarns: Status, Hype, Followers, Money\nStreak bonuses up to 2× at 20-day streak\n`/phone promo` — Pay influencers for exposure', inline:false },
-      { name:'⭐ Status Tiers', value:'Newcomer → Rising → Influencer → Celebrity → Megastar → Icon\nHigher tiers unlock: coin shoutouts, more sponsor slots, bigger earnings', inline:false },
-      { name:'🌟 Shoutouts & Deals', value:'`/phone shoutout coin:<ticker>` — Celebrity+ only, boosts coin price\n`/sponsordeal` — Manage brand sponsorships\n`/phone leaderboard` — Top influencers', inline:false },
+      { name:'📱 Getting Started', value:'`/phoneshop` — Browse phone tiers\n`/phone status` — View your profile, influencer tier & **artist tier**', inline:false },
+      { name:'📣 Posting & Growing', value:'`/phone post platform:<platform>` — Post on Flexgram/Chirp/Streamz\nEarns: Status, Hype, Followers, Money, and **Artist Fame**\nStreak bonuses up to 2× at 20-day streak', inline:false },
+      { name:'⭐ Influencer Tiers', value:'Newcomer → Content Creator → Influencer → Celebrity → Superstar → Cultural Icon\nUnlocks: coin shoutouts, sponsor slots, bigger earnings, artist operations', inline:false },
+      { name:'🎵 Artist Hierarchy', value:'🎙️ Unsigned → 🌆 Local Buzz → 🎵 Indie → 📻 Rising Star → 🎤 Mainstream → 🏆 Platinum → 👑 Legend\nFame grows from every post. Higher tier = more label revenue', inline:false },
+      { name:'🎤 Artist Commands', value:'`/phone artist_shoutout @artist` — Influencer+ shouts out an artist (boosts their fame/hype/followers)\n`/phone artist_hate @artist` — Celebrity+ publicly beefs (tanks their stats, creates controversy)\n`/phone promo` — Pay influencers for your own promo boost', inline:false },
+      { name:'🌟 Coins & Deals', value:'`/phone shoutout coin:<ticker>` — Celebrity+ boosts a coin price\n`/phone hate coin:<ticker>` — Cultural Icon only, crashes a coin\n`/sponsordeal` — Manage brand sponsorships', inline:false },
     ).setFooter({ text:'Page 8/16' }),
 
   // Page 9: Crypto/Stocks
@@ -115,8 +117,9 @@ const PAGES = [
     .addFields(
       { name:'🚪 Joining', value:'Invite-only. Requirements:\n🏰 Estate home · 50+ status · Biz level 5+ · $500k wealth\nInitiation fee: **$250,000**\n`/illuminati status` — View org (members-only)', inline:false },
       { name:'👁️ Ranks', value:'🔺 Initiate → 👁️ Operative → 💎 Elder (top 5 contributors) → ⚡ Grandmaster', inline:false },
-      { name:'⚡ Operations', value:'🕵️ Shadow Rob · 📡 Intel Report · 🛡️ Protection Racket\n📊 Market Manipulation · 💸 Collect Tribute\n📸 Blackmail (Celebrity+) · 🎵 Force Sign Artist', inline:false },
-      { name:'🎁 Member Perks', value:'✅ 2 legit businesses (vs 1 for others)\n✅ Untraceable on TOR dark web\n✅ Police warrants need 2× heat\n✅ Shoutout redirects fund the vault\n✅ Label revenue 2× for controlled artists', inline:false },
+      { name:'⚡ Operations', value:'🕵️ Shadow Rob · 📡 Intel · 🛡️ Protection Racket\n📊 Market Manipulation · 💸 Collect Tribute\n📸 Blackmail · 🎵 Force Sign · 🎤 Sabotage Artist\n🔇 Silence Campaign · 💰 Extort · 🌱 Industry Plant', inline:false },
+      { name:'🌱 Industry Plant', value:'Costs **$500k** from vault\nBlasts target to Platinum Artist overnight: 2.5M followers, 500K hype, 2.5× revenue\nAnnounces publicly in server. Permanently Illuminati-controlled.', inline:false },
+      { name:'🎁 Member Perks', value:'✅ 2 legit businesses · ✅ TOR untraceable\n✅ Police warrants need 2× heat\n✅ Shoutout redirects → vault · ✅ Label revenue 2×', inline:false },
     ).setFooter({ text:'Page 12/16' }),
 
   // Page 13: Pets

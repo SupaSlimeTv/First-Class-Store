@@ -5,6 +5,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const { getOrCreateUser, saveUser, getBusiness: _gb } = require('../../utils/db');
 const { getLabel, saveLabel, getContract, saveContract, deleteContract, calcArtistRevenue, NPC_ARTISTS, isSignedArtist } = require('../../utils/labelDb');
+const { getPhone, getArtistTier } = require('../../utils/phoneDb');
 const { getBusiness } = require('../../utils/bizDb');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
@@ -78,9 +79,23 @@ module.exports = {
         const contract = getContract(a.artistId);
         const rev      = contract ? calcArtistRevenue(contract) : 0;
         const name     = a.isNPC ? `${a.npcData?.emoji||'🎤'} ${a.npcData?.name||a.artistId}` : `<@${a.artistId}>`;
+        // Artist tier
+        let tierLabel = '🎙️ Unsigned';
+        if (!a.isNPC) {
+          const phone = getPhone(a.artistId);
+          if (phone?.artistCareer) tierLabel = getArtistTier(phone.artistCareer.fame||0).label;
+        } else if (a.npcData) {
+          const fakeFame = (a.npcData.fanbase||0) / 50;
+          tierLabel = getArtistTier(fakeFame).label;
+        }
+        const badges = [
+          contract?.isPlant              ? '🌱 Plant' : '',
+          contract?.illuminatiControlled ? '🔺 Controlled' : '',
+          contract?.forced               ? '⚠️ Forced' : '',
+        ].filter(Boolean).join(' ') || '✅ Signed';
         return {
-          name,
-          value:`Revenue: **${fmtMoney(rev)}/tick** · Cut: **${a.artistCut||30}%** · ${contract?.illuminatiControlled ? '🔺 Controlled' : contract?.forced ? '⚠️ Forced' : '✅ Signed'}`,
+          name: `${name} — ${tierLabel}`,
+          value:`Rev: **${fmtMoney(rev)}/tick** · Cut: **${a.artistCut||30}%** · ${badges}`,
           inline: false,
         };
       });

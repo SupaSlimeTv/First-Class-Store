@@ -62,9 +62,23 @@ function calcArtistRevenue(contract) {
   const fanbase   = artist.fanbase|| 10000;
   const imageMult = { clean:1.0, controversial:1.2, iconic:1.5 }[artist.image||'clean'] || 1;
   const base      = Math.floor((talent * 0.4 + hype * 0.3) * (fanbase / 50000) * imageMult * 100);
-  const illumMult = contract.illuminatiControlled ? 2.0 : 1.0;
-  const forcedMult= contract.forced ? 1.3 : 1.0;
-  return Math.max(10, Math.floor(base * illumMult * forcedMult));
+  const illumMult  = contract.illuminatiControlled ? 2.0 : 1.0;
+  const forcedMult = contract.forced ? 1.3 : 1.0;
+  const plantMult  = contract.isPlant ? 2.5 : 1.0;
+  // Artist tier bonus — higher tier = more revenue
+  const { getArtistTier } = require('./phoneDb');
+  const { getPhone } = require('./phoneDb');
+  let tierMult = 1.0;
+  try {
+    if (!contract.isNPC) {
+      const phone = getPhone(contract.artistId);
+      if (phone?.artistCareer) {
+        const at = getArtistTier(phone.artistCareer.fame||0);
+        tierMult = at.revMult || 1.0;
+      }
+    }
+  } catch {}
+  return Math.max(10, Math.floor(base * illumMult * forcedMult * plantMult * tierMult));
 }
 
 module.exports = {

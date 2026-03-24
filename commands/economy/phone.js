@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getOrCreateUser, saveUser, getStore, hasAccount, getConfig } = require('../../utils/db');
-const { getPhone, savePhone, getAllPhones, PLATFORMS, PHONE_TYPES, STATUS_TIERS, getStatusTier, getNextStatusTier, SPONSOR_DEALS, defaultPhone } = require('../../utils/phoneDb');
+const { getPhone, savePhone, getAllPhones, PLATFORMS, PHONE_TYPES, STATUS_TIERS, ARTIST_TIERS, getStatusTier, getNextStatusTier, getArtistTier, getNextArtistTier, SPONSOR_DEALS, defaultPhone } = require('../../utils/phoneDb');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
 const { coinAutocomplete } = require('../../utils/coinAutocomplete');
@@ -24,6 +24,12 @@ module.exports = {
     .addSubcommand(s => s.setName('shoutout').setDescription('🌟 Celebrity+ only — Shout out a coin to your fans. Boosts price & hype.')
       .addStringOption(o => o.setName('coin').setDescription('Select a coin to shout out').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('message').setDescription('What to say about the coin').setRequired(false).setMaxLength(200)))
+    .addSubcommand(s => s.setName('artist_shoutout').setDescription('🎤 Shout out another artist — boosts their fame, hype and followers')
+      .addUserOption(o => o.setName('artist').setDescription('Artist to shout out').setRequired(true))
+      .addStringOption(o => o.setName('message').setDescription('What you want to say').setRequired(false)))
+    .addSubcommand(s => s.setName('artist_hate').setDescription('🔥 Publicly trash another artist — tanks their stats, starts beef')
+      .addUserOption(o => o.setName('artist').setDescription('Artist to hate on').setRequired(true))
+      .addStringOption(o => o.setName('message').setDescription('What you want to say').setRequired(false)))
     .addSubcommand(s => s.setName('promo').setDescription('📣 Influencer+ only — Promote another creator to boost their followers & hype.')
       .addUserOption(o => o.setName('creator').setDescription('Creator to shout out').setRequired(true))
       .addStringOption(o => o.setName('message').setDescription('What to say about them').setRequired(false).setMaxLength(200)))
@@ -182,8 +188,14 @@ module.exports = {
       const realMoney    = Math.floor(finalMoney * streakBonus);
       const realStatus   = Math.floor(finalStatus * streakBonus);
 
-      // Update phone
+      // Update phone + artist career fame
       phone.status     = (phone.status || 0) + realStatus;
+      // Artist fame grows from posting — separate from influencer status
+      if (!phone.artistCareer) phone.artistCareer = { fame:0, tier:'unsigned', isPlant:false };
+      const famGain = Math.floor(realStatus * 0.3 + finalFollowers * 0.1);
+      phone.artistCareer.fame = (phone.artistCareer.fame||0) + famGain;
+      const newArtistTier = getArtistTier(phone.artistCareer.fame);
+      phone.artistCareer.tier = newArtistTier.id;
       phone.hype       = (phone.hype || 0) + finalHype;
       phone.followers  = (phone.followers || 0) + finalFollowers;
       phone.totalPosts = (phone.totalPosts || 0) + 1;
@@ -786,6 +798,128 @@ ${promoLabels[promoType]} — **${fmtMoney(budget)}**
 
 If they accept, their next post will be boosted for your profile.`)
       ], ephemeral:true });
+    }
+
+    // ── ARTIST SHOUTOUT ───────────────────────────────────────
+    if (sub === 'artist_shoutout') {
+      const targetUser = interaction.options.getUser('artist');
+      const msg        = interaction.options.getString('message') || '';
+      if (targetUser.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't shout yourself out.")], ephemeral:true });
+
+      // Must be at least Influencer to shout out an artist
+      if ((tier?.level||0) < 2) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`You need at least **🔥 Influencer** status to shout out an artist. You are: **${tier?.label}**`)
+      ], ephemeral:true });
+
+      const targetPhone = getPhone(targetUser.id);
+      if (!targetPhone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${targetUser.id}> doesn't have a phone.`)], ephemeral:true });
+
+      await interaction.deferReply();
+
+      const shoutMult   = tier.mult || 1.0;
+      const famBoost    = Math.floor(500  * shoutMult * (0.7 + Math.random() * 0.6));
+      const hypeBoost   = Math.floor(1000 * shoutMult * (0.7 + Math.random() * 0.6));
+      const follBoost   = Math.floor(800  * shoutMult * (0.7 + Math.random() * 0.6));
+
+      // Update target artist career
+      if (!targetPhone.artistCareer) targetPhone.artistCareer = { fame:0, tier:'unsigned', isPlant:false };
+      targetPhone.artistCareer.fame = (targetPhone.artistCareer.fame||0) + famBoost;
+      targetPhone.artistCareer.tier = getArtistTier(targetPhone.artistCareer.fame).label;
+      targetPhone.hype      = (targetPhone.hype||0) + hypeBoost;
+      targetPhone.followers = (targetPhone.followers||0) + follBoost;
+      await savePhone(targetUser.id, targetPhone);
+
+      // Also pay the shouter a small cut (artists pay their promoters)
+      const shoutCut = Math.floor(hypeBoost * 0.1);
+      const shouter  = getOrCreateUser(userId);
+      shouter.wallet += shoutCut;
+      saveUser(userId, shouter);
+
+      // Post publicly
+      await interaction.editReply({ embeds:[new EmbedBuilder()
+        .setColor(0xf5c518)
+        .setTitle(`🎤 ${tier.label} ${interaction.user.username} Shouted Out ${targetUser.username}!`)
+        .setDescription(msg ? `*"${msg}"*` : `*${interaction.user.username} put on for ${targetUser.username}!*`)
+        .addFields(
+          { name:'🎵 Fame Boost',      value:`+${famBoost.toLocaleString()}`,  inline:true },
+          { name:'✨ Hype Boost',       value:`+${hypeBoost.toLocaleString()}`, inline:true },
+          { name:'👥 New Followers',   value:`+${follBoost.toLocaleString()}`, inline:true },
+          { name:'🎭 Artist Tier',     value:getArtistTier(targetPhone.artistCareer.fame).label, inline:true },
+          { name:'💰 Shouter Earned',  value:fmtMoney(shoutCut), inline:true },
+        )
+        .setFooter({ text:`${tier.label} shoutout · ${shoutMult}× power` })
+      ]});
+
+      // DM the shouted-out artist
+      targetUser.send({ embeds:[new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('🎤 You Got Shouted Out!')
+        .setDescription(`**${interaction.user.username}** (${tier.label}) shouted you out!
+
++${famBoost.toLocaleString()} fame · +${hypeBoost.toLocaleString()} hype · +${follBoost.toLocaleString()} followers`)
+      ]}).catch(() => null);
+      return;
+    }
+
+    // ── ARTIST HATE ───────────────────────────────────────────
+    if (sub === 'artist_hate') {
+      const targetUser = interaction.options.getUser('artist');
+      const msg        = interaction.options.getString('message') || '';
+      if (targetUser.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't hate on yourself.")], ephemeral:true });
+
+      // Need Celebrity+ to hate on artists publicly
+      if ((tier?.level||0) < 3) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`Need **⭐ Celebrity+** status to publicly beef with artists. You are: **${tier?.label}**`)
+      ], ephemeral:true });
+
+      const targetPhone = getPhone(targetUser.id);
+      if (!targetPhone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${targetUser.id}> doesn't have a phone.`)], ephemeral:true });
+
+      await interaction.deferReply();
+
+      const hateMult  = tier.mult || 1.0;
+      // Hate damages their hype and followers but generates controversy = some fame boost
+      const fameDmg   = Math.floor(300  * hateMult * (0.5 + Math.random() * 0.8));
+      const hypeHit   = Math.floor(1500 * hateMult * (0.6 + Math.random() * 0.6));
+      const follLoss  = Math.floor(500  * hateMult * (0.4 + Math.random() * 0.6));
+      // Controversy adds some fame (all press is good press)
+      const contFame  = Math.floor(fameDmg * 0.4);
+
+      if (!targetPhone.artistCareer) targetPhone.artistCareer = { fame:0, tier:'unsigned', isPlant:false };
+      targetPhone.hype      = Math.max(0, (targetPhone.hype||0) - hypeHit);
+      targetPhone.followers = Math.max(0, (targetPhone.followers||0) - follLoss);
+      // Small controversy fame boost to target (being hated = controversy = fame)
+      targetPhone.artistCareer.fame = Math.max(0, (targetPhone.artistCareer.fame||0) - fameDmg + contFame);
+      targetPhone.artistCareer.tier = getArtistTier(targetPhone.artistCareer.fame).label;
+      await savePhone(targetUser.id, targetPhone);
+
+      // Hater also gains some notoriety
+      phone.hype   = (phone.hype||0) + Math.floor(hypeHit * 0.2);
+      phone.status = (phone.status||0) + Math.floor(hateMult * 50);
+      await savePhone(userId, phone);
+
+      await interaction.editReply({ embeds:[new EmbedBuilder()
+        .setColor(0xff3b3b)
+        .setTitle(`🔥 ${tier.label} ${interaction.user.username} is Beefing With ${targetUser.username}!`)
+        .setDescription(msg ? `*"${msg}"*` : `*${interaction.user.username} just aired out ${targetUser.username}!*`)
+        .addFields(
+          { name:`💀 ${targetUser.username} Lost`, value:`-${hypeHit.toLocaleString()} hype · -${follLoss.toLocaleString()} followers`, inline:false },
+          { name:'😈 Controversy Fame',           value:`+${contFame.toLocaleString()} (all press is good press)`, inline:true },
+          { name:'🔥 Beef Notoriety',             value:`${interaction.user.username} gained +${Math.floor(hypeHit*0.2).toLocaleString()} hype`, inline:true },
+        )
+        .setFooter({ text:'The internet is watching 👀' })
+      ]});
+
+      // DM the target
+      targetUser.send({ embeds:[new EmbedBuilder()
+        .setColor(0xff3b3b)
+        .setTitle('🔥 Someone is Beefing With You!')
+        .setDescription(`**${interaction.user.username}** (${tier.label}) publicly hated on you!
+
+-${hypeHit.toLocaleString()} hype · -${follLoss.toLocaleString()} followers
+But you gained +${contFame.toLocaleString()} controversy fame.`)
+      ]}).catch(() => null);
+      return;
     }
   },
 };

@@ -12,6 +12,7 @@ const {
   RANKS, MAX_MEMBERS, INITIATION_FEE, EXPOSE_THRESHOLD,
 } = require('../../utils/illuminatiDb');
 const { COLORS } = require('../../utils/embeds');
+const { getArtistTier, getNextArtistTier, INDUSTRY_PLANT_MULT, ARTIST_TIERS } = require('../../utils/phoneDb');
 const { coinAutocomplete } = require('../../utils/coinAutocomplete');
 
 const fmtMoney = n => '$' + Math.round(n).toLocaleString();
@@ -48,6 +49,7 @@ module.exports = {
           { name:'🎤 Sabotage Artist — crash a signed artist career ($75k)',    value:'sabotage' },
           { name:'🔇 Silence Campaign — suppress a user phone posts ($60k)', value:'silence_campaign' },
           { name:'💰 Extort — demand payment or face shadow rob ($0)',          value:'extort' },
+          { name:'🌱 Industry Plant — make any artist a superstar overnight ($500k)', value:'industry_plant' },
         ))
       .addUserOption(o => o.setName('target').setDescription('Target user (not needed for market manipulation)').setRequired(false))
       .addStringOption(o => o.setName('coin').setDescription('Coin ticker (market manipulation only — type to search)').setRequired(false).setAutocomplete(true))
@@ -620,6 +622,93 @@ Vault: **${fmtMoney(org.vault)}**`)
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
           .setTitle('🔇 Silence Campaign Launched')
           .setDescription(`<@${target.id}>'s phone posts will earn **$0** for the next 48 hours.\n\nVault: **${fmtMoney(org.vault)}**`)
+        ], ephemeral:true });
+      }
+
+      // ── INDUSTRY PLANT ───────────────────────────────────────
+      if (op === 'industry_plant') {
+        const COST = 500000;
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`Industry Plant costs **${fmtMoney(COST)}** from vault. Current vault: **${fmtMoney(org.vault)}**.`)
+        ], ephemeral:true });
+        if (!target) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify the artist to plant.')], ephemeral:true });
+
+        const { getPhone, savePhone, getStatusTier, STATUS_TIERS } = require('../../utils/phoneDb');
+        const { getLabel, saveLabel, getContract, saveContract } = require('../../utils/labelDb');
+
+        const phone = getPhone(target.id);
+        if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription('<@' + target.id + '> needs a phone to be planted. They need to own one first.')
+        ], ephemeral:true });
+
+        const currentTier  = getStatusTier(phone.status || 0);
+        const superstarMin = STATUS_TIERS.find(t => t.id === 'superstar')?.minStatus || 25000;
+
+        // Blast their stats to Superstar tier
+        const oldStatus = phone.status || 0;
+        phone.status      = Math.max(phone.status || 0, superstarMin + 5000);
+        phone.hype        = Math.max(phone.hype   || 0, 500000);
+        phone.followers   = Math.max(phone.followers || 0, 2500000);
+        phone.isPlant     = true;
+        phone.plantedBy   = userId;
+        phone.plantedAt   = Date.now();
+        phone.artistCareer = {
+          fame:    75000,
+          tier:    'platinum',
+          isPlant: true,
+          plantBoostAt: Date.now(),
+        };
+        await savePhone(target.id, phone);
+
+        // If they are signed to a label, also boost their contract
+        const contract = getContract(target.id);
+        if (contract?.npcData) {
+          contract.npcData.fanbase    = Math.max(contract.npcData.fanbase || 0, 5000000);
+          contract.npcData.hype       = 100;
+          contract.npcData.talent     = Math.max(contract.npcData.talent || 50, 85);
+          contract.npcData.image      = 'iconic';
+          contract.illuminatiControlled = true;
+          contract.isPlant            = true;
+          await saveContract(target.id, contract);
+          // Notify label owner
+          const { getLabel: _gl } = require('../../utils/labelDb');
+          const label = _gl(contract.labelOwnerId);
+          if (label) {
+            interaction.client.users.fetch(contract.labelOwnerId).then(u => u.send({ embeds:[new EmbedBuilder()
+              .setColor(0xf5c518)
+              .setTitle('🌱 Industry Plant Signed')
+              .setDescription('<@' + target.id + '> has been artificially boosted by powerful backers. Your label revenue will skyrocket — but their authenticity is now questionable.')
+            ]}).catch(() => null)).catch(() => null);
+          }
+        }
+
+        org.vault -= COST;
+        org.controlled = [...(org.controlled||[]), ...(org.controlled?.includes(target.id) ? [] : [target.id])];
+        org.operations.push({ type:'industry_plant', target:target.id, by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        await addEvidence(guildId, 'op_' + Date.now());
+
+        // Announce publicly in server (plants get a big splash)
+        const config = require('../../utils/db').getConfig(guildId);
+        if (config.purgeChannelId) {
+          interaction.client.channels.fetch(config.purgeChannelId).then(ch => ch.send({ embeds:[new EmbedBuilder()
+            .setColor(0xf5c518)
+            .setTitle('🌱 NEW ARTIST ALERT')
+            .setDescription('<@' + target.id + '> appeared out of nowhere as a **🏆 Platinum Artist**. 2.5M followers. 500K hype. Superstar overnight. *Nobody blows up this fast organically...*')
+          ]}).catch(() => null)).catch(() => null);
+        }
+
+        // DM the planted artist
+        target.send({ embeds:[new EmbedBuilder()
+          .setColor(GOLD_COLOR)
+          .setTitle('🌱 You Are An Industry Plant')
+          .setDescription('The Illuminati has invested **' + fmtMoney(COST) + '** to make you a star overnight.\n\n🏆 Status: **Platinum Artist**\n👥 Followers: **2.5M**\n✨ Hype: **500K**\n\nRevenue multiplier: **2.5×**\n\n*Your success is manufactured. Protect your image.*')
+        ]}).catch(() => null);
+
+        return interaction.reply({ embeds:[new EmbedBuilder()
+          .setColor(GOLD_COLOR)
+          .setTitle('🌱 Industry Plant Activated')
+          .setDescription('<@' + target.id + '> is now a **🏆 Platinum Artist** overnight.\n\n👥 2.5M followers · ✨ 500K hype · 🎵 Revenue ×2.5\n\nIlluminati-controlled. All earnings flow through you.\n\nVault: **' + fmtMoney(org.vault) + '**')
         ], ephemeral:true });
       }
 

@@ -38,6 +38,32 @@ const STATUS_TIERS = [
   { id:'icon',       label:'👑 Cultural Icon',    minStatus:100000,fanCount:1000000, mult:10.0, sponsorSlots:6, coinHypeMult:15.0, color:0x9b59b6 },
 ];
 
+
+// ── ARTIST CAREER TIERS ──────────────────────────────────────
+// Separate hierarchy for music artists — tracked via phone.artistCareer
+// Requires being signed to a label OR having music-related status
+const ARTIST_TIERS = [
+  { id:'unsigned',     label:'🎙️ Unsigned',          minFame:0,     revMult:1.0,  labelCut:30, perks:[] },
+  { id:'local_buzz',   label:'🌆 Local Buzz',         minFame:500,   revMult:1.3,  labelCut:30, perks:['streetCred'] },
+  { id:'indie_artist', label:'🎵 Indie Artist',        minFame:2000,  revMult:1.7,  labelCut:28, perks:['streetCred','collectibles'] },
+  { id:'rising_star',  label:'📻 Rising Star',         minFame:8000,  revMult:2.2,  labelCut:25, perks:['streetCred','collectibles','radioPlay'] },
+  { id:'mainstream',   label:'🎤 Mainstream Artist',   minFame:25000, revMult:3.0,  labelCut:22, perks:['streetCred','collectibles','radioPlay','brandDeals'] },
+  { id:'platinum',     label:'🏆 Platinum Artist',     minFame:75000, revMult:4.5,  labelCut:18, perks:['streetCred','collectibles','radioPlay','brandDeals','tourRevenue'] },
+  { id:'legend',       label:'👑 Music Legend',        minFame:200000,revMult:8.0,  labelCut:15, perks:['streetCred','collectibles','radioPlay','brandDeals','tourRevenue','legacy'] },
+];
+
+// Industry plant = boosted artist with artificially inflated stats
+// iPlant flag gives 2x revenue but marks them as suspicious — can be exposed
+const INDUSTRY_PLANT_MULT = 2.5;
+
+function getArtistTier(fame) {
+  return [...ARTIST_TIERS].reverse().find(t => fame >= t.minFame) || ARTIST_TIERS[0];
+}
+
+function getNextArtistTier(fame) {
+  return ARTIST_TIERS.find(t => t.minFame > fame) || null;
+}
+
 function getStatusTier(status) {
   return [...STATUS_TIERS].reverse().find(t => status >= t.minStatus) || STATUS_TIERS[0];
 }
@@ -108,6 +134,7 @@ function defaultPhone(phoneType) {
 }
 
 module.exports = {
+  ARTIST_TIERS, getArtistTier, getNextArtistTier, INDUSTRY_PLANT_MULT,
   preloadPhoneCache, getPhone, savePhone, getAllPhones,
   STATUS_TIERS, getStatusTier, getNextStatusTier,
   PLATFORMS, PHONE_TYPES, SPONSOR_DEALS, defaultPhone,
