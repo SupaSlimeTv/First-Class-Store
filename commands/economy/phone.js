@@ -361,9 +361,43 @@ module.exports = {
       // 5% base, scaling up to 20% at max power
       const influencerPct = Math.min(0.20, 0.05 + (totalPower - 1) * 0.01);
       const influencerCut = Math.floor(totalFanVolume * influencerPct);
+
+      // ── ILLUMINATI REDIRECT CHECK ─────────────────────────────
+      // If this user is controlled by the Illuminati, 50% chance vault gets the cut
+      let illuminatiRedirected = false;
+      let illuminatiGuildId    = null;
+      try {
+        const { getIlluminati } = require('../../utils/illuminatiDb');
+        for (const [gid] of (interaction.client.guilds?.cache||[])) {
+          const org = getIlluminati(gid);
+          if (org?.controlled?.includes(userId)) {
+            illuminatiGuildId = gid;
+            break;
+          }
+        }
+        if (illuminatiGuildId && Math.random() < 0.50) {
+          illuminatiRedirected = true;
+          const { getOrCreateIlluminati, saveIlluminati } = require('../../utils/illuminatiDb');
+          const org   = getOrCreateIlluminati(illuminatiGuildId);
+          org.vault   = (org.vault||0) + influencerCut;
+          await saveIlluminati(illuminatiGuildId, org);
+          // Notify Illuminati members privately in DM
+          for (const mem of (org.members||[])) {
+            interaction.client.users.fetch(mem.userId).then(u => u.send({ embeds:[new (require('discord.js').EmbedBuilder)()
+              .setColor(0xf5c518)
+              .setTitle('🔺 Shoutout Redirected')
+              .setDescription(`<@${userId}>'s shoutout earnings (**$${influencerCut.toLocaleString()}**) were redirected to the vault.\n\n**${coin.name}** shoutout — ${Math.round(influencerPct*100)}% cut captured.`)
+            ]}).catch(()=>{})).catch(()=>{});
+          }
+        }
+      } catch {}
+
       const freshInfluencer = getOrCreateUser(userId);
-      freshInfluencer.wallet += influencerCut;
-      phone.totalEarned = (phone.totalEarned||0) + influencerCut;
+      if (!illuminatiRedirected) {
+        freshInfluencer.wallet += influencerCut;
+      }
+      // If redirected, influencer earns nothing from their cut
+      phone.totalEarned = (phone.totalEarned||0) + (illuminatiRedirected ? 0 : influencerCut);
       saveUser(userId, freshInfluencer);
 
       // Update phone shoutout cooldown

@@ -42,6 +42,8 @@ module.exports = {
           { name:'🛡️ Protection Racket — demand tribute from a gang',          value:'protection' },
           { name:'📊 Market Manipulation — pump or dump a coin for 30min',     value:'market_manip' },
           { name:'💸 Tribute Collection — collect owed tribute from gangs',    value:'collect_tribute' },
+          { name:'📸 Blackmail — control a Celebrity+ through leverage',           value:'blackmail' },
+          { name:'🎵 Force Sign — sign a Celebrity+ to an Illuminati label',       value:'sign_artist' },
         ))
       .addUserOption(o => o.setName('target').setDescription('Target user (for rob/intel/protection)').setRequired(false))
       .addStringOption(o => o.setName('coin').setDescription('Coin ticker (for market manipulation)').setRequired(false))
@@ -397,6 +399,94 @@ module.exports = {
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
           .setTitle(`📊 Market ${direction === 'pump' ? 'Pumped' : 'Dumped'}`)
           .setDescription(`**${coin}** ${direction === 'pump' ? '📈 pumped' : '📉 dumped'} by **${Math.round(Math.abs(mult-1)*100)}%**.\n\n${currentPrice.toFixed(4)} → ${newPrice.toFixed(4)}\n\nEffect lasts **30 minutes** then reverts automatically.`)
+        ], ephemeral:true });
+      }
+
+      // ── BLACKMAIL ────────────────────────────────────────────
+      if (op === 'blackmail') {
+        const COST = 150000;
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Blackmail costs **${fmtMoney(COST)}** from vault.`)], ephemeral:true });
+        if (!target) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target.')], ephemeral:true });
+        if (isMember(guildId, target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Cannot blackmail fellow members.')], ephemeral:true });
+
+        // Target must be Celebrity+ (status tier 4+)
+        const { getPhone, getStatusTier } = require('../../utils/phoneDb');
+        const phone = getPhone(target.id);
+        const tier  = getStatusTier(phone?.status||0);
+        if ((tier?.level||0) < 4) {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription(`<@${target.id}> needs **⭐ Celebrity+** status to blackmail. They are: **${tier?.label||'Newcomer'}**`)
+          ], ephemeral:true });
+        }
+
+        if (org.controlled?.includes(target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Already under Illuminati control.')], ephemeral:true });
+
+        org.vault -= COST;
+        org.controlled = [...(org.controlled||[]), target.id];
+        org.operations.push({ type:'blackmail', target:target.id, by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        await addEvidence(guildId, `op_${Date.now()}`);
+
+        // DM the target (cryptic, no source)
+        target.send({ embeds:[new EmbedBuilder()
+          .setColor(0x2c2c2c)
+          .setTitle('📸 An Offer You Cannot Refuse')
+          .setDescription('Certain... information has come into the possession of powerful people.\n\nYour cooperation is expected. Your earnings are no longer entirely your own.\n\n*The price of fame.*')
+        ]}).catch(()=>{});
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xf5c518)
+          .setTitle('📸 Blackmail Successful')
+          .setDescription(`<@${target.id}> is now under Illuminati control.
+
+**Effects:**
+• Their shoutouts have 50% chance to redirect earnings to vault
+• Their coin pumps benefit Illuminati investments
+• Cannot sign with rival labels
+
+Vault: **${fmtMoney(org.vault)}**`)
+        ], ephemeral:true });
+      }
+
+      // ── FORCE SIGN ARTIST ────────────────────────────────────
+      if (op === 'sign_artist') {
+        if (!target) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify target artist.')], ephemeral:true });
+
+        const { getPhone, getStatusTier } = require('../../utils/phoneDb');
+        const phone = getPhone(target.id);
+        const tier  = getStatusTier(phone?.status||0);
+        if ((tier?.level||0) < 3) {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription(`<@${target.id}> needs **🔥 Influencer+** status. They are: **${tier?.label||'Newcomer'}**`)
+          ], ephemeral:true });
+        }
+
+        // Must have an Illuminati-member-owned label
+        const { getLabel, saveLabel, getContract, saveContract, isSignedArtist } = require('../../utils/labelDb');
+        const { getBusiness } = require('../../utils/bizDb');
+        const biz = getBusiness(userId);
+        if (!biz || biz.type !== 'record_label') {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('You need to own a Record Label business to force-sign an artist.')], ephemeral:true });
+        }
+
+        if (isSignedArtist(target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${target.id}> is already signed elsewhere.`)], ephemeral:true });
+
+        // DM the target with accept/refuse
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`label_force_accept_${userId}_${guildId}`).setLabel('✍️ Sign (no choice)').setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId(`label_force_refuse_${userId}_${guildId}`).setLabel('❌ Refuse (lose 40% wallet)').setStyle(ButtonStyle.Secondary),
+        );
+
+        target.send({ embeds:[new EmbedBuilder()
+          .setColor(0x1a1a2e)
+          .setTitle('🎵 An Opportunity You Cannot Refuse')
+          .setDescription(`**${biz.name}** has secured your signature.\n\n**Label cut:** 60%\n**Your cut:** 40%\n\nSign and prosper. Refuse and face financial consequences.\n\n*Choose wisely.*`)
+        ], components:[row] }).catch(()=>{});
+
+        org.operations.push({ type:'sign_artist', target:target.id, by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xf5c518)
+          .setDescription(`📨 Forced contract sent to <@${target.id}>. They can sign or pay a penalty.`)
         ], ephemeral:true });
       }
 

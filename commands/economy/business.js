@@ -52,13 +52,30 @@ module.exports = {
 
       const isCash = !!bizType.isCashBusiness;
 
-      // ── LEGIT: max 1 ──
+      // ── LEGIT: max 1 (or 2 for Illuminati members) ──
       if (!isCash) {
         const existing = getBusiness(userId);
-        if (existing) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setTitle('❌ Already have a legit business')
-          .setDescription(`You already own **${existing.name}** (${BIZ_TYPES[existing.type]?.name}).\n\nClose it first with \`/business close type:${existing.type}\` before starting another.`)
-        ], ephemeral:true });
+        if (existing) {
+          // Check if Illuminati member — they get 2 legit biz slots
+          const { isMember: isIllumMember } = require('../../utils/illuminatiDb');
+          const hasIllumSlot = isIllumMember(interaction.guildId, userId);
+          if (!hasIllumSlot) {
+            return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+              .setTitle('❌ Already have a legit business')
+              .setDescription(`You already own **${existing.name}** (${BIZ_TYPES[existing.type]?.name}).\n\nClose it first with \`/business close type:${existing.type}\` before starting another.\n\n*🔺 Illuminati members can own 2 legit businesses.*`)
+            ], ephemeral:true });
+          }
+          // They're Illuminati — check they don't already have 2
+          const { getAllBusinesses } = require('../../utils/bizDb');
+          const allBiz  = getAllBusinesses();
+          const myLegit = Object.values(allBiz).flat().filter(b => b.ownerId === userId && !BIZ_TYPES[b.type]?.isCashBusiness);
+          if (myLegit.length >= 2) {
+            return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+              .setTitle('❌ Business Limit Reached')
+              .setDescription(`Even Illuminati members are capped at **2 legit businesses**. Close one first.`)
+            ], ephemeral:true });
+          }
+        }
       }
 
       // ── CASH: gang owners only, max 3 ──
@@ -160,7 +177,12 @@ module.exports = {
           { name:'⭐ Level',          value:`${biz.level} / ${bizType?.maxLevel||10}`,    inline:true },
           { name:'💸 Next Upgrade',   value:upgradeNext,                                  inline:true },
           { name:'🏆 Total Earned',   value:`$${(biz.totalEarned||0).toLocaleString()}`,  inline:true },
-          { name:'👥 Employees',      value:`${(biz.employees||[]).length} / 5`,          inline:true },
+          { name:'👥 Employees', value:(() => {
+            const all   = biz.employees||[];
+            const human = all.filter(e=>!e.isNPC).length;
+            const npc   = all.filter(e=>e.isNPC).length;
+            return `👤 ${human}/5 · 🤖 ${npc}/6`;
+          })(), inline:true },
           { name:'🧑‍💼 Staff', value:(() => {
             if (!(biz.employees||[]).length) return 'None';
             return biz.employees.map(e => {

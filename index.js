@@ -102,6 +102,9 @@ client.once('ready', async () => {
   const { preloadIlluminatiCache } = require('./utils/illuminatiDb');
   await preloadIlluminatiCache();
 
+  const { preloadLabelCache } = require('./utils/labelDb');
+  await preloadLabelCache();
+
   // ── Global heat→warrant checker (called from gangDb.addHeat) ──
   global._checkHeatWarrant = async (userId, heat) => {
     const { checkHeatWarrant } = require('./utils/policeDb');
@@ -2359,6 +2362,97 @@ client.on('interactionCreate', async interaction => {
 });
 
 
+
+// ── LABEL CONTRACT BUTTON HANDLERS ───────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('label_sign_') && !customId.startsWith('label_force_')) return;
+
+  const { EmbedBuilder } = require('discord.js');
+  const { getLabel, saveLabel, saveContract, isSignedArtist, getPhone: _gp } = require('./utils/labelDb');
+  const { getOrCreateUser, saveUser } = require('./utils/db');
+  const { _pendingContracts } = require('./commands/entrepreneur/label');
+  const userId = interaction.user.id;
+
+  if (customId.startsWith('label_sign_accept_')) {
+    const ownerId  = customId.replace('label_sign_accept_','');
+    const pending  = _pendingContracts[userId];
+    if (!pending) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Offer expired.')], components:[] });
+
+    const { getBusiness } = require('./utils/bizDb');
+    const biz = getBusiness(ownerId);
+    delete _pendingContracts[userId];
+
+    const { getPhone, getStatusTier } = require('./utils/phoneDb');
+    const phone = getPhone(userId);
+    const contract = { labelOwnerId:ownerId, artistId:userId, isNPC:false,
+      npcData:{ talent: Math.min(100, Math.floor((phone?.hype||20)/2)+30), hype: Math.min(100,Math.floor((phone?.followers||100)/5000)), fanbase:phone?.followers||1000, image:'clean' },
+      artistCut:pending.cut, signedAt:Date.now(), illuminatiControlled:false, forced:false };
+
+    await saveContract(userId, contract);
+    const label = getLabel(ownerId) || { artists:[], totalRevenue:0 };
+    label.artists.push({ artistId:userId, isNPC:false, artistCut:pending.cut });
+    await saveLabel(ownerId, label);
+
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+      .setTitle('🎵 Contract Signed!')
+      .setDescription(`You are now signed to **${pending.labelName}**.
+Your cut: **${pending.cut}%** of all revenue you generate.
+
+Post on platforms to earn — your label gets the rest.`)
+    ], components:[] });
+
+  } else if (customId.startsWith('label_sign_decline_')) {
+    const ownerId = customId.replace('label_sign_decline_','');
+    delete _pendingContracts[userId];
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Contract declined.')], components:[] });
+
+  } else if (customId.startsWith('label_force_accept_')) {
+    const parts   = customId.split('_');
+    const ownerId = parts[3]; const guildId = parts[4];
+    const { getBusiness } = require('./utils/bizDb');
+    const biz = getBusiness(ownerId);
+    const { getPhone } = require('./utils/phoneDb');
+    const phone = getPhone(userId);
+
+    const contract = { labelOwnerId:ownerId, artistId:userId, isNPC:false,
+      npcData:{ talent:60, hype:70, fanbase:phone?.followers||5000, image:'controversial' },
+      artistCut:40, signedAt:Date.now(), illuminatiControlled:true, forced:true };
+
+    await saveContract(userId, contract);
+    const label = getLabel(ownerId) || { artists:[], totalRevenue:0 };
+    label.artists.push({ artistId:userId, isNPC:false, artistCut:40 });
+    await saveLabel(ownerId, label);
+
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
+      .setTitle('✍️ Signed Under Duress')
+      .setDescription(`You are now signed to **${biz?.name||'the label'}**.
+Your cut: **40%** — they keep **60%**.
+
+*The Illuminati controls your career now.*`)
+    ], components:[] });
+
+  } else if (customId.startsWith('label_force_refuse_')) {
+    // Refuse — pay 40% penalty
+    const user    = getOrCreateUser(userId);
+    const penalty = Math.floor(user.wallet * 0.40);
+    user.wallet   = Math.max(0, user.wallet - penalty);
+    saveUser(userId, user);
+    // Penalty goes to illuminati vault
+    const parts   = customId.split('_');
+    const guildId = parts[4];
+    const { getOrCreateIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
+    const org = getOrCreateIlluminati(guildId);
+    org.vault += penalty;
+    await saveIlluminati(guildId, org);
+
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0xff8800)
+      .setDescription(`❌ Refused. **$${penalty.toLocaleString()}** deducted as penalty. The Illuminati vault grows.`)
+    ], components:[] });
+  }
+});
+
 // ── ILLUMINATI INVITE ACCEPT/DECLINE ─────────────────────────
 client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
@@ -2582,6 +2676,44 @@ setInterval(async () => {
       }
     }
   } catch(e) { console.error('Police salary tick error:', e.message); }
+}, 15 * 60 * 1000);
+
+
+// ── LABEL REVENUE TICK (every 15 min) ────────────────────────
+setInterval(async () => {
+  try {
+    const { getAllLabels, saveLabel, getAllContracts, calcArtistRevenue } = require('./utils/labelDb');
+    const { getOrCreateUser, saveUser } = require('./utils/db');
+    const labels    = getAllLabels();
+    const contracts = getAllContracts();
+    for (const [ownerId, label] of Object.entries(labels)) {
+      if (!(label.artists||[]).length) continue;
+      let labelEarned = 0;
+      for (const a of label.artists) {
+        const contract = contracts[a.artistId];
+        if (!contract) continue;
+        const total    = calcArtistRevenue(contract);
+        const artistCut= a.artistCut || 30;
+        const labelCut = Math.floor(total * (1 - artistCut/100));
+        const artistPay= total - labelCut;
+        labelEarned   += labelCut;
+        // Pay real artists
+        if (!a.isNPC) {
+          const au = getOrCreateUser(a.artistId);
+          au.wallet += artistPay;
+          saveUser(a.artistId, au);
+        }
+      }
+      if (labelEarned > 0) {
+        label.totalRevenue = (label.totalRevenue||0) + labelEarned;
+        // Add to biz revenue
+        const { getBusiness, saveBusiness } = require('./utils/bizDb');
+        const biz = getBusiness(ownerId);
+        if (biz) { biz.revenue = (biz.revenue||0) + labelEarned; saveBusiness(ownerId, biz); }
+        await saveLabel(ownerId, label);
+      }
+    }
+  } catch(e) { console.error('Label tick error:', e.message); }
 }, 15 * 60 * 1000);
 
 // Money drop tick — per-guild timer-based scheduling (not probability)
