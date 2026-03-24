@@ -2589,6 +2589,50 @@ Use \`/illuminati status\` to view the order.`)
     await interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
       .setDescription(`❌ Tribute refused. The Illuminati has been notified. Expect consequences.`)
     ], components:[] });
+
+  } else if (customId.startsWith('illum_pay_extort_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[3];
+    const byId    = parts[4];
+    const { getOrCreateIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
+    const { getOrCreateUser, saveUser } = require('./utils/db');
+    const org    = getOrCreateIlluminati(guildId);
+    // Find the extort demand
+    const extortOp = (org.operations||[]).reverse().find(o => o.type==='extort' && o.target===userId && Date.now()-o.at < 3600000);
+    if (!extortOp) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Extortion demand expired.')], components:[] });
+    const victim = getOrCreateUser(userId);
+    const totalPay = Math.min(victim.wallet + victim.bank, extortOp.demand);
+    if (victim.wallet >= extortOp.demand) {
+      victim.wallet -= extortOp.demand;
+    } else {
+      const fromBank = extortOp.demand - victim.wallet;
+      victim.wallet  = 0;
+      victim.bank    = Math.max(0, victim.bank - fromBank);
+    }
+    org.vault += totalPay;
+    saveUser(userId, victim);
+    await saveIlluminati(guildId, org);
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+      .setDescription(`💸 Paid **$${totalPay.toLocaleString()}**. The Illuminati is satisfied... for now.`)
+    ], components:[] });
+
+  } else if (customId.startsWith('illum_refuse_extort_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[3];
+    const { getOrCreateIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
+    const { getOrCreateUser, saveUser } = require('./utils/db');
+    const org    = getOrCreateIlluminati(guildId);
+    const victim = getOrCreateUser(userId);
+    // Auto shadow rob — 25% penalty
+    const penalty = Math.floor(victim.wallet * 0.25);
+    victim.wallet  = Math.max(0, victim.wallet - penalty);
+    org.vault     += penalty;
+    saveUser(userId, victim);
+    await saveIlluminati(guildId, org);
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
+      .setTitle('⚠️ Bad Choice')
+      .setDescription(`You refused. **$${penalty.toLocaleString()}** was taken from your wallet by force.`)
+    ], components:[] });
   }
 });
 

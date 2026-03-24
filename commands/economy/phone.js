@@ -393,7 +393,7 @@ module.exports = {
       } catch {}
 
       const freshInfluencer = getOrCreateUser(userId);
-      if (!illuminatiRedirected) {
+      if (!illuminatiRedirected && !illuminatiSilenced) {
         freshInfluencer.wallet += influencerCut;
       }
       // If redirected, influencer earns nothing from their cut

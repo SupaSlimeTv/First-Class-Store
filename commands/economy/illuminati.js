@@ -12,6 +12,7 @@ const {
   RANKS, MAX_MEMBERS, INITIATION_FEE, EXPOSE_THRESHOLD,
 } = require('../../utils/illuminatiDb');
 const { COLORS } = require('../../utils/embeds');
+const { coinAutocomplete } = require('../../utils/coinAutocomplete');
 
 const fmtMoney = n => '$' + Math.round(n).toLocaleString();
 const ILLUM_COLOR = 0x1a1a2e;
@@ -37,19 +38,27 @@ module.exports = {
     .addSubcommand(s => s.setName('operate').setDescription('Execute an operation using vault funds')
       .addStringOption(o => o.setName('operation').setDescription('Operation to run').setRequired(true)
         .addChoices(
-          { name:'🕵️ Shadow Rob — anonymously drain 10% from a user',         value:'shadow_rob' },
-          { name:'📡 Intel Report — full profile on any user',                  value:'intel' },
-          { name:'🛡️ Protection Racket — demand tribute from a gang',          value:'protection' },
-          { name:'📊 Market Manipulation — pump or dump a coin for 30min',     value:'market_manip' },
-          { name:'💸 Tribute Collection — collect owed tribute from gangs',    value:'collect_tribute' },
-          { name:'📸 Blackmail — control a Celebrity+ through leverage',           value:'blackmail' },
-          { name:'🎵 Force Sign — sign a Celebrity+ to an Illuminati label',       value:'sign_artist' },
+          { name:'🕵️ Shadow Rob — anonymously drain 10% from a user ($50k)',    value:'shadow_rob' },
+          { name:'📡 Intel Report — full profile on any user ($25k)',            value:'intel' },
+          { name:'🛡️ Protection Racket — demand tribute from a gang (free)',    value:'protection' },
+          { name:'📊 Market Manipulation — pump or dump a coin 30min ($200k)',  value:'market_manip' },
+          { name:'💸 Tribute Collection — collect owed tribute now',            value:'collect_tribute' },
+          { name:'📸 Blackmail — control a Celebrity+ ($150k)',                 value:'blackmail' },
+          { name:'🎵 Force Sign — force a Celebrity+ onto your label (free)',   value:'sign_artist' },
+          { name:'🎤 Sabotage Artist — crash a signed artist career ($75k)',    value:'sabotage' },
+          { name:'🔇 Silence Campaign — suppress a user phone posts ($60k)', value:'silence_campaign' },
+          { name:'💰 Extort — demand payment or face shadow rob ($0)',          value:'extort' },
         ))
-      .addUserOption(o => o.setName('target').setDescription('Target user (for rob/intel/protection)').setRequired(false))
-      .addStringOption(o => o.setName('coin').setDescription('Coin ticker (for market manipulation)').setRequired(false))
-      .addStringOption(o => o.setName('direction').setDescription('Pump or dump?').setRequired(false)
+      .addUserOption(o => o.setName('target').setDescription('Target user (not needed for market manipulation)').setRequired(false))
+      .addStringOption(o => o.setName('coin').setDescription('Coin ticker (market manipulation only — type to search)').setRequired(false).setAutocomplete(true))
+      .addStringOption(o => o.setName('direction').setDescription('Pump or dump? (market manipulation only)').setRequired(false)
         .addChoices({ name:'📈 Pump', value:'pump' }, { name:'📉 Dump', value:'dump' })))
     .addSubcommand(s => s.setName('expose').setDescription('Attempt to expose the Illuminati publicly')),
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'coin') return coinAutocomplete(interaction, 'coin');
+  },
 
   async execute(interaction) {
     const sub     = interaction.options.getSubcommand();
@@ -509,7 +518,6 @@ Vault: **${fmtMoney(org.vault)}**`)
             t.lastPaid = Date.now();
             t.due      = Date.now() + 7*24*60*60*1000;
           } else {
-            // Can't pay — shadow rob them
             const penalty = Math.floor(leader.wallet * 0.25);
             leader.wallet -= penalty;
             org2.vault    += penalty;
@@ -521,6 +529,128 @@ Vault: **${fmtMoney(org.vault)}**`)
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
           .setTitle('💸 Tribute Collected')
           .setDescription(`Collected **${fmtMoney(collected)}** from ${due.length} gang(s).\n\nVault: **${fmtMoney(org2.vault)}**`)
+        ], ephemeral:true });
+      }
+
+      // ── SABOTAGE ARTIST ──────────────────────────────────────
+      if (op === 'sabotage') {
+        const COST = 75000;
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Sabotage costs **${fmtMoney(COST)}** from vault.`)], ephemeral:true });
+        if (!target) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify the artist to sabotage.')], ephemeral:true });
+
+        const { getAllLabels, saveLabel, getContract, saveContract } = require('../../utils/labelDb');
+        const labels = getAllLabels();
+        // Find which label this artist is on
+        let found = false;
+        for (const [ownerId, label] of Object.entries(labels)) {
+          const artist = (label.artists||[]).find(a => a.artistId === target.id);
+          if (!artist) continue;
+          // Crash their fanbase and hype by 60%
+          const contract = getContract(target.id);
+          if (contract?.npcData) {
+            contract.npcData.fanbase = Math.floor((contract.npcData.fanbase||1000) * 0.40);
+            contract.npcData.hype    = Math.max(1, Math.floor((contract.npcData.hype||50) * 0.30));
+            contract.npcData.image   = 'controversial';
+            await saveContract(target.id, contract);
+          }
+          found = true;
+          // DM the label owner
+          interaction.client.users.fetch(ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
+            .setColor(0xff3b3b)
+            .setTitle('📉 Artist Sabotaged!')
+            .setDescription(`<@${target.id}>'s career was sabotaged by unknown forces. Fanbase and hype dropped dramatically. Image damaged.`)
+          ]}).catch(() => null)).catch(() => null);
+          break;
+        }
+
+        // Also hit their phone status if they have one
+        const { getPhone, savePhone } = require('../../utils/phoneDb');
+        const phone = getPhone(target.id);
+        if (phone) {
+          phone.hype      = Math.max(0, Math.floor((phone.hype||0) * 0.40));
+          phone.followers = Math.max(0, Math.floor((phone.followers||0) * 0.60));
+          phone.status    = Math.max(0, Math.floor((phone.status||0) * 0.70));
+          await savePhone(target.id, phone);
+        }
+
+        org.vault -= COST;
+        org.operations.push({ type:'sabotage', target:target.id, by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        await addEvidence(guildId, `op_${Date.now()}`);
+
+        // DM target
+        target.send({ embeds:[new EmbedBuilder()
+          .setColor(0x2c2c2c)
+          .setTitle('📉 Your Career is in Flames')
+          .setDescription('A coordinated campaign has devastated your reputation. Fanbase, hype, and status have cratered.\n\n*Someone powerful does not want you to succeed.*')
+        ]}).catch(() => null);
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle('🎤 Artist Sabotaged')
+          .setDescription(`<@${target.id}>'s career has been destroyed.\n\n• Fanbase -60% · Hype -70% · Image → controversial\n• Phone status -30%\n\nVault: **${fmtMoney(org.vault)}**`)
+        ], ephemeral:true });
+      }
+
+      // ── SILENCE CAMPAIGN ─────────────────────────────────────
+      if (op === 'silence_campaign') {
+        const COST = 60000;
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Silence Campaign costs **${fmtMoney(COST)}**.`)], ephemeral:true });
+        if (!target) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target.')], ephemeral:true });
+        if (isMember(guildId, target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Cannot silence fellow members.')], ephemeral:true });
+
+        const { getPhone, savePhone } = require('../../utils/phoneDb');
+        const phone = getPhone(target.id);
+        if (!phone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('<@' + target.id + '> has no phone — no platform to silence.')], ephemeral:true });
+
+        // Set a posting penalty — silence their earnings for 48hrs
+        phone.silencedUntil    = Date.now() + 48 * 60 * 60 * 1000;
+        phone.silenceByIllum   = true;
+        await savePhone(target.id, phone);
+
+        org.vault -= COST;
+        org.operations.push({ type:'silence_campaign', target:target.id, by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+
+        target.send({ embeds:[new EmbedBuilder()
+          .setColor(0x2c2c2c)
+          .setTitle('🔇 Your Posts Are Being Suppressed')
+          .setDescription('A shadow campaign is suppressing your content.\n\n*Your posts earn nothing for the next 48 hours.*')
+        ]}).catch(() => null);
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle('🔇 Silence Campaign Launched')
+          .setDescription(`<@${target.id}>'s phone posts will earn **$0** for the next 48 hours.\n\nVault: **${fmtMoney(org.vault)}**`)
+        ], ephemeral:true });
+      }
+
+      // ── EXTORT ────────────────────────────────────────────────
+      if (op === 'extort') {
+        if (!target) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target to extort.')], ephemeral:true });
+        if (isMember(guildId, target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Cannot extort fellow members.')], ephemeral:true });
+
+        const victim   = getOrCreateUser(target.id);
+        const demand   = Math.floor((victim.wallet + victim.bank) * 0.15); // 15% of total wealth
+        if (demand < 1000) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('<@' + target.id + '> is too broke to extort.')], ephemeral:true });
+
+        // Give them 1hr to pay via DM button
+        const { ActionRowBuilder: ARB2, ButtonBuilder: BB2, ButtonStyle: BS2 } = require('discord.js');
+        const row = new ARB2().addComponents(
+          new BB2().setCustomId(`illum_pay_extort_${guildId}_${userId}`).setLabel(`💰 Pay ${fmtMoney(demand)}`).setStyle(BS2.Danger),
+          new BB2().setCustomId(`illum_refuse_extort_${guildId}_${userId}`).setLabel('❌ Refuse').setStyle(BS2.Secondary),
+        );
+
+        target.send({ embeds:[new EmbedBuilder()
+          .setColor(ILLUM_COLOR)
+          .setTitle('⚠️ Pay Up or Face Consequences')
+          .setDescription(`A powerful organization demands **${fmtMoney(demand)}** from you.\n\nPay within 1 hour or 25% of your wallet will be taken by force.\n\n*This is not a request.*`)
+        ], components:[row] }).catch(() => null);
+
+        org.operations.push({ type:'extort', target:target.id, demand, by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle('💰 Extortion Demand Sent')
+          .setDescription(`Demanding **${fmtMoney(demand)}** from <@${target.id}>.\n\nThey have 1 hour to pay or a shadow rob will auto-execute.`)
         ], ephemeral:true });
       }
     }
