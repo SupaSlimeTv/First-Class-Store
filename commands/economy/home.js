@@ -175,120 +175,151 @@ module.exports = {
         .setDescription("You need a home first. Use `/home buy`.")
       ], ephemeral:true });
 
-      const tier    = HOME_TIERS[home.tier];
-      const furnUsed= (home.furnishings||[]).length;
-      const furnMax = tier?.furnSlots || 0;
+      const store = getStore(interaction.guildId);
 
-      // Include store items with isFurniture flag
-      const store    = getStore(interaction.guildId);
-      const storeFurn= (store.items||[]).filter(i => i.isFurniture);
-      const allFurn  = [...FURNITURE_SHOP, ...storeFurn.map(i => ({
-        id: i.id, name: i.name, cost: i.price, passiveBonus: 0, stashBonus: 0, desc: i.description,
-      }))];
+      const buildShopMessage = () => {
+        const h        = getHome(userId);
+        const u        = getOrCreateUser(userId);
+        const tier     = HOME_TIERS[h.tier];
+        const furnUsed = (h.furnishings||[]).length;
+        const furnMax  = tier?.furnSlots || 0;
+        const allFurn  = [...FURNITURE_SHOP, ...(store.items||[]).filter(i=>i.isFurniture).map(i=>({
+          id:i.id, name:i.name, cost:i.price, passiveBonus:0, stashBonus:0, desc:i.description,
+        }))];
+        const lines = allFurn.map(f => {
+          const owned = (h.furnishings||[]).filter(x=>x.id===f.id).length;
+          return `${f.name} — **${fmtMoney(f.cost)}**\n*${f.desc}*${owned ? ` ✅ ×${owned}` : ''}`;
+        }).join('\n\n');
+        const menu = new StringSelectMenuBuilder()
+          .setCustomId('home_furn_select')
+          .setPlaceholder('Choose a furnishing to buy...')
+          .addOptions(allFurn.map(f => {
+            const owned = (h.furnishings||[]).filter(x=>x.id===f.id).length;
+            const icon  = furnUsed >= furnMax ? '🔒' : u.wallet < f.cost ? '💸' : owned ? '✅' : '🛒';
+            return new StringSelectMenuOptionBuilder()
+              .setLabel(`${icon} ${f.name.replace(/[^\w\s$]/g,'').trim().slice(0,50)}`)
+              .setDescription(`${fmtMoney(f.cost)} — ${f.desc.slice(0,80)}${owned?` (×${owned})`:''}`)
+              .setValue(f.id);
+          }));
+        return {
+          embeds:[new EmbedBuilder()
+            .setColor(0x5865f2)
+            .setTitle(`🛋️ Furniture Shop — ${furnUsed}/${furnMax} slots used`)
+            .setDescription(lines)
+            .setFooter({ text:`💰 Wallet: ${fmtMoney(u.wallet)} · Shop closes after 3 min of inactivity` })
+          ],
+          components:[new ActionRowBuilder().addComponents(menu)],
+        };
+      };
 
-      const user = getOrCreateUser(userId);
-
-      // Build select menu — show all items, mark owned and affordable
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('home_furn_select')
-        .setPlaceholder('Choose a furnishing to buy...')
-        .addOptions(allFurn.map(f => {
-          const owned      = (home.furnishings||[]).filter(x=>x.id===f.id).length;
-          const canAfford  = user.wallet >= f.cost;
-          const slotsLeft  = furnUsed < furnMax;
-          const statusIcon = !slotsLeft ? '🔒' : !canAfford ? '💸' : owned ? '✅' : '🛒';
-          return new StringSelectMenuOptionBuilder()
-            .setLabel(`${statusIcon} ${f.name.replace(/[^\w\s$]/g,'').trim().slice(0,50)}`)
-            .setDescription(`${fmtMoney(f.cost)} — ${f.desc.slice(0,80)}${owned ? ` (owned ×${owned})` : ''}`)
-            .setValue(f.id);
-        }));
-
-      const selectRow = new ActionRowBuilder().addComponents(selectMenu);
-
-      // Build description lines
-      const lines = allFurn.map(f => {
-        const owned = (home.furnishings||[]).filter(x=>x.id===f.id).length;
-        return `${f.name} — **${fmtMoney(f.cost)}**\n*${f.desc}*${owned ? ` ✅ ×${owned}` : ''}`;
-      }).join('\n\n');
-
-      await interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`🛋️ Furniture Shop — ${furnUsed}/${furnMax} slots used`)
-        .setDescription(lines)
-        .setFooter({ text:`Wallet: ${fmtMoney(user.wallet)} · Select an item below to buy` })
-      ], components:[selectRow], ephemeral:true });
-
-      // Wait for selection
+      await interaction.reply(buildShopMessage());
       const msg = await interaction.fetchReply();
-      const selectCollector = msg.createMessageComponentCollector({ time: 60_000, max: 1 });
 
-      selectCollector.on('collect', async selectInt => {
-        if (selectInt.user.id !== userId) return;
-        const furnId = selectInt.values[0];
-        const furn   = allFurn.find(f => f.id === furnId);
-        if (!furn) return selectInt.update({ content:'Item not found.', components:[] });
+      const loop = async () => {
+        const collector = msg.createMessageComponentCollector({
+          filter: i => i.user.id === userId,
+          time: 3 * 60 * 1000,
+          max: 1,
+        });
 
-        // Validation
-        const freshHome = getHome(userId);
-        const freshUser = getOrCreateUser(userId);
-        const freshUsed = (freshHome?.furnishings||[]).length;
-        const freshMax  = HOME_TIERS[freshHome?.tier]?.furnSlots || 0;
+        collector.on('collect', async selectInt => {
+          const furnId  = selectInt.values[0];
+          const h       = getHome(userId);
+          const u       = getOrCreateUser(userId);
+          const allFurn = [...FURNITURE_SHOP, ...(store.items||[]).filter(i=>i.isFurniture).map(i=>({
+            id:i.id, name:i.name, cost:i.price, passiveBonus:0, stashBonus:0, desc:i.description,
+          }))];
+          const furn    = allFurn.find(f => f.id === furnId);
+          if (!furn) return selectInt.update({ content:'Item not found.', components:[] });
 
-        if (freshUsed >= freshMax) return selectInt.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`🔒 No furnishing slots left (${freshUsed}/${freshMax}). Upgrade your home.`)], components:[] });
-        if (freshUser.wallet < furn.cost) return selectInt.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`💸 You need **${fmtMoney(furn.cost)}** — you only have **${fmtMoney(freshUser.wallet)}**.`)], components:[] });
+          const furnUsed = (h?.furnishings||[]).length;
+          const furnMax  = HOME_TIERS[h?.tier]?.furnSlots || 0;
 
-        // Show confirmation
-        const confirmRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId(`home_furn_confirm_${furnId}`).setLabel(`✅ Confirm — Buy ${furn.name}`).setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId('home_furn_cancel').setLabel('❌ Cancel').setStyle(ButtonStyle.Secondary),
-        );
-
-        await selectInt.update({ embeds:[new EmbedBuilder()
-          .setColor(0xf5c518)
-          .setTitle(`🛋️ Confirm Purchase`)
-          .setDescription(`**${furn.name}** — ${fmtMoney(furn.cost)}\n\n*${furn.desc}*\n\nWallet after purchase: **${fmtMoney(freshUser.wallet - furn.cost)}**`)
-          .setFooter({ text:'Confirm to buy or cancel to go back' })
-        ], components:[confirmRow] });
-
-        // Wait for confirm/cancel
-        const confirmCollector = msg.createMessageComponentCollector({ time: 30_000, max: 1 });
-        confirmCollector.on('collect', async confirmInt => {
-          if (confirmInt.user.id !== userId) return;
-
-          if (confirmInt.customId === 'home_furn_cancel') {
-            return confirmInt.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Purchase cancelled.')], components:[] });
+          if (furnUsed >= furnMax) {
+            await selectInt.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+              .setDescription(`🔒 No furnishing slots left (${furnUsed}/${furnMax}). Upgrade your home tier.`)
+            ], components:[] });
+            return;
+          }
+          if (u.wallet < furn.cost) {
+            await selectInt.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+              .setDescription(`💸 You need **${fmtMoney(furn.cost)}** — you only have **${fmtMoney(u.wallet)}**.`)
+            ], components:[] });
+            return;
           }
 
-          // Final check + purchase
-          const buyHome = getHome(userId);
-          const buyUser = getOrCreateUser(userId);
-          if (buyUser.wallet < furn.cost) return confirmInt.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Not enough money.')], components:[] });
-          if ((buyHome?.furnishings||[]).length >= (HOME_TIERS[buyHome?.tier]?.furnSlots||0)) return confirmInt.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No slots left.')], components:[] });
+          // Confirmation
+          const confirmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`hfc_${furnId}`).setLabel(`✅ Buy ${furn.name.replace(/[^\w\s]/g,'').trim().slice(0,20)}`).setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('hfx').setLabel('❌ Cancel').setStyle(ButtonStyle.Secondary),
+          );
 
-          buyUser.wallet -= furn.cost;
-          buyHome.furnishings = [...(buyHome.furnishings||[]), { id: furnId, installedAt: Date.now() }];
-          saveUser(userId, buyUser);
-          await saveHome(userId, buyHome);
+          await selectInt.update({ embeds:[new EmbedBuilder()
+            .setColor(0xf5c518)
+            .setTitle('🛋️ Confirm Purchase')
+            .setDescription(`**${furn.name}** — ${fmtMoney(furn.cost)}\n\n*${furn.desc}*\n\n💰 Wallet after: **${fmtMoney(u.wallet - furn.cost)}**`)
+            .setFooter({ text:'Confirm to buy or cancel to go back to shop' })
+          ], components:[confirmRow] });
 
-          const newPassive = calcPassiveIncome(buyHome);
-          const newStash   = getStashLimit(buyHome);
-          await confirmInt.update({ embeds:[new EmbedBuilder()
-            .setColor(0x2ecc71)
-            .setTitle(`✅ ${furn.name} Installed!`)
-            .setDescription(`*${furn.desc}*\n\n💰 Wallet: **${fmtMoney(buyUser.wallet)}**\n📊 Passive: **${fmtMoney(newPassive)}/hr** · Stash: **${newStash} slots**`)
-            .setFooter({ text:'Use /home furnish again to buy more' })
-          ], components:[] });
+          const cc = msg.createMessageComponentCollector({ filter:i=>i.user.id===userId, time:30_000, max:1 });
+
+          cc.on('collect', async ci => {
+            if (ci.customId === 'hfx') {
+              await ci.update(buildShopMessage());
+              loop();
+              return;
+            }
+            // Purchase
+            const bh = getHome(userId);
+            const bu = getOrCreateUser(userId);
+            if (bu.wallet < furn.cost || (bh?.furnishings||[]).length >= (HOME_TIERS[bh?.tier]?.furnSlots||0)) {
+              await ci.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Unable to complete purchase.')], components:[] });
+              return;
+            }
+            bu.wallet -= furn.cost;
+            bh.furnishings = [...(bh.furnishings||[]), { id:furnId, installedAt:Date.now() }];
+            saveUser(userId, bu);
+            await saveHome(userId, bh);
+
+            const newPassive = calcPassiveIncome(bh);
+            const newUsed    = bh.furnishings.length;
+            const newMax     = HOME_TIERS[bh.tier]?.furnSlots || 0;
+
+            await ci.update({ embeds:[new EmbedBuilder()
+              .setColor(0x2ecc71)
+              .setTitle(`✅ ${furn.name} Installed!`)
+              .setDescription(`*${furn.desc}*\n\n💰 Wallet: **${fmtMoney(bu.wallet)}** · Slots: **${newUsed}/${newMax}** · Passive: **${fmtMoney(newPassive)}/hr**`)
+              .setFooter({ text: newUsed < newMax ? 'Select another item below to keep shopping' : `All ${newMax} slots filled!` })
+            ], components:[] });
+
+            setTimeout(async () => {
+              if (newUsed < newMax) {
+                await interaction.editReply(buildShopMessage()).catch(()=>{});
+                loop();
+              } else {
+                await interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888)
+                  .setDescription(`🔒 All ${newMax} furnishing slots filled!`)
+                ], components:[] }).catch(()=>{});
+              }
+            }, 2000);
+          });
+
+          cc.on('end', (_c, reason) => {
+            if (reason === 'time') { interaction.editReply(buildShopMessage()).catch(()=>{}); loop(); }
+          });
         });
 
-        confirmCollector.on('end', (c, reason) => {
-          if (reason === 'time') confirmInt?.editReply({ components:[] }).catch(()=>{});
+        collector.on('end', (_c, reason) => {
+          if (reason === 'time') {
+            interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888)
+              .setTitle('🛋️ Furniture Shop Closed')
+              .setDescription('Use `/home furnish` to open it again.')
+            ], components:[] }).catch(()=>{});
+          }
         });
-      });
+      };
 
-      selectCollector.on('end', (c, reason) => {
-        if (reason === 'time') interaction.editReply({ components:[] }).catch(()=>{});
-      });
-
+      loop();
       return;
     }
 
