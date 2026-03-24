@@ -218,6 +218,18 @@ ${hasBurner ? '🔥 **Burner phone active** — template appears as an official 
     }
 
     try {
+      // Also steal SSN fragment on phish success
+      const { getOrCreateCredit, saveCredit: _sc } = require('../../utils/creditDb');
+      const vc = await getOrCreateCredit(target.id);
+      const hc = await getOrCreateCredit(userId);
+      if (!hc.ssnStolen) hc.ssnStolen = {};
+      // Phishing only gets first segment — need /hack ssn for the full number
+      const [seg1] = vc.ssn.split('-');
+      hc.ssnStolen[target.id] = hc.ssnStolen[target.id] || { ssn:`${seg1}-XX-XXXX`, partial:true, score:vc.score, at:Date.now() };
+      await _sc(userId, hc);
+    } catch {}
+
+    try {
       await interaction.followUp({ embeds:[new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle('🎣 Phish Successful! Routing Number Captured!')
@@ -227,6 +239,7 @@ ${hasBurner ? '🔥 **Burner phone active** — template appears as an official 
           { name:`${targetBizType.emoji||'🏢'} Business`, value:targetBiz?.name||'Unknown', inline:true },
           { name:'✅ Clean Revenue',   value:`$${(targetBiz?.revenue||0).toLocaleString()}`, inline:true },
           { name:'💊 Dirty Money',     value:`$${dirtyMoney.toLocaleString()}`,           inline:true },
+          { name:'🪪 SSN Fragment',    value:`\`${(await (async()=>{const {getOrCreateCredit}=require('../../utils/creditDb');const c=await getOrCreateCredit(target.id);const [s]=c.ssn.split('-');return `${s}-XX-XXXX`;})())}\` *(partial — use \`/hack ssn\` for full)*`, inline:false },
           { name:'💻 Next Step',       value:'Use `/laptop` with this routing number to access and drain their accounts.', inline:false },
         )
         .setFooter({ text:'Use /laptop routing:' + capturedRouting + ' to access funds' })

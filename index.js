@@ -105,6 +105,9 @@ client.once('ready', async () => {
   const { preloadLabelCache } = require('./utils/labelDb');
   await preloadLabelCache();
 
+  const { preloadCreditCache } = require('./utils/creditDb');
+  await preloadCreditCache();
+
   // ── Global heat→warrant checker (called from gangDb.addHeat) ──
   global._checkHeatWarrant = async (userId, heat) => {
     const { checkHeatWarrant } = require('./utils/policeDb');
@@ -268,10 +271,12 @@ client.on('messageCreate', async (message) => {
       return message.reply('You already have an account! Use `' + prefix + 'bal` to check your balance.');
     }
     openAccount(message.author.id);
+    const { getOrCreateCredit: _gcc } = require('./utils/creditDb');
+    const newCredit = await _gcc(message.author.id);
     return message.reply({ embeds: [new EmbedBuilder()
       .setColor(COLORS.SUCCESS)
       .setTitle('🏦 Account Opened!')
-      .setDescription(`Welcome, **${message.author.username}**! Your account has been created.\n\n💵 Starting wallet: **$500**\n\nUse \`${prefix}help\` to see all commands.`)
+      .setDescription(`Welcome, **${message.author.username}**! Your account has been created.\n\n💵 Starting wallet: **$500**\n🪪 Your SSN: **${newCredit.ssn}**\n📊 Credit Score: **${newCredit.score}** (Good)\n\n⚠️ Keep your SSN private — others can steal it to commit fraud!\n\nUse \`${prefix}help\` to see all commands.`)
     ]});
   }
 
@@ -2363,6 +2368,63 @@ client.on('interactionCreate', async interaction => {
 
 
 
+
+// ── PROMO BUTTON HANDLERS ────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('promo_accept_') && !customId.startsWith('promo_decline_')) return;
+
+  const { EmbedBuilder } = require('discord.js');
+  const { getOrCreateUser, saveUser } = require('./utils/db');
+  const { getPhone, savePhone, getStatusTier } = require('./utils/phoneDb');
+  const influencerId = interaction.user.id;
+
+  if (customId.startsWith('promo_accept_')) {
+    const parts     = customId.split('_');
+    const clientId  = parts[2];
+    const promoType = parts[3];
+    const budget    = parseInt(parts[4]);
+
+    // Pay influencer
+    const inf = getOrCreateUser(influencerId);
+    inf.wallet += budget;
+    saveUser(influencerId, inf);
+
+    // Apply boost to client's phone
+    const clientPhone = getPhone(clientId);
+    if (clientPhone) {
+      const boosts = { shoutout:{ hype:500, followers:2000, status:15 }, feature:{ hype:2000, followers:8000, status:50 }, story:{ hype:150, followers:500, status:5 } };
+      const boost  = boosts[promoType] || boosts.story;
+      const infTier = getStatusTier(getPhone(influencerId)?.status||0);
+      const mult   = infTier?.mult || 1;
+      clientPhone.hype      = (clientPhone.hype||0)      + Math.floor(boost.hype*mult);
+      clientPhone.followers = (clientPhone.followers||0)  + Math.floor(boost.followers*mult);
+      clientPhone.status    = (clientPhone.status||0)     + Math.floor(boost.status*mult);
+      await savePhone(clientId, clientPhone);
+
+      // Notify client
+      interaction.client.users.fetch(clientId).then(u => u.send({ embeds:[new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('🎉 Promo Complete!')
+        .setDescription(`**${interaction.user.username}** (${infTier?.label}) just shouted you out!
+
+✨ Hype: +${Math.floor(boost.hype*mult).toLocaleString()}
+👥 Followers: +${Math.floor(boost.followers*mult).toLocaleString()}
+⭐ Status: +${Math.floor(boost.status*mult)}`)
+      ]}).catch(()=>{})).catch(()=>{});
+    }
+
+    await interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setDescription(`✅ Accepted! **$${budget.toLocaleString()}** added to your wallet. Promo boost applied to <@${clientId}>.`)
+    ], components:[] });
+
+  } else {
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Promo declined.')], components:[] });
+  }
+});
+
 // ── LABEL CONTRACT BUTTON HANDLERS ───────────────────────────
 client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
@@ -2678,6 +2740,72 @@ setInterval(async () => {
   } catch(e) { console.error('Police salary tick error:', e.message); }
 }, 15 * 60 * 1000);
 
+
+
+// ── CREDIT BILLING TICK (daily) ──────────────────────────────
+setInterval(async () => {
+  try {
+    const { getAllCredit, saveCredit, getCreditTier, adjustScore } = require('./utils/creditDb');
+    const { getOrCreateUser, saveUser } = require('./utils/db');
+    const all = getAllCredit();
+    for (const [userId, credit] of Object.entries(all)) {
+      let changed = false;
+
+      // Card interest — 7 day grace period then daily interest
+      if (credit.card && credit.balance > 0 && credit.lastBilling) {
+        const daysSinceBill = (Date.now() - credit.lastBilling) / 86400000;
+        if (daysSinceBill > 7) {
+          const tier     = getCreditTier(credit.score);
+          const interest = Math.ceil(credit.balance * tier.interestDay);
+          credit.balance += interest;
+          credit.missed   = (credit.missed||0) + 1;
+          await adjustScore(userId, -12, 'Missed payment interest');
+          changed = true;
+          // DM warning
+          client.users.fetch(userId).then(u => u.send({ embeds:[new (require('discord.js').EmbedBuilder)()
+            .setColor(0xff3b3b)
+            .setTitle('💳 Payment Overdue!')
+            .setDescription(`Your credit card balance of **$${credit.balance.toLocaleString()}** is overdue.
+
+Interest charged: **$${interest.toLocaleString()}** (${tier.interestDay*100}%/day)
+Credit score: **-12 points**
+
+Pay now with \`/credit pay\``)
+          ]}).catch(()=>{})).catch(()=>{});
+        }
+      }
+
+      // Loan daily payments — auto-deduct from wallet then bank
+      for (const loan of (credit.loans||[]).filter(l=>!l.paid)) {
+        const daysIn  = (Date.now() - loan.startedAt) / 86400000;
+        const due     = Date.now() > loan.due;
+        if (due && loan.remaining > 0) {
+          const user = getOrCreateUser(userId);
+          const pay  = Math.min(loan.dailyPayment, loan.remaining);
+          if (user.wallet >= pay) {
+            user.wallet  -= pay;
+            loan.remaining = Math.max(0, loan.remaining - pay);
+          } else if (user.bank >= pay) {
+            user.bank    -= pay;
+            loan.remaining = Math.max(0, loan.remaining - pay);
+          } else {
+            // Default — score destroyed
+            await adjustScore(userId, -80, 'Loan default');
+            loan.paid = true; loan.defaulted = true;
+            client.users.fetch(userId).then(u => u.send({ embeds:[new (require('discord.js').EmbedBuilder)()
+              .setColor(0xff3b3b).setTitle('💼 Loan Default!').setDescription('You defaulted on a business loan. Credit score -80.')
+            ]}).catch(()=>{})).catch(()=>{});
+          }
+          if (loan.remaining === 0) { loan.paid = true; await adjustScore(userId, 15, 'Loan paid off'); }
+          saveUser(userId, user);
+          changed = true;
+        }
+      }
+
+      if (changed) await saveCredit(userId, credit);
+    }
+  } catch(e) { console.error('Credit tick error:', e.message); }
+}, 24 * 60 * 60 * 1000); // once per day
 
 // ── LABEL REVENUE TICK (every 15 min) ────────────────────────
 setInterval(async () => {

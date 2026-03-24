@@ -720,5 +720,72 @@ module.exports = {
         ]});
       }
     }
+
+    // ── PROMO ─────────────────────────────────────────────────
+    if (sub === 'promo') {
+      const influencer = interaction.options.getUser('influencer');
+      const promoType  = interaction.options.getString('type');
+      const budget     = interaction.options.getInteger('budget');
+
+      if (influencer.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't promo yourself.")], ephemeral:true });
+
+      // Check influencer status
+      const infPhone = getPhone(influencer.id);
+      const infTier  = getStatusTier(infPhone?.status||0);
+      if ((infTier?.level||0) < 2) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`<@${influencer.id}> needs at least **Influencer** status to do promos. They are: **${infTier?.label||'Newcomer'}**`)
+      ], ephemeral:true });
+
+      // Check requester has a phone
+      const myPhone = getPhone(userId);
+      if (!myPhone) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('You need a phone to request promo.')], ephemeral:true });
+
+      // Min price based on influencer tier
+      const minPrices = { shoutout:500, feature:2000, story:200 };
+      const tierMult  = { 2:1, 3:3, 4:8, 5:20 }[infTier.level||2] || 1;
+      const minPrice  = Math.floor(minPrices[promoType] * tierMult);
+
+      if (budget < minPrice) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`**${infTier.label} ${influencer.username}** charges at least **${fmtMoney(minPrice)}** for a ${promoType}.
+You offered: ${fmtMoney(budget)}`)
+      ], ephemeral:true });
+
+      const user = getOrCreateUser(userId);
+      if (user.wallet < budget) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`Need ${fmtMoney(budget)} in wallet.`)
+      ], ephemeral:true });
+
+      // DM the influencer with accept/decline
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`promo_accept_${userId}_${promoType}_${budget}`).setLabel(`✅ Accept ${fmtMoney(budget)}`).setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`promo_decline_${userId}`).setLabel('❌ Pass').setStyle(ButtonStyle.Secondary),
+      );
+
+      const promoLabels = { shoutout:'📢 Shoutout', feature:'🎵 Feature', story:'📱 Story Post' };
+      try {
+        await influencer.send({ embeds:[new EmbedBuilder()
+          .setColor(0xf5c518)
+          .setTitle('💼 Promo Request')
+          .setDescription(`**${interaction.user.username}** is offering **${fmtMoney(budget)}** for a **${promoLabels[promoType]}**.
+
+Accept and the money hits your wallet immediately, then you can post on any platform to trigger the promo boost for them.
+
+⏱️ Offer expires in 10 minutes.`)
+        ], components:[row] });
+      } catch {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't DM that influencer.")], ephemeral:true });
+      }
+
+      return interaction.reply({ embeds:[new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle('📨 Promo Request Sent')
+        .setDescription(`Offer sent to **${influencer.username}** (${infTier.label}).
+
+${promoLabels[promoType]} — **${fmtMoney(budget)}**
+
+If they accept, their next post will be boosted for your profile.`)
+      ], ephemeral:true });
+    }
   },
 };

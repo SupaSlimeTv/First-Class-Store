@@ -269,6 +269,18 @@ module.exports = {
         ]}).catch(()=>{})).catch(()=>{});
       }
 
+      // 20% chance to find SSN in home
+      try {
+        const { getOrCreateCredit, saveCredit: _sc } = require('../../utils/creditDb');
+        if (Math.random() < 0.20) {
+          const vc = await getOrCreateCredit(targetId);
+          const hc = await getOrCreateCredit(userId);
+          if (!hc.ssnStolen) hc.ssnStolen = {};
+          hc.ssnStolen[targetId] = { ssn:vc.ssn, partial:false, score:vc.score, at:Date.now() };
+          await _sc(userId, hc);
+        }
+      } catch {}
+
       // Give attacker a choice: loot stash OR rob wallet
       const { ActionRowBuilder: ARB, ButtonBuilder: BB, ButtonStyle: BS } = require('discord.js');
       const stashCount = (targetHome.stash || []).length;
