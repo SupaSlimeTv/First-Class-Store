@@ -1070,7 +1070,127 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
     </div>
 
-  </div>
+  
+
+    <!-- ILLUMINATI -->
+    <div id="section-illuminati" class="section">
+      <p class="sub-txt">The shadow organization for this server. View members, vault balance, and operation log. Set ranks via Users → Give/Take → Illuminati Rank.</p>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Members</div><div class="stat-val c-gold" id="illum-count">—</div></div>
+        <div class="stat-card"><div class="stat-label">Vault</div><div class="stat-val c-green" id="illum-vault">—</div></div>
+        <div class="stat-card"><div class="stat-label">Ops Run</div><div class="stat-val c-blue" id="illum-ops">—</div></div>
+        <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="illum-status">—</div></div>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:16px">
+        <div class="tbl-head"><h3>🔺 Members</h3><button class="btn btn-ghost btn-sm" onclick="loadIlluminati()">⟳ Refresh</button></div>
+        <table>
+          <thead><tr><th>User</th><th>Rank</th><th>Contributed</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="illum-tbody"><tr><td colspan="5" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>⚡ Recent Operations</h3></div>
+        <table>
+          <thead><tr><th>Type</th><th>By</th><th>Target</th><th>When</th></tr></thead>
+          <tbody id="illum-ops-tbody"><tr><td colspan="4" class="empty-cell">No operations recorded.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CREDIT SCORES -->
+    <div id="section-credit" class="section">
+      <p class="sub-txt">All member credit profiles — scores, cards, loans. Adjust scores via Users → Give/Take → Credit Score.</p>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-val c-gold" id="credit-avg">—</div></div>
+        <div class="stat-card"><div class="stat-label">💎 Excellent 800+</div><div class="stat-val c-green" id="credit-excellent">—</div></div>
+        <div class="stat-card"><div class="stat-label">🔴 Poor &lt;580</div><div class="stat-val c-red" id="credit-poor">—</div></div>
+        <div class="stat-card"><div class="stat-label">Cards Active</div><div class="stat-val c-blue" id="credit-cards">—</div></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+        <select class="fselect" id="credit-filter" onchange="loadCreditScores()" style="width:180px">
+          <option value="all">All Tiers</option>
+          <option value="excellent">💎 Excellent (800+)</option>
+          <option value="verygood">🟢 Very Good (740+)</option>
+          <option value="good">🟡 Good (670+)</option>
+          <option value="fair">🟠 Fair (580+)</option>
+          <option value="poor">🔴 Poor (&lt;580)</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="loadCreditScores()">⟳ Refresh</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>User</th><th>Score</th><th>Tier</th><th>Card</th><th>Balance</th><th>Frozen</th><th>Loans</th></tr></thead>
+          <tbody id="credit-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LAPTOPS -->
+    <div id="section-laptops" class="section">
+      <p class="sub-txt">Create laptop app items in bulk — up to 7 at once. Users buy these from the store then install them via <code>/laptop appstore</code>.</p>
+      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:12px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3>🔧 App Batch Creator</h3>
+          <button class="btn btn-ghost btn-sm" onclick="addAppRow()">+ Add Row</button>
+        </div>
+        <div id="app-creator-rows"></div>
+        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveAppBatch()">💾 Create Apps</button>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>💻 Existing Laptop Apps</h3><button class="btn btn-ghost btn-sm" onclick="loadLaptopApps()">⟳ Refresh</button></div>
+        <table>
+          <thead><tr><th>Name</th><th>App Type</th><th>Quality</th><th>Price</th><th>Est. Success</th><th>Actions</th></tr></thead>
+          <tbody id="laptop-apps-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TOR MARKET -->
+    <div id="section-tor" class="section">
+      <p class="sub-txt">Global dark web marketplace. Listings span all servers. Trigger leaks, set limits, remove listings.</p>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Active Listings</div><div class="stat-val c-red" id="tor-active">—</div></div>
+        <div class="stat-card"><div class="stat-label">Data Leaks Live</div><div class="stat-val c-orange" id="tor-leaks">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Sold</div><div class="stat-val c-gold" id="tor-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-val c-blue" id="tor-volume">—</div></div>
+      </div>
+      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:12px;margin-bottom:20px">
+        <h3>⚙️ Leak Controls</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="fg" style="margin:0"><label class="flabel">Max Active Leaks</label><input class="finput" type="number" id="tor-max-leaks" placeholder="5" min="1" max="50"></div>
+          <div class="fg" style="margin:0"><label class="flabel">Leak Interval (hrs)</label><input class="finput" type="number" id="tor-leak-interval" placeholder="6" min="1" max="72"></div>
+          <div class="fg" style="margin:0"><label class="flabel">Leaks Per Cycle</label><input class="finput" type="number" id="tor-leak-count" placeholder="2" min="1" max="10"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saveTorConfig()">💾 Save</button>
+          <button class="btn btn-danger" onclick="triggerManualLeak()">🔓 Trigger Leak Now</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearExpiredListings()">🗑️ Clear Expired</button>
+        </div>
+        <p id="tor-config-status" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace">—</p>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:16px">
+        <div class="tbl-head"><h3>🔓 Active Data Leaks</h3><button class="btn btn-ghost btn-sm" onclick="loadTorListings()">⟳</button></div>
+        <table>
+          <thead><tr><th>ID</th><th>Victim</th><th>Wealth</th><th>Price</th><th>Expires</th><th>Actions</th></tr></thead>
+          <tbody id="tor-leaks-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-head">
+          <h3>🌐 User Listings</h3>
+          <select class="fselect" id="tor-filter" onchange="loadTorListings()" style="width:130px">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="sold">Sold</option>
+          </select>
+        </div>
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Seller</th><th>Victim</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="tor-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+</div>
 </div>
 </div>
 
@@ -1930,127 +2050,6 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <button class="btn btn-gold" onclick="saveItem()">Save Item</button>
     </div>
   </div>
-
-    <!-- ILLUMINATI -->
-    <div id="section-illuminati" class="section">
-      <p class="sub-txt">The shadow organization for this server. View members, vault balance, and operation log. Set ranks via Users → Give/Take → Illuminati Rank.</p>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Members</div><div class="stat-val c-gold" id="illum-count">—</div></div>
-        <div class="stat-card"><div class="stat-label">Vault</div><div class="stat-val c-green" id="illum-vault">—</div></div>
-        <div class="stat-card"><div class="stat-label">Ops Run</div><div class="stat-val c-blue" id="illum-ops">—</div></div>
-        <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="illum-status">—</div></div>
-      </div>
-      <div class="tbl-wrap" style="margin-bottom:16px">
-        <div class="tbl-head"><h3>🔺 Members</h3><button class="btn btn-ghost btn-sm" onclick="loadIlluminati()">⟳ Refresh</button></div>
-        <table>
-          <thead><tr><th>User</th><th>Rank</th><th>Contributed</th><th>Joined</th><th>Actions</th></tr></thead>
-          <tbody id="illum-tbody"><tr><td colspan="5" class="empty-cell">Loading...</td></tr></tbody>
-        </table>
-      </div>
-      <div class="tbl-wrap">
-        <div class="tbl-head"><h3>⚡ Recent Operations</h3></div>
-        <table>
-          <thead><tr><th>Type</th><th>By</th><th>Target</th><th>When</th></tr></thead>
-          <tbody id="illum-ops-tbody"><tr><td colspan="4" class="empty-cell">No operations recorded.</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- CREDIT SCORES -->
-    <div id="section-credit" class="section">
-      <p class="sub-txt">All member credit profiles — scores, cards, loans. Adjust scores via Users → Give/Take → Credit Score.</p>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-val c-gold" id="credit-avg">—</div></div>
-        <div class="stat-card"><div class="stat-label">💎 Excellent 800+</div><div class="stat-val c-green" id="credit-excellent">—</div></div>
-        <div class="stat-card"><div class="stat-label">🔴 Poor &lt;580</div><div class="stat-val c-red" id="credit-poor">—</div></div>
-        <div class="stat-card"><div class="stat-label">Cards Active</div><div class="stat-val c-blue" id="credit-cards">—</div></div>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-        <select class="fselect" id="credit-filter" onchange="loadCreditScores()" style="width:180px">
-          <option value="all">All Tiers</option>
-          <option value="excellent">💎 Excellent (800+)</option>
-          <option value="verygood">🟢 Very Good (740+)</option>
-          <option value="good">🟡 Good (670+)</option>
-          <option value="fair">🟠 Fair (580+)</option>
-          <option value="poor">🔴 Poor (&lt;580)</option>
-        </select>
-        <button class="btn btn-ghost btn-sm" onclick="loadCreditScores()">⟳ Refresh</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>User</th><th>Score</th><th>Tier</th><th>Card</th><th>Balance</th><th>Frozen</th><th>Loans</th></tr></thead>
-          <tbody id="credit-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- LAPTOPS -->
-    <div id="section-laptops" class="section">
-      <p class="sub-txt">Create laptop app items in bulk — up to 7 at once. Users buy these from the store then install them via <code>/laptop appstore</code>.</p>
-      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:12px;margin-bottom:20px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h3>🔧 App Batch Creator</h3>
-          <button class="btn btn-ghost btn-sm" onclick="addAppRow()">+ Add Row</button>
-        </div>
-        <div id="app-creator-rows"></div>
-        <button class="btn btn-primary" style="align-self:flex-start" onclick="saveAppBatch()">💾 Create Apps</button>
-      </div>
-      <div class="tbl-wrap">
-        <div class="tbl-head"><h3>💻 Existing Laptop Apps</h3><button class="btn btn-ghost btn-sm" onclick="loadLaptopApps()">⟳ Refresh</button></div>
-        <table>
-          <thead><tr><th>Name</th><th>App Type</th><th>Quality</th><th>Price</th><th>Est. Success</th><th>Actions</th></tr></thead>
-          <tbody id="laptop-apps-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- TOR MARKET -->
-    <div id="section-tor" class="section">
-      <p class="sub-txt">Global dark web marketplace. Listings span all servers. Trigger leaks, set limits, remove listings.</p>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Active Listings</div><div class="stat-val c-red" id="tor-active">—</div></div>
-        <div class="stat-card"><div class="stat-label">Data Leaks Live</div><div class="stat-val c-orange" id="tor-leaks">—</div></div>
-        <div class="stat-card"><div class="stat-label">Total Sold</div><div class="stat-val c-gold" id="tor-total">—</div></div>
-        <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-val c-blue" id="tor-volume">—</div></div>
-      </div>
-      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:12px;margin-bottom:20px">
-        <h3>⚙️ Leak Controls</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-          <div class="fg" style="margin:0"><label class="flabel">Max Active Leaks</label><input class="finput" type="number" id="tor-max-leaks" placeholder="5" min="1" max="50"></div>
-          <div class="fg" style="margin:0"><label class="flabel">Leak Interval (hrs)</label><input class="finput" type="number" id="tor-leak-interval" placeholder="6" min="1" max="72"></div>
-          <div class="fg" style="margin:0"><label class="flabel">Leaks Per Cycle</label><input class="finput" type="number" id="tor-leak-count" placeholder="2" min="1" max="10"></div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="saveTorConfig()">💾 Save</button>
-          <button class="btn btn-danger" onclick="triggerManualLeak()">🔓 Trigger Leak Now</button>
-          <button class="btn btn-ghost btn-sm" onclick="clearExpiredListings()">🗑️ Clear Expired</button>
-        </div>
-        <p id="tor-config-status" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace">—</p>
-      </div>
-      <div class="tbl-wrap" style="margin-bottom:16px">
-        <div class="tbl-head"><h3>🔓 Active Data Leaks</h3><button class="btn btn-ghost btn-sm" onclick="loadTorListings()">⟳</button></div>
-        <table>
-          <thead><tr><th>ID</th><th>Victim</th><th>Wealth</th><th>Price</th><th>Expires</th><th>Actions</th></tr></thead>
-          <tbody id="tor-leaks-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
-        </table>
-      </div>
-      <div class="tbl-wrap">
-        <div class="tbl-head">
-          <h3>🌐 User Listings</h3>
-          <select class="fselect" id="tor-filter" onchange="loadTorListings()" style="width:130px">
-            <option value="all">All</option>
-            <option value="active">Active</option>
-            <option value="sold">Sold</option>
-          </select>
-        </div>
-        <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Seller</th><th>Victim</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="tor-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
 <!-- GUN MODAL -->
 <div id="gun-modal" class="backdrop">
   <div class="modal" style="max-width:560px">

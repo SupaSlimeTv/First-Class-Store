@@ -345,9 +345,9 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
           gangName:        gang?.name || null,
           gangId:          gang?.id   || null,
           isGangLeader:    gang?.leaderId === u.id,
-          isIlluminati:    (() => { try { const { getIlluminati } = require('./utils/illuminatiDb'); const org = getIlluminati(req.guildId); return !!(org?.members||[]).find(m2 => m2.userId === u.id); } catch { return false; } })(),
-          artistTier:      (() => { try { const p = require('./utils/phoneDb').getPhone(u.id); if (!p?.artistCareer) return 'unsigned'; return p.artistCareer.tier||'unsigned'; } catch { return 'unsigned'; } })(),
-          artistTierLabel: (() => { try { const p = require('./utils/phoneDb').getPhone(u.id); const { getArtistTier } = require('./utils/phoneDb'); if (!p?.artistCareer) return null; return getArtistTier(p.artistCareer.fame||0).label; } catch { return null; } })(),
+          isIlluminati:    (() => { try { const { getIlluminati } = require('../utils/illuminatiDb'); const org = getIlluminati(req.guildId); return !!(org?.members||[]).find(m2 => m2.userId === u.id); } catch { return false; } })(),
+          artistTier:      (() => { try { const p = require('../utils/phoneDb').getPhone(u.id); if (!p?.artistCareer) return 'unsigned'; return p.artistCareer.tier||'unsigned'; } catch { return 'unsigned'; } })(),
+          artistTierLabel: (() => { try { const p = require('../utils/phoneDb').getPhone(u.id); const { getArtistTier } = require('../utils/phoneDb'); if (!p?.artistCareer) return null; return getArtistTier(p.artistCareer.fame||0).label; } catch { return null; } })(),
         };
       })
       .sort((a, b) => {
@@ -828,7 +828,7 @@ app.post('/api/:guildId/config/depression-gif', requireOwnerAuth, async (req, re
 // ── CREDIT SCORE ADJUST ──────────────────────────────────────
 app.post('/api/:guildId/users/:id/credit-score', requireGuildAuth, async (req, res) => {
   try {
-    const { adjustScore } = require('./utils/creditDb');
+    const { adjustScore } = require('../utils/creditDb');
     const delta = parseInt(req.body.delta)||0;
     const newScore = await adjustScore(req.params.id, delta, `Admin adjustment by ${req.session.user?.username}`);
     await writeAudit(req.guildId, req.session.user?.id, 'credit_score_adjust', { target:req.params.id, delta, newScore });
@@ -839,7 +839,7 @@ app.post('/api/:guildId/users/:id/credit-score', requireGuildAuth, async (req, r
 // ── ILLUMINATI RANK SET ───────────────────────────────────────
 app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req, res) => {
   try {
-    const { getIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
+    const { getIlluminati, saveIlluminati } = require('../utils/illuminatiDb');
     const org = getIlluminati(req.guildId);
     if (!org) return res.status(400).json({ error:'No Illuminati in this server.' });
     const mem = (org.members||[]).find(m => m.userId === req.params.id);
@@ -855,7 +855,7 @@ app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req
 // ── ILLUMINATI DASHBOARD ──────────────────────────────────────
 app.get('/api/:guildId/illuminati', requireGuildAuth, async (req, res) => {
   try {
-    const { getIlluminati } = require('./utils/illuminatiDb');
+    const { getIlluminati } = require('../utils/illuminatiDb');
     const org = getIlluminati(req.guildId);
     res.json({ org: org || null });
   } catch(e) { res.status(500).json({ error:e.message }); }
@@ -863,7 +863,7 @@ app.get('/api/:guildId/illuminati', requireGuildAuth, async (req, res) => {
 
 app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req, res) => {
   try {
-    const { getIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
+    const { getIlluminati, saveIlluminati } = require('../utils/illuminatiDb');
     const org = getIlluminati(req.guildId);
     if (!org) return res.status(400).json({ error:'No Illuminati.' });
     org.members = (org.members||[]).filter(m => m.userId !== req.body.userId);
@@ -876,7 +876,7 @@ app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req,
 // ── CREDIT SCORES DASHBOARD ───────────────────────────────────
 app.get('/api/:guildId/credit-scores', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllCredit, getCreditTier } = require('./utils/creditDb');
+    const { getAllCredit, getCreditTier } = require('../utils/creditDb');
     const filterTier = req.query.filter || 'all';
     const members    = await fetchAllMembers(req.guildId);
     const memberIds  = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
@@ -920,7 +920,7 @@ app.post('/api/:guildId/store/create-apps', requireGuildAuth, async (req, res) =
 // ── TOR DASHBOARD ─────────────────────────────────────────────
 app.get('/api/:guildId/tor', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllListings, getActiveListings } = require('./utils/torDb');
+    const { getAllListings, getActiveListings } = require('../utils/torDb');
     const config   = db.getConfig(req.guildId);
     const all      = Object.values(getAllListings());
     const now      = Date.now();
@@ -955,8 +955,8 @@ app.post('/api/:guildId/tor/config', requireGuildAuth, async (req, res) => {
 
 app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllCredit }               = require('./utils/creditDb');
-    const { createDataLeak, getActiveListings } = require('./utils/torDb');
+    const { getAllCredit }               = require('../utils/creditDb');
+    const { createDataLeak, getActiveListings } = require('../utils/torDb');
     const config      = db.getConfig(req.guildId);
     const maxLeaks    = config.torMaxLeaks   || 5;
     const leakCount   = Math.min(config.torLeakCount || 2, 10);
@@ -987,7 +987,7 @@ app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) =>
 
 app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllListings, saveListing } = require('./utils/torDb');
+    const { getAllListings, saveListing } = require('../utils/torDb');
     const all = getAllListings();
     const now = Date.now();
     let cleared = 0;
@@ -1004,7 +1004,7 @@ app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) =
 
 app.delete('/api/:guildId/tor/listing/:id', requireGuildAuth, async (req, res) => {
   try {
-    const { getListing, saveListing } = require('./utils/torDb');
+    const { getListing, saveListing } = require('../utils/torDb');
     const listing = getListing(req.params.id);
     if (!listing) return res.status(404).json({ error:'Not found.' });
     listing.sold = true; listing.removedByAdmin = true;
@@ -1406,7 +1406,7 @@ app.post('/api/:guildId/coins', requireGuildAuth, async (req, res) => {
     await c.insertOne({ _id: id, ...profile });
 
     // Register with live tick engine
-    try { const idx = require('../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
+    try { const idx = require('../../index'); if(idx.saveCustomCoin) await idx.saveCustomCoin(id, profile); } catch {}
 
     // Set starting price
     const pc = await col('stockPrices');
@@ -1426,7 +1426,7 @@ app.delete('/api/:guildId/coins/:id', requireGuildAuth, async (req, res) => {
     const { col } = require('../utils/mongo');
     const c = await col('customCoins');
     await c.deleteOne({ _id: req.params.id });
-    try { const idx = require('../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
+    try { const idx = require('../../index'); if(idx.deleteCustomCoin) await idx.deleteCustomCoin(req.params.id); } catch {}
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
