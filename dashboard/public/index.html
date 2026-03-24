@@ -1241,6 +1241,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <option value="phonehype">✨ Phone Hype</option>
           <option value="phonedeals">🤝 Sponsor Deals (grant active deal)</option>
           <option value="phoneshoutout">📣 Coin Shoutout Power (multiplier)</option>
+          <option value="creditscore">📊 Credit Score (adjust)</option>
+          <option value="illuminatirank">🔺 Illuminati Rank (set)</option>
         </select>
       </div>
       <!-- Store item -->
@@ -1297,6 +1299,21 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <label class="flabel">Hype Points</label>
         <input class="finput" id="give-phonehype-amount" type="number" min="1" placeholder="1000">
         <div class="hint">Adds hype to the user's phone. Hype contributes to status growth.</div>
+      </div>
+      <div id="give-creditscore-section" class="fg" style="display:none">
+        <label class="flabel">Score Adjustment</label>
+        <input class="finput" id="give-creditscore-amount" type="number" placeholder="e.g. 50 or -50">
+        <div class="hint">Adds or subtracts from credit score. Score clamped 300–850. Use negative to reduce.</div>
+      </div>
+      <div id="give-illuminatirank-section" class="fg" style="display:none">
+        <label class="flabel">Set Illuminati Rank</label>
+        <select class="fselect" id="give-illuminatirank-select">
+          <option value="initiate">🔺 Initiate</option>
+          <option value="operative">👁️ Operative</option>
+          <option value="elder">💎 Elder</option>
+          <option value="grandmaster">⚡ Grandmaster</option>
+        </select>
+        <div class="hint">Sets rank for this user in the current server's Illuminati. User must already be a member.</div>
       </div>
       <div id="give-phoneshoutout-section" class="fg" style="display:none">
         <label class="flabel">Coin Shoutout Power Multiplier</label>
@@ -1513,6 +1530,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <option value="edit_items">🎒 Edit Items — give or take a specific item from user/target on use</option>
               <option value="edit_roles">🏅 Edit Roles — add or remove a Discord role from user/target on use</option>
               <option value="break_in">🔧 Break-In Kit — attempt to break into target's home</option>
+              <option value="laptop_app">💻 Laptop App — installs a hacking/finance/intel app on the user's laptop</option>
               <option value="ai">🤖 AI Entity — spawn an AI with personality, moods, and autonomy</option>
               <option value="consume">🍽️ Consume — edible/drinkable item that gives a timed buff or debuff</option>
               <option value="magic">🔮 Magic — fully customizable spell with chained actions</option>
@@ -1717,6 +1735,33 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <label class="flabel">Kit Bonus % <span style="color:var(--muted)">(added to success chance)</span></label>
               <input class="finput" type="number" id="m-breakin-bonus" placeholder="0" min="0" max="80">
               <div class="hint">Base success = (100 - home defense) + this bonus. Defense: Studio 40%, House 55%, Mansion 70%, Estate 85%.<br>Example: Kit Bonus 20 on a Mansion = (100-70)+20 = <strong>50% success</strong>.</div>
+            </div>
+          </div>
+
+          <!-- LAPTOP APP fields -->
+          <div id="ef-laptop-app" class="ef-section">
+            <hr class="divider">
+            <div class="grid2">
+              <div class="fg" style="margin:0">
+                <label class="flabel">App Type</label>
+                <select class="fselect" id="m-laptopapp-id">
+                  <option value="ssn_scanner">🪪 SSN Scanner</option>
+                  <option value="credit_cracker">💳 Credit Cracker</option>
+                  <option value="card_drainer">💸 Card Drainer</option>
+                  <option value="biz_intrude">🏢 Biz Intruder</option>
+                  <option value="keylogger">⌨️ Keylogger Pro</option>
+                  <option value="vpn_shield">🛡️ VPN Shield</option>
+                  <option value="bank_mirror">🏦 Bank Mirror</option>
+                  <option value="launder_bot">🧺 LaunderBot</option>
+                  <option value="stalker_app">👁️ Stalker App</option>
+                  <option value="dark_search">🔍 DarkSearch</option>
+                </select>
+              </div>
+              <div class="fg" style="margin:0">
+                <label class="flabel">Quality Tier (1-5)</label>
+                <input class="finput" type="number" id="m-laptopapp-quality" placeholder="1" min="1" max="5">
+                <div class="hint">Higher quality = higher success %. Each tier adds +5%.</div>
+              </div>
             </div>
           </div>
 
@@ -2251,8 +2296,8 @@ async function upd(id,w,b){
 }
 async function unban(id){const r=await api('POST',`/api/${GUILD}/users/${id}/unban`);if(r.success){toast('Unbanned','ok');refresh();}}
 
-const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',emp:'⚡ EMP Device',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',break_in:'🔧 Break-In Kit',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
-const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',emp:'t-gold',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',break_in:'t-orange',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
+const EFX_LABELS={drain_wallet:'💸 Drain Wallet',drain_all:'💻 Drain All',silence:'🔇 Silence',hitman:'🔫 Hitman',gamble:'🎲 Gamble',passive_income:'💰 Passive Income',shield:'🛡️ Shield',minigame_drain:'🖥️ Minigame Drain',emp:'⚡ EMP Device',edit_balance:'💵 Edit Balance',edit_items:'🎒 Edit Items',edit_roles:'🏅 Edit Roles',break_in:'🔧 Break-In Kit',laptop_app:'💻 Laptop App',ai:'🤖 AI Entity',consume:'🍽️ Consume',magic:'🔮 Magic'};
+const EFX_COLORS={drain_wallet:'t-orange',drain_all:'t-red',silence:'t-purple',hitman:'t-red',gamble:'t-cyan',passive_income:'t-gold',shield:'t-blue',minigame_drain:'t-cyan',emp:'t-gold',edit_balance:'t-green',edit_items:'t-purple',edit_roles:'t-blue',break_in:'t-orange',laptop_app:'t-cyan',ai:'t-cyan',consume:'t-green',magic:'t-purple'};
 
 function renderStore(){
   const tb=document.getElementById('store-tbody');
@@ -2452,6 +2497,12 @@ function openEdit(id){
     document.getElementById('m-ei-item').value=ef.itemId||'';
     document.getElementById('m-ei-target').value=ef.target||'self';
   }
+  if(ef.type==='laptop_app'){
+    const appSel = document.getElementById('m-laptopapp-id');
+    const appQ   = document.getElementById('m-laptopapp-quality');
+    if(appSel && ef.appId) appSel.value = ef.appId;
+    if(appQ) appQ.value = ef.quality||1;
+  }
   if(ef.type==='break_in'){
     document.getElementById('m-breakin-bonus').value = ef.kitBonus||0;
   }
@@ -2551,7 +2602,7 @@ function buildRequirements(){
 function onEffectChange(){
   const t=document.getElementById('m-effect-type').value;
   document.querySelectorAll('.ef-section').forEach(s=>s.classList.remove('show'));
-  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',emp:'ef-emp',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',break_in:'ef-break-in',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
+  const map={drain_wallet:'ef-drain',drain_all:'ef-drain',silence:'ef-silence',hitman:'ef-hitman',gamble:'ef-gamble',passive_income:'ef-passive',shield:'ef-shield',minigame_drain:'ef-minigame',emp:'ef-emp',edit_balance:'ef-edit-balance',edit_items:'ef-edit-items',edit_roles:'ef-edit-roles',break_in:'ef-break-in',laptop_app:'ef-laptop-app',ai:'ef-ai',consume:'ef-consume',magic:'ef-magic'};
   if(map[t])document.getElementById(map[t]).classList.add('show');
 }
 
@@ -2660,6 +2711,10 @@ async function saveItem(){
         effect.action=document.getElementById('m-ei-action').value;
         effect.itemId=document.getElementById('m-ei-item').value;
         effect.target=document.getElementById('m-ei-target').value;
+      }
+      if(et==='laptop_app'){
+        effect.appId    = document.getElementById('m-laptopapp-id').value;
+        effect.quality  = parseInt(document.getElementById('m-laptopapp-quality').value)||1;
       }
       if(et==='break_in'){
         effect.kitBonus = parseInt(document.getElementById('m-breakin-bonus').value)||0;

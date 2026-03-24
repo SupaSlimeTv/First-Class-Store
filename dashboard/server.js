@@ -822,6 +822,32 @@ app.post('/api/:guildId/config/depression-gif', requireOwnerAuth, async (req, re
   res.json({ success: true });
 });
 
+// ── CREDIT SCORE ADJUST ──────────────────────────────────────
+app.post('/api/:guildId/users/:id/credit-score', requireGuildAuth, async (req, res) => {
+  try {
+    const { adjustScore } = require('./utils/creditDb');
+    const delta = parseInt(req.body.delta)||0;
+    const newScore = await adjustScore(req.params.id, delta, `Admin adjustment by ${req.session.user?.username}`);
+    await writeAudit(req.guildId, req.session.user?.id, 'credit_score_adjust', { target:req.params.id, delta, newScore });
+    res.json({ success:true, newScore });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── ILLUMINATI RANK SET ───────────────────────────────────────
+app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req, res) => {
+  try {
+    const { getIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
+    const org = getIlluminati(req.guildId);
+    if (!org) return res.status(400).json({ error:'No Illuminati in this server.' });
+    const mem = (org.members||[]).find(m => m.userId === req.params.id);
+    if (!mem) return res.status(400).json({ error:'User is not an Illuminati member.' });
+    mem.rank = req.body.rank || 'initiate';
+    await saveIlluminati(req.guildId, org);
+    await writeAudit(req.guildId, req.session.user?.id, 'illuminati_rank', { target:req.params.id, rank:mem.rank });
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
 // ── GUILD ROLES ───────────────────────────────────────────────
 
 // Resolve multiple user IDs to display names in one call

@@ -108,6 +108,9 @@ client.once('ready', async () => {
   const { preloadCreditCache } = require('./utils/creditDb');
   await preloadCreditCache();
 
+  const { preloadLaptopCache } = require('./utils/laptopDb');
+  await preloadLaptopCache();
+
   // ── Global heat→warrant checker (called from gangDb.addHeat) ──
   global._checkHeatWarrant = async (userId, heat) => {
     const { checkHeatWarrant } = require('./utils/policeDb');
