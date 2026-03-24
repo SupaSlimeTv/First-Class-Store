@@ -2818,22 +2818,29 @@ Pay now with \`/credit pay\``)
 // Randomly puts 1-3 users' SSN info on the TOR dark web market
 setInterval(async () => {
   try {
-    const { getAllCredit, getOrCreateCredit } = require('./utils/creditDb');
+    const { getAllCredit } = require('./utils/creditDb');
     const { createDataLeak, getActiveListings } = require('./utils/torDb');
-    const { getAllUsers } = require('./utils/db');
+    const { getAllUsers, getConfig } = require('./utils/db');
 
-    const allUsers    = getAllUsers();
-    const allCredit   = getAllCredit();
-    const userIds     = Object.keys(allUsers).filter(id => allCredit[id]?.ssn);
+    const allUsers  = getAllUsers();
+    const allCredit = getAllCredit();
+    const userIds   = Object.keys(allUsers).filter(id => allCredit[id]?.ssn);
 
     if (!userIds.length) return;
 
-    // Check how many leaks are currently active to avoid flooding
-    const activeLeaks = getActiveListings().filter(l => l.isLeak).length;
-    if (activeLeaks >= 5) return; // max 5 leaks active at once
+    // Use per-guild config if available, else defaults
+    // Since leaks are global we use the first guild's config as reference
+    const firstGuildId = client.guilds.cache.first()?.id;
+    const cfg = firstGuildId ? getConfig(firstGuildId) : {};
+    const maxLeaks  = cfg.torMaxLeaks  || 5;
+    const leakCount = cfg.torLeakCount || 2;
 
-    // Pick 1-2 random victims
-    const count   = Math.floor(Math.random() * 2) + 1;
+    // Check how many leaks are currently active
+    const activeLeaks = getActiveListings().filter(l => l.isLeak).length;
+    if (activeLeaks >= maxLeaks) return;
+
+    // Pick random victims
+    const count   = Math.min(leakCount, maxLeaks - activeLeaks);
     const victims = userIds.sort(()=>Math.random()-0.5).slice(0, count);
 
     for (const userId of victims) {

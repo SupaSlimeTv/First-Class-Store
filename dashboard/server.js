@@ -919,12 +919,80 @@ app.post('/api/:guildId/store/create-apps', requireGuildAuth, async (req, res) =
 app.get('/api/:guildId/tor', requireGuildAuth, async (req, res) => {
   try {
     const { getAllListings, getActiveListings } = require('./utils/torDb');
-    const all    = Object.values(getAllListings());
-    const active = getActiveListings();
-    // TOR is global — return all listings across all servers
-    const traced = all.filter(l => l.traced).length;
-    const volume = all.reduce((s,l) => s + (l.price||0), 0);
-    res.json({ listings: all.sort((a,b) => (b.createdAt||0)-(a.createdAt||0)).slice(0,50), tracedCount:traced, totalVolume:volume });
+    const config   = db.getConfig(req.guildId);
+    const all      = Object.values(getAllListings());
+    const now      = Date.now();
+    const volume   = all.reduce((s,l) => s+(l.price||0), 0);
+    const enriched = all.map(l => {
+      if (l.isLeak) {
+        const u = db.getUser(l.victimId);
+        return { ...l, victimWealth: (u?.wallet||0)+(u?.bank||0) };
+      }
+      return l;
+    });
+    res.json({
+      listings: enriched.sort((a,b) => (b.createdAt||0)-(a.createdAt||0)).slice(0,100),
+      tracedCount: all.filter(l=>l.traced).length,
+      totalVolume: volume,
+      config: { maxLeaks:config.torMaxLeaks||5, leakInterval:config.torLeakInterval||6, leakCount:config.torLeakCount||2 },
+    });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.post('/api/:guildId/tor/config', requireGuildAuth, async (req, res) => {
+  try {
+    const config = db.getConfig(req.guildId);
+    config.torMaxLeaks     = parseInt(req.body.maxLeaks)     || 5;
+    config.torLeakInterval = parseInt(req.body.leakInterval) || 6;
+    config.torLeakCount    = parseInt(req.body.leakCount)    || 2;
+    db.saveConfig(req.guildId, config);
+    await writeAudit(req.guildId, req.session.user?.id, 'tor_config', req.body);
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) => {
+  try {
+    const { getAllCredit } = require('./utils/creditDb');
+    const { createDataLeak, getActiveListings } = require('./utils/torDb');
+    const config    = db.getConfig(req.guildId);
+    const maxLeaks  = config.torMaxLeaks  || 5;
+    const leakCount = Math.min(config.torLeakCount || 2, 5);
+    const activeLeaks = getActiveListings().filter(l=>l.isLeak).length;
+    const canLeak   = Math.max(0, maxLeaks - activeLeaks);
+    if (!canLeak) return res.status(400).json({ error: `Already at max leaks (${maxLeaks}). Remove some or raise the limit.` });
+    const allUsers  = db.getAllUsers();
+    const allCredit = getAllCredit();
+    const eligible  = Object.keys(allUsers).filter(id => allCredit[id]?.ssn);
+    if (!eligible.length) return res.status(400).json({ error:'No users with SSNs found.' });
+    const toLeakCount = Math.min(canLeak, leakCount);
+    const victims   = eligible.sort(()=>Math.random()-0.5).slice(0, toLeakCount);
+    let leaked = 0;
+    for (const userId of victims) {
+      const credit = allCredit[userId];
+      if (!credit?.ssn) continue;
+      await createDataLeak(userId, { ssn:credit.ssn, score:credit.score||680, card:credit.card||null, limit:credit.limit||0 });
+      leaked++;
+    }
+    await writeAudit(req.guildId, req.session.user?.id, 'tor_manual_leak', { leaked });
+    res.json({ success:true, leaked });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) => {
+  try {
+    const { getAllListings, saveListing } = require('./utils/torDb');
+    const all = getAllListings();
+    const now = Date.now();
+    let cleared = 0;
+    for (const [id, l] of Object.entries(all)) {
+      if (!l.sold && l.expiresAt < now) {
+        l.sold = true; l.expiredAt = now;
+        await saveListing(id, l);
+        cleared++;
+      }
+    }
+    res.json({ success:true, cleared });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
