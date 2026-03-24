@@ -135,6 +135,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="nav('embeds')" data-s="embeds"><span class="nav-icon">✉️</span>Embeds</div>
     <div class="nav-item" onclick="nav('drugs')" data-s="drugs"><span class="nav-icon">💊</span>Drug Market</div>
     <div class="nav-item" onclick="nav('influencers')" data-s="influencers"><span class="nav-icon">📱</span>Influencers</div>
+    <div class="nav-item" onclick="nav('illuminati')" data-s="illuminati"><span class="nav-icon">🔺</span>Illuminati</div>
+    <div class="nav-item" onclick="nav('credit')" data-s="credit"><span class="nav-icon">💳</span>Credit Scores</div>
+    <div class="nav-item" onclick="nav('laptops')" data-s="laptops"><span class="nav-icon">💻</span>Laptops</div>
+    <div class="nav-item" onclick="nav('tor')" data-s="tor"><span class="nav-icon">🌐</span>TOR Market</div>
   </nav>
   <div id="purge-badge" class="purge-badge">● PURGE ACTIVE</div>
 </aside>
@@ -1928,6 +1932,98 @@ tr:hover td{background:rgba(255,255,255,.015)}
   </div>
 </div>
 
+    <!-- ILLUMINATI -->
+    <div id="section-illuminati" class="section">
+      <p class="sub-txt">The shadow organization. View membership, vault balance, and operation history. Set ranks via Users → Give/Take.</p>
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Members</div><div class="stat-val c-gold" id="illum-count">—</div></div>
+        <div class="stat-card"><div class="stat-label">Vault Balance</div><div class="stat-val c-green" id="illum-vault">—</div></div>
+        <div class="stat-card"><div class="stat-label">Operations Run</div><div class="stat-val c-blue" id="illum-ops">—</div></div>
+        <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="illum-status">—</div></div>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head"><h3>🔺 Members</h3><button class="btn btn-ghost btn-sm" onclick="loadIlluminati()">⟳ Refresh</button></div>
+        <table>
+          <thead><tr><th>User</th><th>Rank</th><th>Contribution</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="illum-tbody"><tr><td colspan="5" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>⚡ Operation Log</h3></div>
+        <table>
+          <thead><tr><th>Type</th><th>By</th><th>Target</th><th>When</th></tr></thead>
+          <tbody id="illum-ops-tbody"><tr><td colspan="4" class="empty-cell">No operations recorded.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CREDIT SCORES -->
+    <div id="section-credit" class="section">
+      <p class="sub-txt">All user credit profiles. Adjust scores via Users → Give/Take → Credit Score. Freeze/unfreeze accounts. View fraud history.</p>
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-val c-gold" id="credit-avg">—</div></div>
+        <div class="stat-card"><div class="stat-label">Excellent (800+)</div><div class="stat-val c-green" id="credit-excellent">—</div></div>
+        <div class="stat-card"><div class="stat-label">Poor (&lt;580)</div><div class="stat-val c-red" id="credit-poor">—</div></div>
+        <div class="stat-card"><div class="stat-label">Cards Active</div><div class="stat-val c-blue" id="credit-cards">—</div></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <select class="fselect" id="credit-filter" onchange="loadCreditScores()" style="width:180px">
+          <option value="all">All Tiers</option>
+          <option value="excellent">💎 Excellent (800+)</option>
+          <option value="verygood">🟢 Very Good (740+)</option>
+          <option value="good">🟡 Good (670+)</option>
+          <option value="fair">🟠 Fair (580+)</option>
+          <option value="poor">🔴 Poor (&lt;580)</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="loadCreditScores()">⟳ Refresh</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>User</th><th>Score</th><th>Tier</th><th>Card</th><th>Balance</th><th>Frozen</th><th>Loans</th></tr></thead>
+          <tbody id="credit-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LAPTOPS -->
+    <div id="section-laptops" class="section">
+      <p class="sub-txt">Create laptop app items in bulk. Each app unlocks a specific hacking or finance capability on the user's laptop. Apps are store items users buy then install via <code>/laptop appstore</code>.</p>
+      <div class="purge-panel owner-only" style="flex-direction:column;align-items:stretch;gap:14px;margin-bottom:20px">
+        <h3>🔧 Bulk App Creator (up to 7 at once)</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0">Each row creates one laptop app item in your store. Fill in as many as you need.</p>
+        <div id="app-creator-rows">
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="addAppRow()" style="align-self:flex-start">+ Add Another App</button>
+        <button class="btn btn-primary" onclick="saveAppBatch()">💾 Create All Apps</button>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>💻 Existing Laptop App Items</h3><button class="btn btn-ghost btn-sm" onclick="loadLaptopApps()">⟳ Refresh</button></div>
+        <table>
+          <thead><tr><th>Name</th><th>App Type</th><th>Quality</th><th>Price</th><th>Success Rate</th><th>Actions</th></tr></thead>
+          <tbody id="laptop-apps-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TOR MARKET -->
+    <div id="section-tor" class="section">
+      <p class="sub-txt">Dark web marketplace activity. View active listings, traced transactions, and manually jail users caught in TOR activity.</p>
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Active Listings</div><div class="stat-val c-red" id="tor-active">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Transactions</div><div class="stat-val c-gold" id="tor-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Traced This Week</div><div class="stat-val c-orange" id="tor-traced">—</div></div>
+        <div class="stat-card"><div class="stat-label">$ Volume</div><div class="stat-val c-blue" id="tor-volume">—</div></div>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head"><h3>🌐 Active Listings</h3><button class="btn btn-ghost btn-sm" onclick="loadTorListings()">⟳ Refresh</button></div>
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Seller</th><th>Victim</th><th>Price</th><th>Expires</th><th>Actions</th></tr></thead>
+          <tbody id="tor-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+
 <!-- GUN MODAL -->
 <div id="gun-modal" class="backdrop">
   <div class="modal" style="max-width:560px">
@@ -2081,6 +2177,10 @@ function nav(n){
   if (n === 'drugs')       { loadDrugs(); loadNarcoticsRole(); }
   if (n === 'influencers') { loadInfluencers(); loadSponsorships(); }
   if (n === 'purge')       { loadDepressionState(); }
+  if (n === 'illuminati')  { loadIlluminati(); }
+  if (n === 'credit')      { loadCreditScores(); }
+  if (n === 'laptops')     { loadLaptopApps(); addAppRow(); }
+  if (n === 'tor')         { loadTorListings(); }
 }
 
 async function api(m,u,b){
@@ -2226,6 +2326,7 @@ function renderUsers(list) {
 
       // ── Civil Role badges ──────────────────────────────────
       const civilRoles = [];
+      if (u.isIlluminati)                  civilRoles.push(`<span class="tag" style="font-size:9px;background:rgba(245,197,24,.2);color:#f5c518;border:1px solid rgba(245,197,24,.5)">🔺 Illuminati</span>`);
       if (u.gangId || u.gangName)          civilRoles.push(`<span class="tag t-red" style="font-size:9px">🏴 Gang</span>`);
       if (u.businessName)                  civilRoles.push(`<span class="tag" style="font-size:9px;background:rgba(255,107,53,.15);color:#ff6b35;border:1px solid rgba(255,107,53,.3)">🏢 Biz</span>`);
       if (u.phoneType)                     civilRoles.push(`<span class="tag t-blue" style="font-size:9px">${phoneEmoji(u.phoneType)} ${phoneLabel(u.phoneType)}</span>`);
@@ -5338,6 +5439,220 @@ function resolveConfirmModal(result) {
 document.getElementById('confirm-modal').addEventListener('click', function(e) {
   if (e.target === this) resolveConfirmModal(false);
 });
+
+// ════════════════════════════════════════════════
+// ILLUMINATI DASHBOARD
+// ════════════════════════════════════════════════
+async function loadIlluminati() {
+  const data = await api('GET', `/api/${GUILD}/illuminati`).catch(()=>({}));
+  const org  = data.org;
+
+  document.getElementById('illum-count').textContent  = org ? org.members.length : '—';
+  document.getElementById('illum-vault').textContent  = org ? '$' + (org.vault||0).toLocaleString() : '—';
+  document.getElementById('illum-ops').textContent    = org ? (org.operations||[]).length : '—';
+  document.getElementById('illum-status').textContent = !org ? 'Not Founded' : org.exposed ? '🚨 Exposed' : '🔺 Active';
+
+  const tbody = document.getElementById('illum-tbody');
+  if (!org || !org.members.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">No Illuminati in this server.</td></tr>'; return; }
+
+  const rankLabels = { initiate:'🔺 Initiate', operative:'👁️ Operative', elder:'💎 Elder', grandmaster:'⚡ Grandmaster' };
+  tbody.innerHTML = await Promise.all((org.members||[]).map(async m => {
+    const name = await resolveUser(m.userId);
+    return `<tr>
+      <td>${name}</td>
+      <td><span class="tag t-gold">${rankLabels[m.rank]||m.rank}</span></td>
+      <td>$${(m.contribution||0).toLocaleString()}</td>
+      <td>${new Date(m.joinedAt||0).toLocaleDateString()}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="illumExcommunicate('${m.userId}')">☠️ Excommunicate</button></td>
+    </tr>`;
+  })).then(rows => rows.join(''));
+
+  const opsTbody = document.getElementById('illum-ops-tbody');
+  const ops = (org.operations||[]).slice(-10).reverse();
+  if (!ops.length) { opsTbody.innerHTML = '<tr><td colspan="4" class="empty-cell">No operations.</td></tr>'; return; }
+  opsTbody.innerHTML = ops.map(o =>
+    `<tr><td>${o.type}</td><td><@${o.by}></td><td>${o.target||'—'}</td><td>${new Date(o.at).toLocaleString()}</td></tr>`
+  ).join('');
+}
+
+async function illumExcommunicate(userId) {
+  if (!confirm('Excommunicate this member?')) return;
+  const r = await api('POST', `/api/${GUILD}/illuminati/excommunicate`, { userId });
+  if (r.success) { toast('Member excommunicated','ok'); loadIlluminati(); }
+  else toast(r.error||'Failed','err');
+}
+
+// ════════════════════════════════════════════════
+// CREDIT SCORES DASHBOARD
+// ════════════════════════════════════════════════
+async function loadCreditScores() {
+  const filter = document.getElementById('credit-filter')?.value || 'all';
+  const data   = await api('GET', `/api/${GUILD}/credit-scores?filter=${filter}`).catch(()=>({ profiles:[] }));
+  const profiles = data.profiles || [];
+
+  // Stats
+  const scores = profiles.map(p=>p.score||0);
+  document.getElementById('credit-avg').textContent       = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
+  document.getElementById('credit-excellent').textContent = profiles.filter(p=>p.score>=800).length;
+  document.getElementById('credit-poor').textContent      = profiles.filter(p=>p.score<580).length;
+  document.getElementById('credit-cards').textContent     = profiles.filter(p=>p.card).length;
+
+  const tbody = document.getElementById('credit-tbody');
+  if (!profiles.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No credit profiles found.</td></tr>'; return; }
+
+  const tierColor = { '💎 Excellent':'t-gold', '🟢 Very Good':'t-green', '🟡 Good':'t-cyan', '🟠 Fair':'t-orange', '🔴 Poor':'t-red' };
+  tbody.innerHTML = (await Promise.all(profiles.map(async p => {
+    const name = await resolveUser(p.userId);
+    const tierClass = tierColor[p.tier] || 't-muted';
+    return `<tr>
+      <td>${name}</td>
+      <td><strong>${p.score}</strong></td>
+      <td><span class="tag ${tierClass}">${p.tier}</span></td>
+      <td>${p.card||'—'}</td>
+      <td>${p.balance>0?'$'+p.balance.toLocaleString():'$0'}</td>
+      <td>${p.frozen?'<span class="tag t-blue">❄️ Frozen</span>':'No'}</td>
+      <td>${(p.loans||0)} active</td>
+    </tr>`;
+  }))).join('');
+}
+
+// ════════════════════════════════════════════════
+// LAPTOP APP CREATOR
+// ════════════════════════════════════════════════
+const BUILTIN_APP_TYPES = [
+  { id:'ssn_scanner',    name:'🪪 SSN Scanner',      desc:'Steal target SSN',              basePct:40 },
+  { id:'credit_cracker', name:'💳 Credit Cracker',   desc:'Commit credit fraud',           basePct:35 },
+  { id:'card_drainer',   name:'💸 Card Drainer',      desc:'Drain credit cards',            basePct:45 },
+  { id:'biz_intrude',    name:'🏢 Biz Intruder',      desc:'Access business accounts',      basePct:50 },
+  { id:'keylogger',      name:'⌨️ Keylogger Pro',    desc:'+20% phishing success',         basePct:null },
+  { id:'vpn_shield',     name:'🛡️ VPN Shield',       desc:'-60% trace risk on TOR',        basePct:null },
+  { id:'bank_mirror',    name:'🏦 Bank Mirror',       desc:'Read any routing number',       basePct:100 },
+  { id:'launder_bot',    name:'🧺 LaunderBot',        desc:'Better launder rate 65-85%',    basePct:65 },
+  { id:'stalker_app',    name:'👁️ Stalker App',      desc:'Full intel on any user',        basePct:60 },
+  { id:'dark_search',    name:'🔍 DarkSearch',        desc:'Search SSN database',           basePct:55 },
+];
+
+let _appRowCount = 0;
+
+function buildAppRow() {
+  _appRowCount++;
+  const n = _appRowCount;
+  const appOptions = BUILTIN_APP_TYPES.map(a =>
+    `<option value="${a.id}">${a.name} — ${a.desc} (base: ${a.basePct!==null?a.basePct+'%':'passive'})</option>`
+  ).join('');
+  return `<div id="app-row-${n}" style="display:grid;grid-template-columns:2fr 2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px">
+    <div class="fg" style="margin:0"><label class="flabel">Item Name</label><input class="finput" id="app-name-${n}" placeholder="e.g. Pro SSN Scanner"></div>
+    <div class="fg" style="margin:0"><label class="flabel">App Type</label><select class="fselect" id="app-type-${n}" onchange="updateAppSuccessHint(${n})">${appOptions}</select></div>
+    <div class="fg" style="margin:0"><label class="flabel">Quality (1-5)</label><input class="finput" type="number" id="app-quality-${n}" value="1" min="1" max="5" oninput="updateAppSuccessHint(${n})"></div>
+    <div class="fg" style="margin:0"><label class="flabel">Price ($)</label><input class="finput" type="number" id="app-price-${n}" placeholder="10000" min="1"></div>
+    <div class="fg" style="margin:0"><label class="flabel" id="app-success-label-${n}">Success: ~40%</label><input class="finput" type="number" id="app-success-${n}" placeholder="override" min="1" max="95"></div>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('app-row-${n}').remove()" style="margin-bottom:0">✕</button>
+  </div>`;
+}
+
+function updateAppSuccessHint(n) {
+  const appId   = document.getElementById(`app-type-${n}`)?.value;
+  const quality = parseInt(document.getElementById(`app-quality-${n}`)?.value)||1;
+  const def     = BUILTIN_APP_TYPES.find(a=>a.id===appId);
+  const base    = def?.basePct;
+  const label   = document.getElementById(`app-success-label-${n}`);
+  if (!label) return;
+  if (base === null) { label.textContent = 'Success: passive'; return; }
+  label.textContent = `Success: ~${Math.min(95, base + (quality-1)*5)}%`;
+}
+
+function addAppRow() {
+  const container = document.getElementById('app-creator-rows');
+  const rows = container.querySelectorAll('[id^="app-row-"]').length;
+  if (rows >= 7) { toast('Max 7 apps per batch','err'); return; }
+  container.insertAdjacentHTML('beforeend', buildAppRow());
+  updateAppSuccessHint(_appRowCount);
+}
+
+async function saveAppBatch() {
+  const rows = document.getElementById('app-creator-rows').querySelectorAll('[id^="app-row-"]');
+  if (!rows.length) { toast('Add at least one app row first','err'); return; }
+
+  const apps = [];
+  for (const row of rows) {
+    const n = row.id.replace('app-row-','');
+    const name    = document.getElementById(`app-name-${n}`)?.value?.trim();
+    const appType = document.getElementById(`app-type-${n}`)?.value;
+    const quality = parseInt(document.getElementById(`app-quality-${n}`)?.value)||1;
+    const price   = parseInt(document.getElementById(`app-price-${n}`)?.value)||0;
+    const success = parseInt(document.getElementById(`app-success-${n}`)?.value)||null;
+    if (!name || !price) { toast(`Row ${n}: fill in name and price`,'err'); return; }
+    apps.push({ name, appType, quality, price, successOverride:success });
+  }
+
+  const r = await api('POST', `/api/${GUILD}/store/create-apps`, { apps });
+  if (r.success) {
+    toast(`✅ Created ${apps.length} app item(s)`,'ok');
+    document.getElementById('app-creator-rows').innerHTML = '';
+    _appRowCount = 0;
+    loadLaptopApps();
+  } else toast(r.error||'Failed','err');
+}
+
+async function loadLaptopApps() {
+  const store = await api('GET', `/api/${GUILD}/store`).catch(()=>({ items:[] }));
+  const apps  = (store.items||[]).filter(i => i.effect?.type === 'laptop_app');
+  const tbody = document.getElementById('laptop-apps-tbody');
+  if (!apps.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No laptop apps in store yet. Use the creator above.</td></tr>'; return; }
+  const def = { ssn_scanner:40, credit_cracker:35, card_drainer:45, biz_intrude:50, stalker_app:60, dark_search:55, launder_bot:65, bank_mirror:100 };
+  tbody.innerHTML = apps.map(a => {
+    const q = a.effect?.quality||1;
+    const base = a.effect?.successOverride || (def[a.effect?.appId]!=null ? Math.min(95, def[a.effect?.appId]+(q-1)*5) : null);
+    return `<tr>
+      <td>${a.emoji||'💻'} ${a.name}</td>
+      <td><code>${a.effect?.appId||'?'}</code></td>
+      <td>${'⭐'.repeat(q)}</td>
+      <td>$${(a.price||0).toLocaleString()}</td>
+      <td>${base!=null?base+'%':'passive'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editItemById('${a.id}')">Edit</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+// TOR MARKET DASHBOARD
+// ════════════════════════════════════════════════
+async function loadTorListings() {
+  const data = await api('GET', `/api/${GUILD}/tor`).catch(()=>({ listings:[] }));
+  const listings = data.listings || [];
+
+  document.getElementById('tor-active').textContent  = listings.filter(l=>!l.sold).length;
+  document.getElementById('tor-total').textContent   = listings.length;
+  document.getElementById('tor-traced').textContent  = data.tracedCount||0;
+  document.getElementById('tor-volume').textContent  = '$'+(listings.reduce((s,l)=>s+(l.price||0),0)).toLocaleString();
+
+  const tbody = document.getElementById('tor-tbody');
+  if (!listings.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No TOR listings found.</td></tr>'; return; }
+
+  tbody.innerHTML = (await Promise.all(listings.slice(0,20).map(async l => {
+    const seller = await resolveUser(l.sellerId).catch(()=>l.sellerHandle||'?');
+    const victim = await resolveUser(l.victimId).catch(()=>l.victimId?.slice(0,8)||'?');
+    const exp    = new Date(l.expiresAt).toLocaleString();
+    const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊' };
+    return `<tr>
+      <td><code>${l.id?.slice(-6)||'?'}</code></td>
+      <td>${typeEmoji[l.type]||'📦'} ${l.typeName||l.type}</td>
+      <td>${seller}</td>
+      <td>${victim}</td>
+      <td>$${(l.price||0).toLocaleString()}</td>
+      <td style="font-size:11px">${l.sold?'<span class="tag t-green">Sold</span>':exp}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">Remove</button></td>
+    </tr>`;
+  }))).join('');
+}
+
+async function torRemoveListing(id) {
+  const r = await api('DELETE', `/api/${GUILD}/tor/listing/${id}`);
+  if (r.success) { toast('Listing removed','ok'); loadTorListings(); }
+  else toast(r.error||'Failed','err');
+}
+
+// Initialize on nav
 </script>
 </body>
 </html>

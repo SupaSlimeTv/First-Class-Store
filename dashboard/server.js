@@ -345,6 +345,7 @@ app.get('/api/:guildId/users', requireGuildAuth, async (req, res) => {
           gangName:        gang?.name || null,
           gangId:          gang?.id   || null,
           isGangLeader:    gang?.leaderId === u.id,
+          isIlluminati:    (() => { try { const { getIlluminati } = require('./utils/illuminatiDb'); const org = getIlluminati(req.guildId); return !!(org?.members||[]).find(m2 => m2.userId === u.id); } catch { return false; } })(),
         };
       })
       .sort((a, b) => {
@@ -844,6 +845,97 @@ app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req
     mem.rank = req.body.rank || 'initiate';
     await saveIlluminati(req.guildId, org);
     await writeAudit(req.guildId, req.session.user?.id, 'illuminati_rank', { target:req.params.id, rank:mem.rank });
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+
+// ── ILLUMINATI DASHBOARD ──────────────────────────────────────
+app.get('/api/:guildId/illuminati', requireGuildAuth, async (req, res) => {
+  try {
+    const { getIlluminati } = require('./utils/illuminatiDb');
+    const org = getIlluminati(req.guildId);
+    res.json({ org: org || null });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req, res) => {
+  try {
+    const { getIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
+    const org = getIlluminati(req.guildId);
+    if (!org) return res.status(400).json({ error:'No Illuminati.' });
+    org.members = (org.members||[]).filter(m => m.userId !== req.body.userId);
+    await saveIlluminati(req.guildId, org);
+    await writeAudit(req.guildId, req.session.user?.id, 'illum_excommunicate', { userId:req.body.userId });
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── CREDIT SCORES DASHBOARD ───────────────────────────────────
+app.get('/api/:guildId/credit-scores', requireGuildAuth, async (req, res) => {
+  try {
+    const { getAllCredit, getCreditTier } = require('./utils/creditDb');
+    const filterTier = req.query.filter || 'all';
+    const members    = await fetchAllMembers(req.guildId);
+    const memberIds  = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
+    const all        = getAllCredit();
+    let profiles = Object.entries(all)
+      .filter(([id]) => memberIds.has(id))
+      .map(([id, p]) => {
+        const tier = getCreditTier(p.score||680);
+        return { userId:id, score:p.score||680, tier:tier.label, card:p.card||null, balance:p.balance||0, frozen:!!p.frozen, loans:(p.loans||[]).filter(l=>!l.paid).length };
+      });
+    if (filterTier !== 'all') {
+      const ranges = { excellent:[800,850], verygood:[740,799], good:[670,739], fair:[580,669], poor:[300,579] };
+      const [min,max] = ranges[filterTier]||[0,850];
+      profiles = profiles.filter(p => p.score>=min && p.score<=max);
+    }
+    profiles.sort((a,b) => b.score - a.score);
+    res.json({ profiles });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── LAPTOP APP BATCH CREATE ───────────────────────────────────
+app.post('/api/:guildId/store/create-apps', requireGuildAuth, async (req, res) => {
+  try {
+    const apps = req.body.apps || [];
+    if (!apps.length || apps.length > 7) return res.status(400).json({ error:'1-7 apps per batch.' });
+    const store = db.getStore(req.guildId);
+    for (const app of apps) {
+      const id = app.name.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').slice(0,30) + '-' + Date.now().toString(36);
+      store.items.push({
+        id, name:app.name, price:app.price, description:`${app.name} — laptop hacking app. Quality Tier ${app.quality}.`,
+        type:'useable', enabled:true, reusable:false, emoji:'💻',
+        effect:{ type:'laptop_app', appId:app.appType, quality:app.quality||1, ...(app.successOverride?{ successOverride:app.successOverride }:{}) },
+      });
+    }
+    db.saveStore(req.guildId, store);
+    await writeAudit(req.guildId, req.session.user?.id, 'create_apps', { count:apps.length });
+    res.json({ success:true, created:apps.length });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── TOR DASHBOARD ─────────────────────────────────────────────
+app.get('/api/:guildId/tor', requireGuildAuth, async (req, res) => {
+  try {
+    const { getAllListings, getActiveListings } = require('./utils/torDb');
+    const all    = Object.values(getAllListings());
+    const active = getActiveListings();
+    // TOR is global — return all listings across all servers
+    const traced = all.filter(l => l.traced).length;
+    const volume = all.reduce((s,l) => s + (l.price||0), 0);
+    res.json({ listings: all.sort((a,b) => (b.createdAt||0)-(a.createdAt||0)).slice(0,50), tracedCount:traced, totalVolume:volume });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.delete('/api/:guildId/tor/listing/:id', requireGuildAuth, async (req, res) => {
+  try {
+    const { getListing, saveListing } = require('./utils/torDb');
+    const listing = getListing(req.params.id);
+    if (!listing) return res.status(404).json({ error:'Not found.' });
+    listing.sold = true; listing.removedByAdmin = true;
+    await saveListing(req.params.id, listing);
+    await writeAudit(req.guildId, req.session.user?.id, 'tor_remove', { id:req.params.id });
     res.json({ success:true });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });

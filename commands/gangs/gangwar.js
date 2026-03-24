@@ -4,19 +4,25 @@ const { getGangByMember, getAllGangs, saveGang, getWar, saveWar, deleteWar, getM
 const { addHeat, checkPoliceRaid, isJailed, getJailTimeLeft } = require('../../utils/police');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
+const { gangAutocomplete } = require('../../utils/autocomplete');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('gangwar')
     .setDescription('Manage gang wars.')
     .addSubcommand(s => s.setName('challenge').setDescription('Challenge another gang to war')
-      .addStringOption(o => o.setName('gang').setDescription('Gang name to challenge').setRequired(true))
+      .addStringOption(o => o.setName('gang').setAutocomplete(true).setDescription('Gang name to challenge').setRequired(true))
       .addIntegerOption(o => o.setName('bet').setDescription('Gang bank bet amount').setRequired(false).setMinValue(0))
     )
     .addSubcommand(s => s.setName('attack').setDescription('Attack during an active war (adds heat)'))
     .addSubcommand(s => s.setName('status').setDescription('Check active war status'))
     .addSubcommand(s => s.setName('surrender').setDescription('Surrender the current war (leader only)')),
 
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'gang') return gangAutocomplete(interaction);
+  },
   async execute(interaction) {
     if (await noAccount(interaction)) return;
     const sub    = interaction.options.getSubcommand();

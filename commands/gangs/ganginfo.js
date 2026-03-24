@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getGangByMember, getAllGangs, getMemberRank } = require('../../utils/gangDb');
 const { COLORS } = require('../../utils/embeds');
+const { gangAutocomplete } = require('../../utils/autocomplete');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -8,6 +9,11 @@ module.exports = {
     .setDescription('Detailed info about your gang or another.')
     .addStringOption(o => o.setName('name').setDescription('Gang name to look up').setRequired(false)),
 
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'gang') return gangAutocomplete(interaction);
+  },
   async execute(interaction) {
     const userId = interaction.user.id;
     const search = interaction.options.getString('name');

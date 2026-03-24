@@ -23,6 +23,20 @@ function requireLabel(userId) {
 module.exports = {
   _pendingContracts,
 
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'artist_id') {
+      const { getLabel } = require('../../utils/labelDb');
+      const label = getLabel(interaction.user.id);
+      const typed = focused.value.toLowerCase();
+      const choices = (label?.artists||[]).map(a => ({
+        name: a.isNPC ? (a.npcData?.name||a.artistId) : `@User ${a.artistId}`,
+        value: a.artistId,
+      })).filter(c => c.name.toLowerCase().includes(typed)).slice(0,25);
+      return interaction.respond(choices.length ? choices : [{ name:'No artists on roster', value:'__none__' }]);
+    }
+  },
+
   data: new SlashCommandBuilder()
     .setName('label')
     .setDescription('🎵 Manage your record label — sign artists, collect revenue.')
@@ -32,9 +46,9 @@ module.exports = {
       .addIntegerOption(o => o.setName('cut').setDescription('Artist cut % (10-50, default 30)').setRequired(false).setMinValue(10).setMaxValue(50)))
     .addSubcommand(s => s.setName('signnpc').setDescription('Browse and sign NPC artists'))
     .addSubcommand(s => s.setName('release').setDescription('Drop an artist from your label')
-      .addStringOption(o => o.setName('artist_id').setDescription('Artist ID or @mention').setRequired(true)))
+      .addStringOption(o => o.setName('artist_id').setDescription('Artist ID').setRequired(true).setAutocomplete(true)))
     .addSubcommand(s => s.setName('promote').setDescription('Promote an artist — boosts fanbase and revenue')
-      .addStringOption(o => o.setName('artist_id').setDescription('Artist ID').setRequired(true))
+      .addStringOption(o => o.setName('artist_id').setDescription('Artist ID').setRequired(true).setAutocomplete(true))
       .addIntegerOption(o => o.setName('budget').setDescription('Promo budget from your wallet').setRequired(true).setMinValue(1000))),
 
   async execute(interaction) {

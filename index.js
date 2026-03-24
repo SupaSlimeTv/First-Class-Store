@@ -111,6 +111,9 @@ client.once('ready', async () => {
   const { preloadLaptopCache } = require('./utils/laptopDb');
   await preloadLaptopCache();
 
+  const { preloadTorCache } = require('./utils/torDb');
+  await preloadTorCache();
+
   // ── Global heat→warrant checker (called from gangDb.addHeat) ──
   global._checkHeatWarrant = async (userId, heat) => {
     const { checkHeatWarrant } = require('./utils/policeDb');
@@ -2809,6 +2812,52 @@ Pay now with \`/credit pay\``)
     }
   } catch(e) { console.error('Credit tick error:', e.message); }
 }, 24 * 60 * 60 * 1000); // once per day
+
+
+// ── RANDOM DATA LEAK TICK (every 6 hours) ────────────────────
+// Randomly puts 1-3 users' SSN info on the TOR dark web market
+setInterval(async () => {
+  try {
+    const { getAllCredit, getOrCreateCredit } = require('./utils/creditDb');
+    const { createDataLeak, getActiveListings } = require('./utils/torDb');
+    const { getAllUsers } = require('./utils/db');
+
+    const allUsers    = getAllUsers();
+    const allCredit   = getAllCredit();
+    const userIds     = Object.keys(allUsers).filter(id => allCredit[id]?.ssn);
+
+    if (!userIds.length) return;
+
+    // Check how many leaks are currently active to avoid flooding
+    const activeLeaks = getActiveListings().filter(l => l.isLeak).length;
+    if (activeLeaks >= 5) return; // max 5 leaks active at once
+
+    // Pick 1-2 random victims
+    const count   = Math.floor(Math.random() * 2) + 1;
+    const victims = userIds.sort(()=>Math.random()-0.5).slice(0, count);
+
+    for (const userId of victims) {
+      const credit = allCredit[userId];
+      if (!credit?.ssn) continue;
+
+      const listing = await createDataLeak(userId, {
+        ssn:   credit.ssn,
+        score: credit.score||680,
+        card:  credit.card||null,
+        limit: credit.limit||0,
+      });
+
+      // DM victim about the breach
+      client.users.fetch(userId).then(u => u.send({ embeds:[new (require('discord.js').EmbedBuilder)()
+        .setColor(0xff3b3b)
+        .setTitle('🔓 Data Breach Alert!')
+        .setDescription(`Your personal information was exposed in a **data breach** and is now listed on the dark web.\n\n🪪 SSN exposed\n📊 Credit profile included\n\nFreeze your credit immediately: \`/credit freeze\`\n\n*Listing will expire in 48 hours.*`)
+      ]}).catch(()=>{})).catch(()=>{});
+
+      console.log(`🔓 Data leak created for user ${userId} — listing ${listing.id}`);
+    }
+  } catch(e) { console.error('Data leak tick error:', e.message); }
+}, 6 * 60 * 60 * 1000); // every 6 hours
 
 // ── LABEL REVENUE TICK (every 15 min) ────────────────────────
 setInterval(async () => {

@@ -1,104 +1,111 @@
 // ============================================================
 // commands/fun/admininfo.js — /admininfo
-// Admin-only guide to all dashboard and admin features
+// Owner/Admin guide — dashboard, config, management
 // ============================================================
-
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { getConfig } = require('../../utils/db');
-const { COLORS } = require('../../utils/embeds');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 
 const PAGES = [
-  {
-    title: '🎛️ Admin Guide — Overview (1/10)',
-    color: 0xff3b3b,
-    desc: `Welcome to the **First Class Store** admin guide. This embed covers everything you can configure and control as an admin or server owner.\n\nAccess your dashboard at your Railway URL → log in with Discord → select your server.\n\n**Quick access commands you can use right now:**\n\`/createitem\` — create store items without opening the dashboard\n\`/moneydrop\` — manually trigger a money drop\n\`/jail @user\` — jail someone immediately\n\`/ban @user\` — ban a user\n\`/setmodrole @role\` — set a moderator role`,
-  },
-  {
-    title: '🏪 Item Store (2/10)',
-    color: 0x5865f2,
-    desc: `**Dashboard → Item Store**\n\nCreate items with full control over:\n— **Type**: Buyable (owned), Useable (triggers effect), Role Reward (gives role on buy)\n— **Effect**: drain wallet, drain all funds, silence, hitman, give/remove role, passive income, shield, EMP, gamble, AI entity, minigame hack, magic spell\n— **Role on Purchase**: automatically give a Discord role when bought\n— **Role on Use**: use \`Edit Roles\` effect to give/remove a role when item is used\n— **Requirements**: lock items behind specific roles or other items\n— **Reusable**: single-use vs unlimited\n\nUse \`/createitem\` to create items directly in Discord — supports role selection via dropdown, effect type, price, and description.\n\n**Per-guild** — each server has its own store. Items from other servers are not visible here.`,
-  },
-  {
-    title: '💊 Drug Market (3/10)',
-    color: 0x9b59b6,
-    desc: `**Dashboard → Drug Market**\n\nCreate drugs that users can order via \`/drugmarket order\` using a burner phone.\n\n**Configure per drug:**\n— Name, emoji, price, description\n— Effect type (buffs, nerfs, passive income)\n— Border risk (chance of getting caught/jailed during delivery)\n— Delivery time (2–5 min)\n— Link to a store item (so the drug gives a physical item on delivery)\n— Gang-only toggle\n\n**Narcotics Role** — optionally restrict drug market access to a specific role.\n\n**Per-guild** — each server has its own drug market.`,
-  },
-  {
-    title: '🔴 Purge System (4/10)',
-    color: 0xff3b3b,
-    desc: `**Dashboard → Purge**\n\nA server-wide chaos event that drains all bank funds to wallets — making everyone vulnerable.\n\n**Setup:**\n1. Set an **Announcement Channel** — bot @everyone here when purge starts/ends\n2. Set custom **Start GIF** and **End GIF** URLs for the announcement embed\n3. Hit **Start Purge** — all members' banks drain instantly\n4. Hit **End Purge** (or the ↺ Reset button if it gets stuck) to restore\n\n**During purge:**\n— Deposits/withdrawals blocked\n— Rob cooldowns removed\n— All attacks still work\n— Only THIS server's members are affected`,
-  },
-  {
-    title: '🚔 Police System (5/10)',
-    color: 0x3498db,
-    desc: `**Dashboard → Police**\n\n**Setup:**\n1. Set a **Police Role** — users with this role can use \`/police\` commands\n2. Fund the **Police Treasury** — pays officer salaries automatically\n3. Set officer salaries per-user (💰 button in the Officers table)\n\n**How warrants work:**\n— Auto-issued when a user hits **25+ heat**\n— Officers issue manually with \`/police warrant @user reason:\`\n— Tips from \`/police tip @user\` ($500 fee) — valid tips earn 2× back\n— Warrants expire in **2 hours**\n\n**Officer rules:**\n— Can't search the same person twice in 30min\n— Gang leaders require a warrant to search\n— False searches cost credibility\n— Bribes accepted = credibility loss + logged in audit\n— \`/police raid\` requires **3+ officers** — jails entire gang`,
-  },
-  {
-    title: '🏠 Home System (6/10)',
-    color: 0xf5c518,
-    desc: `**Dashboard → Police → Home Prices**\n\n**Set custom prices** per tier (Studio/House/Mansion/Estate). Leave blank for defaults.\n\n**Home tiers & defaults:**\n🏚️ Studio — $5k · 3 stash slots · 2 furnishing slots · $50/hr\n🏠 House — $25k · 8 stash · 5 furn · $150/hr\n🏡 Mansion — $100k · 20 stash · 10 furn · $400/hr\n🏰 Estate — $500k · 50 stash · 20 furn · $1,200/hr\n\n**Limits:**\n— Regular users: 1 home max\n— Gang leaders & business owners: 2 homes max\n\n**Furnishings:** Safe (+stash), Security Camera (search alert DM), Drug Lab (+dirty money), Mining Rig (+passive), Panic Room (one arrest escape), Grow House (+dirty), Vault (+stash)`,
-  },
-  {
-    title: '💰 Money Drops (7/10)',
-    color: 0x2ecc71,
-    desc: `**Dashboard → Overview → Money Drop System**\n\n**Setup:**\n1. Select a **Drop Channel**\n2. Set **Min/Max interval** (e.g. 15–45 min)\n3. Toggle the drop system **ON**\n\n**Drop tiers:**\n⚪ Common — $50–$500 (70%)\n🔵 Uncommon — $500–$5k (20%)\n🟡 Rare — $5k–$50k (7%)\n🔴 Epic — $50k–$485k (3%)\n\nDrops are **per-guild** — Server A's drops never appear in Server B.\nFirst user to click the button wins. Drop expires in 60 seconds.\n\n**Manual drops:** Use \`/moneydrop\` to trigger one instantly with a custom amount and channel.`,
-  },
-  {
-    title: '📢 Embed Builder (8/10)',
-    color: 0x00d2ff,
-    desc: `**Dashboard → Embeds**\n\n**Step 1** — Select a channel\n**Step 2** — Build your embed (color, title, description, fields, footer, thumbnail, image)\n**Step 3** — Set a plain **Message** above the embed (supports @mentions)\n\n**Event Triggers** — click the ⚡ blue card to link an embed to a server event:\n— 👋 Member Joins\n— 🚪 Member Leaves\n— 🔨 Member Banned\n— ✅ Member Unbanned\n\n**Variables in title/description:**\n\`{user}\` → @mention · \`{username}\` → display name\n\`{server}\` → server name · \`{membercount}\` → member count\n\nSaved triggers appear in the **Active Event Triggers** list below the card — edit or delete any time.`,
-  },
-  {
-    title: '🏦 Economy Config (9/10)',
-    color: 0xf5c518,
-    desc: `**Dashboard → Overview**\n\n**Command Prefix** — set the \`!\` prefix for legacy text commands\n**Rob Cooldown** — how many minutes between /rob attempts\n**Shot Timeout** — cooldown on /shoot command\n**Mod Commands Role** — role that can use mod commands without full admin\n**Restricted Role** — role blocked from using attack items\n**Protected Roles** — roles that cannot be robbed or attacked\n\n**Lottery** — configure ticket price and draw interval in Dashboard → Overview\n\n**Role Income** — assign passive income to Discord roles (Dashboard → Overview → Role Income)\n\n**Economy is global** — wallets/bank/inventory follow users across servers. Store, drugs, config are per-server.`,
-  },
-  {
-    title: '🛠️ Other Admin Commands (10/10)',
-    color: 0xff6b35,
-    desc: `**Moderation:**\n\`/ban @user reason:\` — ban\n\`/kick @user reason:\` — kick\n\`/mute @user minutes:\` — timeout\n\`/warn @user reason:\` — warn\n\`/jail @user minutes:\` — jail (requires prison setup)\n\`/unjail @user\` — release from jail\n\`/jailcreate\` — create prison channel + role automatically\n\`/solitary @user\` — move to solitary\n\`/setmodrole @role\` — set mod role\n\`/purge count:\` — bulk delete messages\n\`/overview\` — economy stats summary\n\n**Economy:**\n\`/createitem\` — create store items\n\`/moneydrop amount: channel:\` — manual cash drop\n\`/give @user item:\` — give user an item\n\`/wantedlevel @user\` — view heat record\n\n**Dashboard:** Access at your Railway URL. All sensitive config lives there.`,
-  },
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('⚙️ Admin Guide — Overview (1/10)')
+    .setDescription('Full control panel for server owners and admins.\n\nAccess the web dashboard at your Railway URL.')
+    .addFields(
+      { name:'🌐 Dashboard Sections', value:'**Overview** — Prefix, rob cooldown, shot timeout, money drop, home prices\n**Users** — View/edit all members, give/take anything\n**Item Store** — Create items with custom effects\n**Stock Market** — Manage coins\n**Entrepreneur** — Business controls\n**Police** — Officers, warrants, prison config\n**Gangs** — All gangs, upgrades, dirty money\n**Drug Market** — Drug prices\n**Influencers** — Phone status, followers, hype\n**Purge** — Purge + Great Depression controls\n**Embeds** — Custom embed builder\n**Illuminati** — Member roster, vault, operations\n**TOR/Dark Web** — Active listings, bust users\n**Laptops** — Create apps, set success rates', inline:false },
+    ).setFooter({ text:'Page 1/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('🔧 Server Setup (2/10)')
+    .addFields(
+      { name:'⚙️ Essential Setup', value:'1. `/jailcreate` — Creates Prison role, Solitary role, prison channel\n2. Set roles/channel in Dashboard → Police\n3. `/setmodrole @role` — Set moderator role\n4. Set command prefix in Dashboard → Overview\n5. Set money drop channel in Dashboard → Overview', inline:false },
+      { name:'💰 Economy Config (Dashboard → Overview)', value:'• Command prefix (default `!`)\n• Rob cooldown (minutes)\n• Shot timeout (minutes)\n• Money Drop: toggle, channel, amount range\n• Home System: prices per tier\n• Break-In Defense: % per home tier', inline:false },
+      { name:'🎬 Announcements', value:'• Purge channel: for purge/depression/money drop announcements\n• Embed builder: send rich embeds to any channel\n• Embed triggers: auto-send embeds on events', inline:false },
+    ).setFooter({ text:'Page 2/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('👥 Managing Users (3/10)')
+    .addFields(
+      { name:'📊 Dashboard → Users', value:'View all members with wallet/bank\nEdit wallet/bank inline\nGive/Take anything via the modal:', inline:false },
+      { name:'🎁 Give/Take Options', value:'🎒 Store Item · 💵 Money · 🪙 Pet Tokens · ⭐ Pet Level\n🔫 Gun · 🏴 Add to Gang · 🏢 Business Money\n📱 Phone Status/Followers/Hype · 🤝 Sponsor Deal\n📣 Shoutout Multiplier · 📊 **Credit Score**\n🔺 **Illuminati Rank** (sets rank for existing members)', inline:false },
+      { name:'🛑 Moderation', value:'`/ban @user` · `/kick @user` · `/mute @user`\n`/warn @user` · `/jail @user <minutes>`\n`/solitary @user` · `/unjail @user`', inline:false },
+    ).setFooter({ text:'Page 3/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('📦 Item Store (4/10)')
+    .addFields(
+      { name:'➕ Creating Items', value:'Dashboard → Item Store → Add Item\nFields: Name, Price, Description, Type, Enabled, Reusable, Emoji', inline:false },
+      { name:'⚡ Effect Types', value:'💸 Drain Wallet · 💻 Drain All · 🔇 Silence · 🔫 Hitman\n🎲 Gamble · 💰 Passive Income · 🛡️ Shield\n🖥️ Minigame Drain · ⚡ EMP Device · 💵 Edit Balance\n🎒 Edit Items · 🏅 Edit Roles · 🤖 AI Entity\n🍽️ Consume · 🔮 Magic · 🔧 Break-In Kit\n**💻 Laptop App** — installs a hacking/intel app', inline:false },
+      { name:'💻 Laptop App Effect Fields', value:'• **App Type** — choose from 10 built-in app types\n• **Quality Tier 1-5** — each tier adds +5% success rate\nApp types: SSN Scanner, Credit Cracker, Card Drainer,\nBiz Intruder, Keylogger, VPN Shield, Bank Mirror,\nLaunderBot, Stalker App, DarkSearch', inline:false },
+    ).setFooter({ text:'Page 4/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('💳 Laptop App Creator (5/10)')
+    .addFields(
+      { name:'🔧 Creating Apps (Dashboard → Laptops)', value:'Create up to 7 apps per batch with full control:\n• **App ID** — which built-in app this item unlocks\n• **Quality Tier** — 1-5, affects success rate\n• **Name & Price** — displayed in shop\n• **Description** — shown in /shop\n• **Success Rate Override** — optional custom %', inline:false },
+      { name:'📊 App Success Rates (default)', value:'🪪 SSN Scanner: 40% base\n💳 Credit Cracker: 35% base\n💸 Card Drainer: 45% base\n🏢 Biz Intruder: 50% base\n👁️ Stalker App: 60% base\n🔍 DarkSearch: 55% base\n🧺 LaunderBot: 60% base\nVPN Shield: reduces trace risk -60%\nKeylogger: +20% phishing success', inline:false },
+    ).setFooter({ text:'Page 5/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('🔺 Illuminati (6/10)')
+    .addFields(
+      { name:'👁️ Dashboard → Illuminati', value:'View current membership roster\nSee vault balance and operation history\nSet member ranks via Users → Give/Take → Illuminati Rank\nExpose/reset the Illuminati if needed', inline:false },
+      { name:'📜 Player Commands', value:'`/illuminati found` — Found the org ($250k, owner only)\n`/illuminati invite @user` — Elder+ can invite\n`/illuminati operate` — Run operations\n`/illuminati vault` — Contribute/view treasury\n`/illuminati excommunicate` — Exile a member\n`/illuminati expose` — Reveal members (3+ ops needed)', inline:false },
+    ).setFooter({ text:'Page 6/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('💳 Credit System (7/10)')
+    .addFields(
+      { name:'📊 Dashboard → Credit Scores', value:'View all users credit scores in one table\nFilter by tier · Sort by score\nAdjust scores via Users → Give/Take → Credit Score', inline:false },
+      { name:'💳 Player Commands', value:'`/credit check` — Score, SSN (blurred), card info\n`/credit apply` — Get a card (580+ required)\n`/credit spend` — Charge to card\n`/credit pay` — Pay balance\n`/credit freeze` — Block identity theft\n`/credit loan` — Business financing (670+ required)', inline:false },
+      { name:'⚠️ Credit Damage Events', value:'• Identity fraud via `/hack` or TOR purchase: -45\n• Card drained: -25 · Loan default: -80\n• Missed payment interest: -12/day\nAdmins can correct scores via give/take', inline:false },
+    ).setFooter({ text:'Page 7/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('🌐 TOR / Dark Web (8/10)')
+    .addFields(
+      { name:'🌐 Dashboard → TOR', value:'View all active dark web listings\nSee who listed, buyer/seller handles, data type\nBust users who were traced — manual jail option\nClear expired listings', inline:false },
+      { name:'⚖️ Trace Rules', value:'• Base trace chance: **30%**\n• VPN Shield app: **-60%** to trace chance\n• Each installed laptop app: **-5%** trace chance\n• Illuminati members: **always untraceable**\n• Being traced on buy: jailed 10 min + heat\n• Being traced on sell: +heat, victim notified', inline:false },
+    ).setFooter({ text:'Page 8/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('📉 Economy Events (9/10)')
+    .addFields(
+      { name:'🔴 The Purge (Dashboard → Purge)', value:'Drains all bank → wallet instantly\nBlocks deposits/withdrawals\nRemoves rob cooldowns\nEnd when ready — restores everything', inline:false },
+      { name:'📉 The Great Depression (Dashboard → Purge, Owner Only)', value:'**IRREVERSIBLE** — wipes all wallet + bank to $0\nAlso wipes business revenues + gang dirty money\nAll assets kept (homes, items, pets, fame)\nOn end: **$200 survival payment** to every member\n`/depression CONFIRM` or `!depression CONFIRM`', inline:false },
+      { name:'💰 Money Drop', value:'Auto-drops claimable cash in a channel\nFirst to click wins — antidote-style weighted drops\nConfigure amount, channel, frequency in Dashboard', inline:false },
+    ).setFooter({ text:'Page 9/10' }),
+
+  new EmbedBuilder().setColor(0xff3b3b)
+    .setTitle('🔑 Owner-Only Commands (10/10)')
+    .addFields(
+      { name:'👑 Owner Controls', value:'`/depression CONFIRM` — Crash the entire economy\n`/purge` — Start/end the purge event\n`/moneydrop` — Manual money drop\n`/overview` — Server economy stats', inline:false },
+      { name:'🌐 Dashboard URL', value:'Your Railway deployment URL\nLogin with Discord → Select server\nAll changes take effect immediately', inline:false },
+      { name:'🛠️ Useful Commands', value:'`/admininfo` — This guide\n`/info` — User-facing guide (16 pages)\n`/setmodrole` — Set mod role\n`/jailcreate` — Create prison system', inline:false },
+    ).setFooter({ text:'Page 10/10 · Full docs at your dashboard' }),
 ];
+
+const buildRow = (page, total) => new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId('ai_prev').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+  new ButtonBuilder().setCustomId('ai_page').setLabel(`${page+1}/${total}`).setStyle(ButtonStyle.Primary).setDisabled(true),
+  new ButtonBuilder().setCustomId('ai_next').setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(page === total-1),
+);
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('admininfo')
-    .setDescription('Admin guide — everything you can do as an admin or owner (only visible to you)'),
+    .setDescription('⚙️ Admin & owner guide — dashboard, setup, configuration'),
 
   async execute(interaction) {
-    const isAdmin = interaction.member.permissions.has('Administrator') || interaction.member.permissions.has('ManageGuild');
-    const isOwner = interaction.guild.ownerId === interaction.user.id;
-    if (!isAdmin && !isOwner) {
-      return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription('🚫 This command is for admins and server owners only.')
-      ], ephemeral:true });
-    }
+    const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator) || interaction.user.id === interaction.guild.ownerId;
+    if (!isAdmin) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xe74c3c).setDescription('❌ Admin/Owner only.')], ephemeral:true });
 
     let page = 0;
-
-    const buildEmbed = (p) => new EmbedBuilder()
-      .setColor(PAGES[p].color)
-      .setTitle(PAGES[p].title)
-      .setDescription(PAGES[p].desc)
-      .setFooter({ text:`Use ◀ ▶ to navigate · Only visible to you` });
-
-    const buildRow = (p) => new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`ai_prev_${p}`).setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(p===0),
-      new ButtonBuilder().setCustomId(`ai_page_${p}`).setLabel(`${p+1} / ${PAGES.length}`).setStyle(ButtonStyle.Primary).setDisabled(true),
-      new ButtonBuilder().setCustomId(`ai_next_${p}`).setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(p>=PAGES.length-1),
-    );
-
-    await interaction.reply({ embeds:[buildEmbed(page)], components:[buildRow(page)], ephemeral:true });
-
-    const msg       = await interaction.fetchReply();
-    const collector = msg.createMessageComponentCollector({ time:300_000 });
-
-    collector.on('collect', async btn => {
-      if (btn.customId.startsWith('ai_prev')) page = Math.max(0, page-1);
-      if (btn.customId.startsWith('ai_next')) page = Math.min(PAGES.length-1, page+1);
-      await btn.update({ embeds:[buildEmbed(page)], components:[buildRow(page)] });
+    await interaction.reply({ embeds:[PAGES[0]], components:[buildRow(0, PAGES.length)], ephemeral:true });
+    const msg  = await interaction.fetchReply();
+    const coll = msg.createMessageComponentCollector({ filter:i=>i.user.id===interaction.user.id, time:10*60*1000 });
+    coll.on('collect', async i => {
+      if (i.customId === 'ai_prev' && page > 0) page--;
+      if (i.customId === 'ai_next' && page < PAGES.length-1) page++;
+      await i.update({ embeds:[PAGES[page]], components:[buildRow(page, PAGES.length)] });
     });
-
-    collector.on('end', () => interaction.editReply({ components:[] }).catch(()=>{}));
+    coll.on('end', () => interaction.editReply({ components:[] }).catch(()=>{}));
   },
 };
