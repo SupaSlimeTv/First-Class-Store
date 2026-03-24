@@ -99,6 +99,9 @@ client.once('ready', async () => {
   const { preloadPoliceCache } = require('./utils/policeDb');
   await preloadPoliceCache();
 
+  const { preloadIlluminatiCache } = require('./utils/illuminatiDb');
+  await preloadIlluminatiCache();
+
   // ── Global heat→warrant checker (called from gangDb.addHeat) ──
   global._checkHeatWarrant = async (userId, heat) => {
     const { checkHeatWarrant } = require('./utils/policeDb');
@@ -2352,6 +2355,78 @@ client.on('interactionCreate', async interaction => {
       .setColor(COLORS.ERROR)
       .setDescription(`<@${offer.officerId}> declined your payroll offer. **$${offer.amount.toLocaleString()}** refunded to your wallet.`)
     ]}).catch(()=>{})).catch(()=>{});
+  }
+});
+
+
+// ── ILLUMINATI INVITE ACCEPT/DECLINE ─────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('illum_accept_') && !customId.startsWith('illum_decline_') &&
+      !customId.startsWith('illum_pay_tribute_') && !customId.startsWith('illum_refuse_tribute_')) return;
+
+  const { EmbedBuilder } = require('discord.js');
+  const { getOrCreateIlluminati, saveIlluminati, isMember, INITIATION_FEE, RANKS } = require('./utils/illuminatiDb');
+  const { getOrCreateUser, saveUser } = require('./utils/db');
+  const { _pendingInvites } = require('./commands/economy/illuminati');
+  const userId = interaction.user.id;
+
+  if (customId.startsWith('illum_accept_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[2];
+    const invKey  = `${guildId}:${userId}`;
+    const invite  = _pendingInvites[invKey];
+    if (!invite) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Invite expired.')], components:[] });
+
+    const user = getOrCreateUser(userId);
+    if (user.wallet < INITIATION_FEE) return interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setDescription(`You need $${INITIATION_FEE.toLocaleString()} to accept. You have $${user.wallet.toLocaleString()}.`)], components:[] });
+
+    user.wallet -= INITIATION_FEE;
+    saveUser(userId, user);
+    delete _pendingInvites[invKey];
+
+    const org = getOrCreateIlluminati(guildId);
+    org.members.push({ userId, rank:'initiate', joinedAt:Date.now(), contribution:INITIATION_FEE, guildId });
+    org.vault += INITIATION_FEE;
+    await saveIlluminati(guildId, org);
+
+    await interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0xf5c518)
+      .setTitle('🔺 Welcome to the Order')
+      .setDescription(`You have been initiated. **$${INITIATION_FEE.toLocaleString()}** paid.
+
+Your rank: **${RANKS.initiate.label}**
+
+Use \`/illuminati status\` to view the order.`)
+    ], components:[] });
+
+  } else if (customId.startsWith('illum_decline_')) {
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Invitation declined.')], components:[] });
+
+  } else if (customId.startsWith('illum_pay_tribute_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[3];
+    const gangId  = parts[4];
+    const org     = getOrCreateIlluminati(guildId);
+    const tribute = org.tribute?.[gangId];
+    if (!tribute) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('No tribute record found.')], components:[] });
+
+    const user = getOrCreateUser(userId);
+    if (user.wallet < tribute.weeklyFee) return interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setDescription(`Not enough. Need $${tribute.weeklyFee.toLocaleString()}.`)], components:[] });
+
+    user.wallet     -= tribute.weeklyFee;
+    org.vault       += tribute.weeklyFee;
+    tribute.lastPaid = Date.now();
+    tribute.due      = Date.now() + 7*24*60*60*1000;
+    saveUser(userId, user);
+    await saveIlluminati(guildId, org);
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setDescription(`💸 Tribute of **$${tribute.weeklyFee.toLocaleString()}** paid. You operate freely for 7 days.`)], components:[] });
+
+  } else if (customId.startsWith('illum_refuse_tribute_')) {
+    await interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
+      .setDescription(`❌ Tribute refused. The Illuminati has been notified. Expect consequences.`)
+    ], components:[] });
   }
 });
 
