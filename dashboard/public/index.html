@@ -5625,7 +5625,7 @@ async function saveAppBatch() {
 }
 
 async function loadLaptopApps() {
-  const store = await api('GET', `/api/${GUILD}/store`).catch(() => ({ items: [] }));
+  const store = await api('GET', `/api/store?guildId=${GUILD}`).catch(() => ({ items: [] }));
   const apps  = (store.items || []).filter(i => i.effect?.type === 'laptop_app');
   const tbody = document.getElementById('laptop-apps-tbody');
   if (!apps.length) {
@@ -5639,9 +5639,9 @@ async function loadLaptopApps() {
     return `<tr>
       <td>${a.emoji||'💻'} ${a.name}</td>
       <td><code>${a.effect?.appId||'?'}</code></td>
-      <td>${'⭐'.repeat(Math.min(q,5))}</td>
+      <td title="Quality Tier ${q} — each tier adds +5% success rate">${'⭐'.repeat(Math.min(q,5))} <span style="font-size:10px;color:var(--muted)">Tier ${q}</span></td>
       <td>$${(a.price||0).toLocaleString()}</td>
-      <td>${base != null ? base + '%' : 'passive'}</td>
+      <td>${base != null ? '<strong>' + base + '%</strong>' : '<span style="color:var(--muted)">passive</span>'}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="editItemById('${a.id}')">Edit</button></td>
     </tr>`;
   }).join('');

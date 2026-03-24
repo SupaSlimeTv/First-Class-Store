@@ -69,9 +69,15 @@ async function load() {
 
     const resp = await fetch('/api/my-guilds', { credentials: 'include' });
 
-    // Token expired or session invalid — redirect to re-login
+    // Token expired or session invalid
     if (resp.status === 401) {
-      window.location.href = '/auth/login';
+      document.getElementById('content').innerHTML =
+        '<div class="empty" style="padding:40px;text-align:center">' +
+        '<div style="font-size:32px;margin-bottom:12px">🔑</div>' +
+        '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Session Expired</div>' +
+        '<div style="color:#666;margin-bottom:20px">Your Discord login has expired. Click below to log back in.</div>' +
+        '<a href="/auth/login" style="background:#5865f2;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600">🔄 Re-Login with Discord</a>' +
+        '</div>';
       return;
     }
 
