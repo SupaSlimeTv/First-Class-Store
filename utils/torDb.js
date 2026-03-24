@@ -45,24 +45,52 @@ function calcSsnPrice(userId) {
   } catch { return 1000; }
 }
 
-// Create a random data leak listing (auto-generated, no seller = 'data_leak')
+// Create a random data leak listing — includes SSN + routing number if available
 async function createDataLeak(userId, victimData) {
   const price = calcSsnPrice(userId);
-  const listingId = 'LEAK' + Date.now().toString(36).toUpperCase();
+  const listingId = 'LEAK' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random()*100);
+
+  // Try to pull business routing number
+  let routingNumber = null;
+  try {
+    const { col: _col } = require('./mongo');
+    const rc  = await _col('routingNumbers');
+    const doc = await rc.findOne({ _id: userId });
+    if (doc?.routing) routingNumber = doc.routing;
+  } catch {}
+
+  // Try to pull business name
+  let bizName = null;
+  try {
+    const { getBusiness } = require('./bizDb');
+    const biz = getBusiness(userId);
+    if (biz) bizName = biz.name;
+  } catch {}
+
+  const hasBusinessData = !!(routingNumber || bizName);
+  const typeName = hasBusinessData
+    ? 'Full Identity + Business Routing (Data Breach)'
+    : 'Full SSN + Credit Profile (Data Breach)';
+
   const listing = {
-    id:          listingId,
-    sellerId:    'data_leak',
-    sellerHandle:'DataLeakBot',
-    victimId:    userId,
-    type:        'full_ssn',
-    typeName:    'Full SSN + Credit Profile (Data Breach)',
-    quality:     3,
-    price,
-    data:        victimData,
-    createdAt:   Date.now(),
-    expiresAt:   Date.now() + 48*60*60*1000, // 48hr
-    sold:        false,
-    isLeak:      true,
+    id:           listingId,
+    sellerId:     'data_leak',
+    sellerHandle: 'DataLeakBot',
+    victimId:     userId,
+    type:         hasBusinessData ? 'full_identity' : 'full_ssn',
+    typeName,
+    quality:      3,
+    price:        hasBusinessData ? Math.floor(price * 1.5) : price, // business data worth more
+    data: {
+      ...victimData,
+      ...(routingNumber ? { routingNumber } : {}),
+      ...(bizName       ? { bizName }       : {}),
+    },
+    createdAt:    Date.now(),
+    expiresAt:    Date.now() + 48 * 60 * 60 * 1000,
+    sold:         false,
+    isLeak:       true,
+    hasBusinessData,
   };
   await saveListing(listingId, listing);
   return listing;
