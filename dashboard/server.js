@@ -293,7 +293,7 @@ app.get('/api/:guildId/stats', requireGuildAuth, async (req, res) => {
     .map(([, u]) => u);
 
   const totalUsers = guildUsers.length;
-  const totalMoney = guildUsers.reduce((s, u) => s + (u.wallet||0) + (u.bank||0), 0);
+  const totalMoney = Math.floor(guildUsers.reduce((s, u) => s + (u.wallet||0) + (u.bank||0), 0));
 
   res.json({ totalUsers, totalMembers, totalMoney, storeItems: (store.items||[]).length, purgeActive: config.purgeActive, prefix: config.prefix });
 });
