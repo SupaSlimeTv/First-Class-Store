@@ -45,9 +45,25 @@ function calcSsnPrice(userId) {
   } catch { return 1000; }
 }
 
+function calcBusinessRoutingPrice(userId) {
+  try {
+    const { getBusiness } = require('./bizDb');
+    const { getUser }     = require('./db');
+    const biz = getBusiness(userId);
+    const u   = getUser(userId);
+    if (!biz) return 0;
+    // Business routing price = 50% of business revenue + 1% of owner's bank
+    const bizValue = (biz.revenue||0) + ((biz.level||1) * 10000);
+    const ownerBank= (u?.bank||0) * 0.01;
+    return Math.max(1000, Math.min(500000, Math.floor(bizValue * 0.5 + ownerBank)));
+  } catch { return 5000; }
+}
+
 // Create a random data leak listing — includes SSN + routing number if available
 async function createDataLeak(userId, victimData) {
-  const price = calcSsnPrice(userId);
+  const ssnPrice     = calcSsnPrice(userId);
+  const routingPrice = calcBusinessRoutingPrice(userId);
+  const price        = routingPrice > 0 ? Math.floor(ssnPrice + routingPrice) : ssnPrice;
   const listingId = 'LEAK' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random()*100);
 
   // Try to pull business routing number
@@ -143,7 +159,7 @@ function isTraced(userId, guildId) {
 }
 
 module.exports = {
-  preloadTorCache, getListing, getAllListings, getActiveListings, calcSsnPrice, createDataLeak,
+  preloadTorCache, getListing, getAllListings, getActiveListings, calcSsnPrice, calcBusinessRoutingPrice, createDataLeak,
   getTorUser, getOrCreateTorUser, saveListing, saveTorUser,
   isTraced, generateHandle,
   TOR_HEAT_ON_BUY, TOR_HEAT_ON_SELL, TOR_TRACE_CHANCE,

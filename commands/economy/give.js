@@ -131,6 +131,16 @@ Use \`/pay @user amount:\` to transfer money to another player.`)
       if (!amount) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify an `amount:`.')], ephemeral:true });
       const giver = getOrCreateUser(userId);
       // Admin gives from server — no wallet deduction
+      // Auto-open account if recipient doesn't have one
+      if (!hasAccount(target.id)) {
+        const { openAccount } = require('../../utils/db');
+        openAccount(target.id);
+        try { const { getOrCreateCredit } = require('../../utils/creditDb'); await getOrCreateCredit(target.id); } catch {}
+        target.send({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+          .setTitle('🆕 Account Created!')
+          .setDescription(`You were given money — your account has been automatically created!\n\nCheck your balance with \`!balance\`.`)
+        ]}).catch(() => null);
+      }
       const recv = getOrCreateUser(target.id);
       recv.wallet += amount;
       saveUser(target.id, recv);

@@ -63,9 +63,15 @@ module.exports = {
       if (credit.frozen) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
         .setDescription('❄️ Your credit is frozen. Unfreeze it first with `/credit unfreeze`.')
       ], ephemeral:true });
-      if (credit.card) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription(`You already have a **${credit.card}**. Pay it off and close it before applying again.`)
-      ], ephemeral:true });
+
+      // Allow up to 3 cards — each costs an annual fee upfront
+      const allCards = credit.cards || (credit.card ? [{ card:credit.card, limit:credit.limit, balance:credit.balance, lastBilling:credit.lastBilling }] : []);
+      if (allCards.length >= 3) {
+        const cardList = allCards.map((c,i) => (i+1)+'. '+c.card+' — Balance: '+fmtMoney(c.balance)+' / '+fmtMoney(c.limit)).join('\n');
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription('You already have **3 credit cards** — the maximum.\n\n' + cardList + '\n\nPay off and close one first.')
+        ], ephemeral:true });
+      }
       if (!tier.card) return interaction.reply({ embeds:[new EmbedBuilder().setColor(tier.color)
         .setTitle('❌ Application Denied')
         .setDescription(`Your score of **${credit.score}** (${tier.label}) is too low to qualify for a credit card.\n\nBuild your score by:\n• Paying loans on time\n• Keeping utilization low\n• Avoiding missed payments\n\nMinimum score needed: **580**`)

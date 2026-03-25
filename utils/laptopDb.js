@@ -22,6 +22,7 @@ const BUILTIN_APPS = {
   // Intel
   stalker_app:    { name:'Stalker App',      emoji:'👁️', category:'intel',    desc:'View any user full profile (home, status, biz)',      baseSuccess:60 },
   dark_search:    { name:'DarkSearch',       emoji:'🔍', category:'intel',    desc:'Search SSN database — find who owns a given SSN',     baseSuccess:55 },
+  home_hack:      { name:'HomeHack Pro',     emoji:'🏚️', category:'hack',     desc:'Bypass home security — shuts down defenses for 30min', baseSuccess:45 },
 };
 
 async function preloadLaptopCache() {

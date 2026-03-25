@@ -111,6 +111,9 @@ client.once('ready', async () => {
   const { preloadLaptopCache } = require('./utils/laptopDb');
   await preloadLaptopCache();
 
+  const { preloadDebitCache } = require('./utils/debitDb');
+  await preloadDebitCache();
+
   const { preloadTorCache } = require('./utils/torDb');
   await preloadTorCache();
 

@@ -210,15 +210,30 @@ module.exports = {
       const tierDefense = { studio:40, house:55, mansion:70, estate:85 };
       let defense = _customDef[targetHome.tier] || tierDefense[targetHome.tier] || 40;
 
-      // Furnishing bonuses
+      // ── CHECK IF HOME HACK BYPASSED SECURITY ──────────────
+      let securityBypassed = false;
+      if (targetHome.securityBypassedUntil && Date.now() < targetHome.securityBypassedUntil) {
+        defense = 0; // Security is offline — no defense
+        securityBypassed = true;
+      } else if (targetHome.securityBypassedUntil) {
+        // Expired — clear it
+        delete targetHome.securityBypassedUntil;
+        delete targetHome.securityBypassedBy;
+      }
+
+      // Furnishing bonuses (disabled if security bypassed)
       const furnishings = targetHome.furnishings || [];
-      if (furnishings.some(f => f.id === 'security_cam')) defense += 10;
-      if (furnishings.some(f => f.id === 'safe'))          defense += 5;
-      if (furnishings.some(f => f.id === 'vault'))         defense += 10;
+      if (!securityBypassed) {
+        if (furnishings.some(f => f.id === 'security_cam')) defense += 10;
+        if (furnishings.some(f => f.id === 'safe'))          defense += 5;
+        if (furnishings.some(f => f.id === 'vault'))         defense += 10;
+      }
 
       // Kit level bonus (0=basic, 1=advanced, 2=pro)
       const kitBonus = result.kitBonus || 0;
-      const successChance = Math.max(5, Math.min(90, (100 - defense) + kitBonus));
+      const successChance = securityBypassed
+        ? Math.max(5, Math.min(98, 80 + kitBonus))  // 80-98% when security bypassed
+        : Math.max(5, Math.min(90, (100 - defense) + kitBonus));
 
       // Security camera DM
       if (hasSecurityCamera(targetHome)) {

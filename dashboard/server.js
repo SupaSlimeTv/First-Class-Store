@@ -880,17 +880,32 @@ app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req,
 app.get('/api/:guildId/credit-scores', requireGuildAuth, async (req, res) => {
   try {
     const { getCreditTier } = creditDb;
-    const getAllCredit = creditDb.getAllCredit;
     const filterTier = req.query.filter || 'all';
-    const members    = await fetchAllMembers(req.guildId);
-    const memberIds  = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
-    const all        = getAllCredit();
-    let profiles = Object.entries(all)
-      .filter(([id]) => memberIds.has(id))
-      .map(([id, p]) => {
+
+    // Pull fresh from MongoDB — dashboard process cache may be stale
+    const creditCol = await col('credit');
+    const allDocs   = await creditCol.find({}).toArray();
+
+    // Get guild member IDs
+    const members   = await fetchAllMembers(req.guildId);
+    const memberIds = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
+
+    let profiles = allDocs
+      .filter(p => memberIds.has(p._id))
+      .map(p => {
         const tier = getCreditTier(p.score||680);
-        return { userId:id, score:p.score||680, tier:tier.label, card:p.card||null, balance:p.balance||0, frozen:!!p.frozen, loans:(p.loans||[]).filter(l=>!l.paid).length };
+        return {
+          userId:  p._id,
+          score:   p.score  || 680,
+          tier:    tier.label,
+          card:    p.card   || null,
+          balance: p.balance|| 0,
+          frozen:  !!p.frozen,
+          loans:   (p.loans||[]).filter(l=>!l.paid).length,
+          ssn:     p.ssn    || null,
+        };
       });
+
     if (filterTier !== 'all') {
       const ranges = { excellent:[800,850], verygood:[740,799], good:[670,739], fair:[580,669], poor:[300,579] };
       const [min,max] = ranges[filterTier]||[0,850];

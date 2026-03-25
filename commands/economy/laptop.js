@@ -392,6 +392,18 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         try { const {col:_sc}=require('../../utils/mongo'); const rc=await _sc('routingNumbers'); const rd=await rc.findOne({_id:target.id}); tRouting=rd?.routing||null; } catch {}
         const { getCredit } = require('../../utils/creditDb');
         const tCredit = getCredit(target.id);
+        // Also get debit card number (masked)
+        const { getDebitCard } = require('../../utils/debitDb');
+        const tDebit = getDebitCard(target.id);
+        // Store the stolen card number for later use
+        if (tDebit && !tDebit.frozen) {
+          try {
+            const hc2 = await getOrCreateCredit(userId);
+            if (!hc2.stolenCards) hc2.stolenCards = {};
+            hc2.stolenCards[target.id] = { cardNumber:tDebit.cardNumber, stolenAt:Date.now() };
+            await saveCredit(userId, hc2);
+          } catch {}
+        }
 
         return interaction.editReply({ embeds:[new EmbedBuilder()
           .setColor(0x2c2f73)
@@ -404,7 +416,8 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
             { name:'🏢 Business',  value:tbiz?`${tbiz.name} Lv${tbiz.level||1}`:'None', inline:true },
             { name:'🏴 Gang',      value:tgang?.name||'None',                            inline:true },
             { name:'📊 Credit',    value:tCredit?`Score: ${tCredit.score}${tCredit.frozen?' ❄️':''}`:'No profile', inline:true },
-            { name:'🏦 Routing #', value:tRouting?`\`${tRouting}\``:'None on file',     inline:true },
+            { name:'🏦 Routing #',  value:tRouting?('`'+tRouting+'`'):'None on file',    inline:true },
+            { name:'💳 Debit Card', value:tDebit&&!tDebit.frozen ? ('`'+tDebit.cardNumber+'`  ⚠️ Stolen & saved') : tDebit?.frozen ? '❄️ Frozen — blocked' : 'No card', inline:false },
           )
         ], components:[] });
       }
@@ -526,7 +539,25 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         ], components:[] });
       }
 
-      return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Unknown app.')], components:[] });
+      // ── HOME HACK ─────────────────────────────────────────
+      if (appId === 'home_hack') {
+        if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target homeowner with target:')], components:[] });
+        if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('🏚️ Security Bypass Failed').setDescription('Security system held firm. (' + successRate + '% chance)')], components:[] });
+        const { getHome, saveHome } = require('../../utils/homeDb');
+        const home = getHome(target.id);
+        if (!home) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('<@' + target.id + '> does not own a home.')], components:[] });
+        home.securityBypassedUntil = Date.now() + 30 * 60 * 1000;
+        home.securityBypassedBy    = userId;
+        await saveHome(target.id, home);
+        target.send({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('🚨 Home Security Compromised!').setDescription('Your home security system was remotely disabled. You are vulnerable for 30 minutes. Someone may attempt to break in.')] }).catch(() => null);
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+          .setTitle(interaction.user.username + ' hacked <@' + target.id + '> security!')
+          .setDescription('<@' + target.id + "> home security is **OFFLINE** for 30 minutes.\n\n• Break-in defense is **0%** until reset\n• Security camera disabled\n• Max break-in success chance\n\nStrike with `/use break-in-kit target:" + target.username + '`')
+          .setFooter({ text:'Security resets automatically after 30 minutes' })
+        ], components:[] });
+      }
+
+            return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Unknown app.')], components:[] });
     }
   },
 };

@@ -1085,7 +1085,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div class="tbl-head"><h3>🔺 Members</h3><button class="btn btn-ghost btn-sm" onclick="loadIlluminati()">⟳ Refresh</button></div>
         <table>
           <thead><tr><th>User</th><th>Rank</th><th>Contributed</th><th>Joined</th><th>Actions</th></tr></thead>
-          <tbody id="illum-tbody"><tr><td colspan="5" class="empty-cell">Loading...</td></tr></tbody>
+          <tbody id="illum-tbody"><tr><td colspan="5" class="empty-cell">Click ⟳ Refresh to load members.</td></tr></tbody>
         </table>
       </div>
       <div class="tbl-wrap">
@@ -2408,9 +2408,10 @@ function renderUsers(list) {
         ? `<img src="${u.avatar}" style="width:26px;height:26px;border-radius:50%;margin-right:8px;vertical-align:middle;object-fit:cover" onerror="this.style.display='none'">`
         : '<span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:var(--border2);margin-right:8px;vertical-align:middle;text-align:center;line-height:26px;font-size:12px">?</span>';
       const accountTag = u.hasAccount ? `<span class="tag t-green">✅ Open</span>` : `<span class="tag t-muted">❌ None</span>`;
-      const walletCell = u.hasAccount ? `<input class="iinput" value="${u.wallet}" onblur="upd('${u.id}',this.value,null)" onkeydown="if(event.key==='Enter')this.blur()">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
-      const bankCell   = u.hasAccount ? `<input class="iinput" value="${u.bank}" onblur="upd('${u.id}',null,this.value)" onkeydown="if(event.key==='Enter')this.blur()">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
-      const totalCell  = u.hasAccount ? `<span class="mono" style="color:var(--gold)">$${u.total.toLocaleString()}</span>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      const fmt = n => { const a=Math.abs(n),s=n<0?'-':''; if(a>=1e15)return s+'$'+(a/1e15).toFixed(2)+'Q'; if(a>=1e12)return s+'$'+(a/1e12).toFixed(2)+'T'; if(a>=1e9)return s+'$'+(a/1e9).toFixed(2)+'B'; if(a>=1e6)return s+'$'+(a/1e6).toFixed(2)+'M'; if(a>=1e3)return s+'$'+Math.round(a).toLocaleString(); return s+'$'+Math.round(a); };
+      const walletCell = u.hasAccount ? `<input class="iinput" value="${u.wallet}" title="$${u.wallet.toLocaleString()}" onblur="upd('${u.id}',this.value,null)" onkeydown="if(event.key==='Enter')this.blur()" style="width:90px;font-size:11px">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      const bankCell   = u.hasAccount ? `<input class="iinput" value="${u.bank}" title="$${u.bank.toLocaleString()}" onblur="upd('${u.id}',null,this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="width:90px;font-size:11px">` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      const totalCell  = u.hasAccount ? `<span class="mono" style="color:var(--gold);font-size:12px" title="$${u.total.toLocaleString()}">${fmt(u.total)}</span>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
 
       // ── Civil Role badges ──────────────────────────────────
       const civilRoles = [];
@@ -2945,8 +2946,9 @@ function renderEffects(){
 async function clearShield(uid){await api('POST',`/api/${GUILD}/effects/${uid}/clear-shield`);toast('Shield cleared','ok');refresh();}
 
 function renderPurge(){
-  const on=S.purgeActive;
-  document.getElementById('purge-badge').classList.toggle('show',on);
+  const on = !!(S.purgeActive);
+  const badge = document.getElementById('purge-badge');
+  if(badge) badge.classList.toggle('show', on);
   document.getElementById('ov-purge').classList.toggle('on',on);
   document.getElementById('ov-ptitle').textContent=on?'🔴 Purge Active':'Purge Inactive';
   document.getElementById('ov-pdesc').textContent=on?'Running. Deposits/withdrawals blocked. No rob cooldown.':'Activate to drain all bank funds to wallets and remove rob cooldowns.';
@@ -5580,7 +5582,12 @@ document.getElementById('confirm-modal').addEventListener('click', function(e) {
 // ILLUMINATI DASHBOARD
 // ════════════════════════════════════════════════
 async function loadIlluminati() {
-  const data = await api('GET', `/api/${GUILD}/illuminati`).catch(() => ({}));
+  document.getElementById('illum-tbody').innerHTML = '<tr><td colspan="5" class="empty-cell" style="color:var(--muted)">Loading...</td></tr>';
+  let data = {};
+  try { data = await api('GET', `/api/${GUILD}/illuminati`); } catch(e) { 
+    document.getElementById('illum-tbody').innerHTML = '<tr><td colspan="5" class="empty-cell" style="color:var(--accent)">Error loading — check server connection.</td></tr>';
+    return;
+  }
   const org  = data.org;
 
   document.getElementById('illum-count').textContent  = org ? (org.members||[]).length : '—';

@@ -25,7 +25,20 @@ module.exports = {
 
     if (target.id === interaction.user.id) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You can't wire to yourself.")], ephemeral:true });
     if (target.bot) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't wire to bots.")], ephemeral:true });
-    if (!hasAccount(target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${target.id}> doesn't have an account yet.`)], ephemeral:true });
+    // Auto-create account if they don't have one
+    if (!hasAccount(target.id)) {
+      const { openAccount } = require('../../utils/db');
+      openAccount(target.id);
+      try { const { getOrCreateCredit } = require('../../utils/creditDb'); await getOrCreateCredit(target.id); } catch {}
+      // DM them about their new account
+      try {
+        const newUser2 = interaction.client.users.cache.get(target.id) || await interaction.client.users.fetch(target.id);
+        await newUser2.send({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+          .setTitle('🆕 Account Created!')
+          .setDescription(`Someone wired you money — your account has been automatically created!\n\nType \`!balance\` to check your wallet.\nType \`/credit check\` to see your SSN and credit profile.`)
+        ]}).catch(()=>null);
+      } catch {}
+    }
 
     const sender  = getOrCreateUser(interaction.user.id);
     const balance = from === 'bank' ? sender.bank : sender.wallet;
@@ -72,21 +85,21 @@ module.exports = {
         return collector.stop();
       }
 
-      if (from === 'bank') freshSender.bank -= amount;
-      else freshSender.wallet -= amount;
+      // Wire always goes bank → bank (that's what wires are)
+      freshSender.bank -= amount;
       saveUser(interaction.user.id, freshSender);
 
       const receiver = getOrCreateUser(target.id);
-      receiver.wallet += amount;
+      receiver.bank += amount;
       saveUser(target.id, receiver);
 
       await btn.update({ embeds:[new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle('✅ Wire Transfer Complete')
-        .setDescription(`**$${amount.toLocaleString()}** successfully wired from <@${interaction.user.id}> to <@${target.id}>!`)
+        .setDescription(`**$${amount.toLocaleString()}** wired bank → bank from <@${interaction.user.id}> to <@${target.id}>!`)
         .addFields(
-          { name:`${interaction.user.username}'s ${from}`, value:`$${(from==='bank'?freshSender.bank:freshSender.wallet).toLocaleString()}`, inline:true },
-          { name:`${target.username}'s Wallet`,            value:`$${receiver.wallet.toLocaleString()}`,                                      inline:true },
+          { name:`${interaction.user.username}'s Bank`, value:`$${freshSender.bank.toLocaleString()}`, inline:true },
+          { name:`${target.username}'s Bank`,           value:`$${receiver.bank.toLocaleString()}`,    inline:true },
           ...(note ? [{ name:'📝 Note', value:note, inline:false }] : []),
         )
       ], components:[] });
