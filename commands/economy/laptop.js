@@ -25,16 +25,7 @@ module.exports = {
     .addSubcommand(s => s.setName('open').setDescription('Open your laptop — view device and installed apps'))
     .addSubcommand(s => s.setName('appstore').setDescription('Browse and install apps from your item inventory'))
     .addSubcommand(s => s.setName('run').setDescription('Run an installed app')
-      .addStringOption(o => o.setName('app').setDescription('App to run').setRequired(true)
-        .addChoices(
-          { name:'🪪 SSN Scanner — steal target SSN',                value:'ssn_scanner'    },
-          { name:'💳 Credit Cracker — open fraud card on stolen SSN', value:'credit_cracker' },
-          { name:'💸 Card Drainer — drain target credit card',        value:'card_drainer'   },
-          { name:'🏢 Biz Intruder — access business via routing',     value:'biz_intrude'    },
-          { name:'👁️ Stalker App — full intel on any user',          value:'stalker_app'    },
-          { name:'🔍 DarkSearch — look up who owns an SSN',          value:'dark_search'    },
-          { name:'🧺 LaunderBot — launder dirty money',              value:'launder_bot'    },
-        ))
+      .addStringOption(o => o.setName('app').setDescription('App to run — only shows your installed apps').setRequired(true).setAutocomplete(true))
       .addUserOption(o => o.setName('target').setDescription('Target user (for hacking/intel apps)').setRequired(false))
       .addStringOption(o => o.setName('routing').setDescription('Routing number (for Biz Intruder)').setRequired(false))
       .addStringOption(o => o.setName('action').setDescription('Action for Biz Intruder (check/withdraw/launder)').setRequired(false)
@@ -44,6 +35,30 @@ module.exports = {
           { name:'🧺 Launder Dirty Money', value:'launder' },
         ))
       .addIntegerOption(o => o.setName('amount').setDescription('Amount (for launder/withdraw)').setRequired(false).setMinValue(1))),
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused().toLowerCase();
+    const userId  = interaction.user.id;
+    const laptop  = getLaptop(userId);
+    const apps    = laptop?.apps || [];
+
+    if (!apps.length) {
+      return interaction.respond([{ name:'No apps installed — use /laptop appstore', value:'__none__' }]);
+    }
+
+    const choices = apps
+      .map(a => {
+        const def = BUILTIN_APPS[a.id] || {};
+        return {
+          name: `${def.emoji||'💻'} ${def.name||a.id} (Tier ${a.quality||1})`,
+          value: a.id,
+        };
+      })
+      .filter(c => c.name.toLowerCase().includes(focused))
+      .slice(0, 25);
+
+    return interaction.respond(choices.length ? choices : [{ name:'No matching apps', value:'__none__' }]);
+  },
 
   async execute(interaction) {
     if (await noAccount(interaction)) return;
