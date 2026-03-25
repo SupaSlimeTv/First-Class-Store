@@ -13,14 +13,22 @@ module.exports = {
   async execute(interaction) {
     if (await noAccount(interaction)) return;
     const userId = interaction.user.id;
-    const biz    = getBusiness(userId);
+    // Use first biz by default, but check if they specified one
+    const { getBusinesses } = require('../../utils/bizDb');
+    const allBiz = getBusinesses(userId);
+    if (!allBiz.length) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business! Start one with `/business start`.")], ephemeral:true });
 
-    if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business! Start one with `/business start`.")], ephemeral: true });
+    // If multiple businesses, pick the one specified or default to first
+    const bizType = interaction.options.getString?.('business') || null;
+    let biz = bizType ? allBiz.find(b => b.type === bizType) : allBiz[0];
+    if (!biz) biz = allBiz[0];
 
     const npcEmployees = (biz.employees || []).filter(e => e.isNPC);
     const available    = getAvailableNPCs(biz.employees || []);
 
-    if (npcEmployees.length >= 6) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You already have 6 NPC employees — the maximum.\nFire one with `/firenpc` to make room.")], ephemeral: true });
+    if (npcEmployees.length >= 6) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+      .setDescription(`**${biz.name}** already has 6 NPC employees — the maximum per business.${allBiz.length > 1 ? '\n\nYou can hire NPCs for your other businesses separately.' : '\nFire one with `/firenpc` to make room.'}`)
+    ], ephemeral:true });
 
     if (!available.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("No NPC employees available right now. Fire existing ones to see new candidates.")], ephemeral: true });
 
@@ -77,9 +85,11 @@ module.exports = {
         const npc    = getNPC(npcId);
         if (!npc) return i.reply({ content: 'NPC not found.', ephemeral: true });
 
-        const freshBiz = getBusiness(userId);
+        const { getBusinesses: _gbs } = require('../../utils/bizDb');
+        const _allBiz = _gbs(userId);
+        const freshBiz = _allBiz.find(b => b.id === biz.id) || _allBiz[0];
         const npcCount = (freshBiz.employees || []).filter(e => e.isNPC).length;
-        if (npcCount >= 6) return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('NPC slots full!')], components: [] });
+        if (npcCount >= 6) return i.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`**${freshBiz.name}** NPC slots full (6/6).`)], components:[] });
 
         const user = getOrCreateUser(userId);
         if (user.wallet < npc.salary * 3) return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You need **$${(npc.salary*3).toLocaleString()}** upfront (3 weeks salary) to hire ${npc.name}. You have **$${user.wallet.toLocaleString()}**.`)], components: [] });
@@ -88,7 +98,7 @@ module.exports = {
         freshBiz.employees = freshBiz.employees || [];
         freshBiz.employees.push({ npcId: npc.id, isNPC: true, role: npc.role, joinedAt: Date.now() });
         saveUser(userId, user);
-        await saveBusiness(userId, freshBiz);
+        await saveBusiness(userId, freshBiz); // saves by type key
         collector.stop();
 
         return i.update({ embeds: [new EmbedBuilder()

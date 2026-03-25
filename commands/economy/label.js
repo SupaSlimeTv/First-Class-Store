@@ -57,17 +57,114 @@ module.exports = {
     const sub    = interaction.options.getSubcommand();
     const userId = interaction.user.id;
 
-    // Must own a Record Label business
-    const biz = getBusiness(userId);
-    if (!biz || biz.type !== 'record_label') {
+    // Must own a Record Label business — find it specifically
+    const allBiz = getBusinesses(userId);
+    const biz    = allBiz.find(b => b.type === 'recordlabel' || b.type === 'record_label');
+    if (!biz) {
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription('You need to own a **Record Label** business. Start one with `/business start type:record_label`.')
+        .setDescription('You need to own a **🎵 Record Label** business. Start one with `/business start type:recordlabel`.')
       ], ephemeral:true });
     }
 
     let label = getLabel(userId) || { artists:[], totalRevenue:0, lastTick:Date.now() };
 
-    // ── ROSTER ────────────────────────────────────────────────
+
+    // ── INVEST IN ARTIST ─────────────────────────────────────
+    if (sub === 'invest') {
+      const artistId = interaction.options.getString('artist_id');
+      const action   = interaction.options.getString('action');
+
+      const artistEntry = label.artists.find(a => a.artistId === artistId);
+      if (!artistEntry) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster. Use `/label roster` to view signed artists.')], ephemeral:true });
+
+      const isNPC  = artistEntry.isNPC;
+      const npc    = artistEntry.npcData;
+      const name   = isNPC ? `${npc?.emoji||'🎤'} ${npc?.name||artistId}` : `<@${artistId}>`;
+
+      const INVESTMENTS = {
+        show:      { cost:2000,  desc:'Booked a live show',        fanboost:0.08, hypeboost:500,   fameBoost:300,  revenueBoost:0     },
+        interview: { cost:5000,  desc:'TV interview aired',         fanboost:0.05, hypeboost:1200,  fameBoost:800,  revenueBoost:0.05  },
+        deal:      { cost:8000,  desc:'Brand deal secured',         fanboost:0.03, hypeboost:400,   fameBoost:200,  revenueBoost:0.15  },
+        drop:      { cost:3000,  desc:'New record dropped',         fanboost:0.15, hypeboost:2000,  fameBoost:600,  revenueBoost:0     },
+        shoutout:  { cost:6000,  desc:'Influencer shoutout went viral', fanboost:0.20, hypeboost:5000, fameBoost:1500, revenueBoost:0   },
+        tour:      { cost:20000, desc:'World tour wrapped',          fanboost:0.40, hypeboost:15000, fameBoost:5000, revenueBoost:0.20 },
+        merch:     { cost:4000,  desc:'Merch line launched',         fanboost:0.02, hypeboost:200,   fameBoost:100,  revenueBoost:0.10 },
+        podcast:   { cost:1500,  desc:'Podcast appearance dropped',  fanboost:0.03, hypeboost:300,   fameBoost:150,  revenueBoost:0     },
+      };
+
+      const inv = INVESTMENTS[action];
+      if (!inv) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Unknown investment type.')], ephemeral:true });
+
+      const user2 = getOrCreateUser(userId);
+      if (user2.wallet < inv.cost) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`**${inv.desc}** costs **${fmtMoney(inv.cost)}**. You have **${fmtMoney(user2.wallet)}**.`)
+      ], ephemeral:true });
+
+      user2.wallet -= inv.cost;
+      saveUser(userId, user2);
+
+      // Apply boosts to NPC artist data
+      if (isNPC && npc) {
+        const oldFanbase = npc.fanbase || 10000;
+        npc.fanbase    = Math.floor(oldFanbase * (1 + inv.fanboost));
+        npc.hype       = Math.min(100, (npc.hype||50) + Math.floor(inv.hypeboost / 1000));
+        // Revenue boost for deal/tour/merch
+        if (inv.revenueBoost > 0) {
+          npc.weeklyRate = Math.floor((npc.weeklyRate||500) * (1 + inv.revenueBoost));
+        }
+        artistEntry.npcData = npc;
+
+        // Update contract
+        const contract2 = getContract(artistId);
+        if (contract2) {
+          contract2.npcData = npc;
+          await saveContract(artistId, contract2);
+        }
+        await saveLabel(userId, label);
+
+        // If user artist (not NPC), boost their phone career
+      } else if (!isNPC) {
+        try {
+          const { getPhone, savePhone: sp2, getArtistTier } = require('../../utils/phoneDb');
+          const p2 = getPhone(artistId);
+          if (p2) {
+            if (!p2.artistCareer) p2.artistCareer = { fame:0, tier:'unsigned' };
+            p2.artistCareer.fame = (p2.artistCareer.fame||0) + inv.fameBoost;
+            p2.hype              = (p2.hype||0) + inv.hypeboost;
+            p2.followers         = Math.floor((p2.followers||0) * (1 + inv.fanboost));
+            p2.artistCareer.tier = getArtistTier(p2.artistCareer.fame).id;
+            await sp2(artistId, p2);
+            // DM the artist
+            interaction.client.users.fetch(artistId).then(u2 => u2.send({ embeds:[new EmbedBuilder()
+              .setColor(0xf5c518)
+              .setTitle(`🎤 ${action === 'tour' ? '🌍 World Tour' : action === 'shoutout' ? '📣 Shoutout' : inv.desc}!`)
+              .setDescription(`Your label invested **${fmtMoney(inv.cost)}** in your career!
+
++${inv.fameBoost.toLocaleString()} fame · +${inv.hypeboost.toLocaleString()} hype · +${Math.round(inv.fanboost*100)}% followers`)
+            ]}).catch(()=>null)).catch(()=>null);
+          }
+        } catch {}
+      }
+
+      const newFanbase = isNPC ? (npc?.fanbase||0) : 0;
+      const fanDiff    = isNPC ? Math.floor((npc?.fanbase||0) - (npc?.fanbase||0)/(1+inv.fanboost)) : 0;
+
+      return interaction.reply({ embeds:[new EmbedBuilder()
+        .setColor(0xf5c518)
+        .setTitle(`✅ ${inv.desc}!`)
+        .setDescription(`Invested **${fmtMoney(inv.cost)}** into **${name}**'s career.`)
+        .addFields(
+          { name:'👥 Fanbase Boost', value:`+${Math.round(inv.fanboost*100)}%${isNPC ? ` → ${(newFanbase/1000).toFixed(0)}K` : ''}`, inline:true },
+          { name:'✨ Hype Boost',    value:`+${inv.hypeboost.toLocaleString()}`,              inline:true },
+          { name:'🎵 Fame Boost',    value:`+${inv.fameBoost.toLocaleString()}`,              inline:true },
+          ...(inv.revenueBoost > 0 ? [{ name:'💰 Revenue Boost', value:`+${Math.round(inv.revenueBoost*100)}% weekly rate`, inline:true }] : []),
+          { name:'💵 Your Wallet',  value:fmtMoney(user2.wallet), inline:true },
+        )
+        .setFooter({ text:'Revenue from this investment pays out next label tick · 15 min' })
+      ]});
+    }
+
+        // ── ROSTER ────────────────────────────────────────────────
     if (sub === 'roster') {
       if (!label.artists.length) return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0x5865f2)

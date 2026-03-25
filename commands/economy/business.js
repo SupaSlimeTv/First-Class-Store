@@ -37,7 +37,23 @@ module.exports = {
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused(true);
-    if (focused.name === 'type') return bizTypeAutocomplete(interaction);
+    if (focused.name === 'type') {
+      const sub = interaction.options.getSubcommand(false);
+      // For upgrade/view/collect/close — show user's OWN businesses
+      if (['upgrade','view','collect','close'].includes(sub)) {
+        const { getBusinesses } = require('../../utils/bizDb');
+        const owned  = getBusinesses(interaction.user.id);
+        if (!owned.length) return interaction.respond([{ name:'You have no businesses', value:'__none__' }]).catch(()=>null);
+        const typed  = focused.value.toLowerCase();
+        const choices = owned.map(b => ({
+          name: `${BIZ_TYPES[b.type]?.emoji||'🏢'} ${b.name} (${BIZ_TYPES[b.type]?.name||b.type}) — Lv${b.level||1}`,
+          value: b.type,
+        })).filter(c => c.name.toLowerCase().includes(typed)).slice(0,25);
+        return interaction.respond(choices.length ? choices : [{ name:'No businesses match', value:'__none__' }]).catch(()=>null);
+      }
+      // For start — show all available biz types
+      return bizTypeAutocomplete(interaction);
+    }
   },
   async execute(interaction) {
     if (await noAccount(interaction)) return;
