@@ -55,7 +55,8 @@ module.exports = {
       .addStringOption(o => o.setName('coin').setDescription('Coin ticker (market manipulation only — type to search)').setRequired(false).setAutocomplete(true))
       .addStringOption(o => o.setName('direction').setDescription('Pump or dump? (market manipulation only)').setRequired(false)
         .addChoices({ name:'📈 Pump', value:'pump' }, { name:'📉 Dump', value:'dump' })))
-    .addSubcommand(s => s.setName('expose').setDescription('Attempt to expose the Illuminati publicly')),
+    .addSubcommand(s => s.setName('expose').setDescription('Attempt to expose the Illuminati publicly'))
+    .addSubcommand(s => s.setName('sellsoul').setDescription('🖤 Sell your soul — sacrifice freedom for power')),
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused(true);
@@ -116,11 +117,16 @@ module.exports = {
 
       if (isMem || exposed) {
         memberList = org.members.map(m =>
-          `${RANKS[m.rank]?.label||'🔺'} <@${m.userId}> — contributed ${fmtMoney(m.contribution||0)}`
+          `${RANKS[m.rank]?.label||'🔺'} <@${m.userId}>${m.soulSold ? ' 🖤' : ''} — contributed ${fmtMoney(m.contribution||0)}`
         ).join('\n') || 'None';
       } else {
         memberList = `**${org.members.length}** members *(identities hidden)*`;
       }
+
+      const myMember = getMember(guildId, userId);
+      const soulDesc = myMember?.soulSold
+        ? `Your rank: **${RANKS[myMember.rank]?.label}**\n\n🖤 **Your soul is owned.** The Illuminati has complete control over you.`
+        : myMember ? `Your rank: **${RANKS[myMember.rank]?.label}**` : null;
 
       const embed = new EmbedBuilder()
         .setColor(isMem ? GOLD_COLOR : ILLUM_COLOR)
@@ -131,7 +137,7 @@ module.exports = {
           { name:'📊 Ops Run', value:`${(org.operations||[]).length}`, inline:true },
         );
 
-      if (myRank) embed.setDescription(`Your rank: **${RANKS[myRank.rank]?.label}**`);
+      if (soulDesc) embed.setDescription(soulDesc);
       if (exposed) embed.setFooter({ text:'The Illuminati has been exposed!' });
 
       return interaction.reply({ embeds:[embed], ephemeral: !exposed });
@@ -148,12 +154,7 @@ module.exports = {
       const target = interaction.options.getUser('user');
       if (isMember(guildId, target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Already a member.')], ephemeral:true });
 
-      const issues = await checkEligibility(target.id, guildId);
-      if (issues.length) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setTitle('🔺 Target Not Eligible')
-        .setDescription(`<@${target.id}> doesn't qualify:\n${issues.map(i=>`• ${i}`).join('\n')}`)
-      ], ephemeral:true });
-
+      // Direct invites skip all eligibility requirements — Elder/Grandmaster vouches for them
       // Send invite via DM
       const inviteKey = `${guildId}:${target.id}`;
       _pendingInvites[inviteKey] = { inviterId:userId, expiresAt:Date.now()+10*60*1000 };
@@ -744,6 +745,100 @@ Vault: **${fmtMoney(org.vault)}**`)
       }
     }
 
+    // ── SELL SOUL ─────────────────────────────────────────────
+    if (sub === 'sellsoul') {
+      const org = getIlluminati(guildId);
+      if (!org) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription('The Illuminati has not been founded in this server yet.')
+      ], ephemeral:true });
+      if (isMember(guildId, userId)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription('You are already a member of the Illuminati.')
+      ], ephemeral:true });
+      if (org.members.length >= MAX_MEMBERS) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription('The order is full. Wait for a seat to open.')
+      ], ephemeral:true });
+
+      const { getPhone, getStatusTier } = require('../../utils/phoneDb');
+      const { getOrCreateUser: _gou } = require('../../utils/db');
+      const { getBusiness } = require('../../utils/bizDb');
+      const { getHome } = require('../../utils/homeDb');
+
+      const phone     = getPhone(userId);
+      const user2     = _gou(userId);
+      const biz       = getBusiness(userId);
+      const home      = getHome(userId);
+      const wealth    = (user2.wallet||0) + (user2.bank||0);
+      const status    = phone?.status || 0;
+      const fame      = phone?.artistCareer?.fame || 0;
+      const followers = phone?.followers || 0;
+
+      // Path 1 — Power: all must be met
+      const meetsFullReqs = (
+        wealth >= 500000 &&
+        status >= 50 &&
+        (biz?.level||0) >= 5 &&
+        home?.tier === 'estate'
+      );
+
+      // Path 2 — Fame: any one qualifies
+      const meetsFamePath = (
+        fame >= 10000 ||
+        followers >= 1000000 ||
+        status >= 25000
+      );
+
+      if (!meetsFullReqs && !meetsFamePath) {
+        const powerMissing = [
+          wealth < 500000    ? `💰 Need $${(500000-wealth).toLocaleString()} more total wealth` : null,
+          status < 50        ? `🏆 Need ${50-status} more status points` : null,
+          (biz?.level||0)<5  ? `🏢 Business needs ${5-(biz?.level||0)} more levels` : null,
+          home?.tier!=='estate' ? '🏰 Need an Estate home' : null,
+        ].filter(Boolean);
+
+        const fameMissing = [
+          fame < 10000       ? `🎵 Need ${(10000-fame).toLocaleString()} more artist fame (have ${fame.toLocaleString()})` : null,
+          followers < 1000000 ? `👥 Need ${(1000000-followers).toLocaleString()} more followers (have ${followers.toLocaleString()})` : null,
+          status < 25000     ? `⭐ Need ${(25000-status).toLocaleString()} more status for Superstar (have ${status.toLocaleString()})` : null,
+        ].filter(Boolean);
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x1a1a2e)
+          .setTitle('🖤 The Illuminati Will Not Accept You')
+          .setDescription(
+            'You must prove yourself through **Power** or **Fame**.\n\n' +
+            '**Path 1 — Power** *(all required)*:\n' +
+            powerMissing.map(m => '• ' + m).join('\n') +
+            '\n\n**Path 2 — Fame** *(any one)*:\n' +
+            fameMissing.map(m => '• ' + m).join('\n')
+          )
+        ], ephemeral:true });
+      }
+
+      const pathUsed = meetsFullReqs ? '💎 Power' : '🎵 Fame';
+      const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`illum_soul_${guildId}_${userId}`).setLabel('🖤 I sell my soul').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`illum_soul_decline_${guildId}`).setLabel('Walk Away').setStyle(ButtonStyle.Secondary),
+      );
+
+      return interaction.reply({ embeds:[new EmbedBuilder()
+        .setColor(0x1a1a2e)
+        .setTitle('🖤 The Illuminati Extends Its Hand')
+        .setDescription(
+          'You have proven yourself worthy through the **' + pathUsed + ' Path**.\n\n' +
+          'But nothing comes free.\n\n' +
+          '**By selling your soul, you agree:**\n' +
+          '• The Illuminati has **complete control** over your operations\n' +
+          '• You can be **silenced, extorted, or sacrificed** at any time\n' +
+          '• Your businesses, label, and assets are subject to **Illuminati override**\n' +
+          '• You may be **forced** to sign artists, pay tribute, or carry out operations\n' +
+          '• Leaving means **losing everything** — wallet drained on exit\n' +
+          '• There is **no escape** without Grandmaster approval\n\n' +
+          '*Initiation fee: **' + fmtMoney(INITIATION_FEE) + '** from your wallet.*\n\n' +
+          '**You have 5 minutes to decide.**'
+        )
+        .setFooter({ text:'Once you sign, the order owns you.' })
+      ], components:[row2], ephemeral:true });
+    }
+
     // ── EXPOSE ────────────────────────────────────────────────
     if (sub === 'expose') {
       const org = getIlluminati(guildId);
@@ -770,12 +865,44 @@ Vault: **${fmtMoney(org.vault)}**`)
       await saveIlluminati(guildId, org);
       await clearEvidence(guildId);
 
-      const memberList = org.members.map(m => `${RANKS[m.rank]?.label} <@${m.userId}>`).join('\n');
+      // Soul-sold members lose 80% of their fanbase on exposure
+      const { getPhone, savePhone } = require('../../utils/phoneDb');
+      const soulSoldMembers = org.members.filter(m => m.soulSold);
+      for (const m of soulSoldMembers) {
+        try {
+          const ph = getPhone(m.userId);
+          if (ph) {
+            const lost = Math.floor((ph.followers||0) * 0.80);
+            ph.followers  = Math.max(0, (ph.followers||0) - lost);
+            ph.hype       = Math.max(0, Math.floor((ph.hype||0) * 0.20));
+            ph.status     = Math.max(0, Math.floor((ph.status||0) * 0.50));
+            if (ph.artistCareer) ph.artistCareer.fame = Math.max(0, Math.floor((ph.artistCareer.fame||0) * 0.20));
+            await savePhone(m.userId, ph);
+            // DM them
+            interaction.client.users.fetch(m.userId).then(u2 => u2.send({ embeds:[new EmbedBuilder()
+              .setColor(0xff3b3b)
+              .setTitle('🚨 You\'ve Been Exposed!')
+              .setDescription('The Illuminati has been exposed — and your soul-selling deal with them is now public.\n\n**-80% followers · -80% hype · -50% status**\n\nYour fanbase has collapsed. The internet is destroying you.')
+            ]}).catch(()=>null)).catch(()=>null);
+          }
+        } catch {}
+      }
+
+      const memberList = org.members.map(m =>
+        `${RANKS[m.rank]?.label} <@${m.userId}>${m.soulSold ? ' 🖤 *sold soul*' : ''}`
+      ).join('\n');
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0xff3b3b)
         .setTitle('🚨 THE ILLUMINATI HAS BEEN EXPOSED')
-        .setDescription(`<@${userId}> has gathered enough evidence to expose the shadow order!\n\n**Members:**\n${memberList}\n\n**Operations run:** ${org.operations.length}\n**Vault:** ${fmtMoney(org.vault)}\n\n*The truth is out. What happens next is up to the server.*`)
+        .setDescription(
+          `<@${userId}> has gathered enough evidence to expose the shadow order!\n\n` +
+          `**Members:**\n${memberList}\n\n` +
+          `**Operations run:** ${org.operations.length}\n` +
+          `**Vault:** ${fmtMoney(org.vault)}\n\n` +
+          (soulSoldMembers.length ? `💀 **${soulSoldMembers.length} soul-sold member(s) lost 80% of their fanbase.**\n\n` : '') +
+          `*The truth is out. What happens next is up to the server.*`
+        )
       ]});
     }
   },

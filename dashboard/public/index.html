@@ -151,7 +151,20 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <span id="status-txt" class="status-txt">Connecting...</span>
       <span class="status-txt" id="refresh-ts" style="margin-left:8px;opacity:.5"></span>
       <button class="btn btn-ghost btn-sm" onclick="manualRefresh()" style="margin-left:12px;font-size:12px" title="Force sync now">⟳ Sync</button>
-      <a href="/guild-select.html" class="btn btn-ghost btn-sm" style="margin-left:6px;font-size:12px;text-decoration:none">◀ Servers</a>
+      <div style="margin-left:6px;position:relative;display:inline-block" id="server-switcher-wrap">
+        <button class="btn btn-ghost btn-sm" style="font-size:12px;display:flex;align-items:center;gap:6px" onclick="toggleServerDropdown()" id="server-switcher-btn">
+          <img id="server-icon-img" src="" style="width:18px;height:18px;border-radius:50%;display:none">
+          <span id="current-server-name">Loading...</span>
+          <span style="font-size:9px;opacity:.6">▼</span>
+        </button>
+        <div id="server-dropdown" style="display:none;position:absolute;top:110%;left:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px;min-width:200px;z-index:999;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,.4)">
+          <div style="padding:6px 12px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">SWITCH SERVER</div>
+          <div id="server-dropdown-list" style="max-height:200px;overflow-y:auto"></div>
+          <div style="border-top:1px solid var(--border);padding:4px">
+            <a href="/guild-select.html" style="display:block;padding:6px 12px;font-size:11px;color:var(--muted);text-decoration:none" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">⊕ Add another server</a>
+          </div>
+        </div>
+      </div>
       <a href="/auth/logout" class="btn btn-ghost btn-sm" style="margin-left:4px;font-size:12px;text-decoration:none;color:var(--muted)">Logout</a>
     </div>
   </div>
@@ -5624,7 +5637,7 @@ async function loadIlluminati() {
       const name = await resolveUser(m.userId).catch(() => m.userId);
       return `<tr>
         <td>${name}</td>
-        <td><span class="tag t-gold">${rankLabels[m.rank]||m.rank}</span></td>
+        <td><span class="tag t-gold">${rankLabels[m.rank]||m.rank}</span>${m.soulSold ? ' <span class="tag t-red" title="Soul sold — fully controlled">🖤 Owned</span>' : ''}</td>
         <td>$${(m.contribution||0).toLocaleString()}</td>
         <td>${m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : '—'}</td>
         <td><button class="btn btn-danger btn-sm" onclick="illumExcommunicate('${m.userId}')">☠️ Remove</button></td>
@@ -5924,6 +5937,47 @@ async function laptopDeleteItem(itemId, name) {
   if (r.success) { toast('App deleted', 'ok'); loadLaptopApps(); }
   else toast(r.error||'Failed', 'err');
 }
+
+// ── SERVER SWITCHER ──────────────────────────────────────────
+let _serverList = [];
+async function initServerSwitcher() {
+  try {
+    const data = await fetch('/api/my-guilds').then(r=>r.json()).catch(()=>({}));
+    _serverList = data.botPresent || [];
+    const current = _serverList.find(g => g.id === GUILD);
+    if (current) {
+      document.getElementById('current-server-name').textContent = current.name;
+      const img = document.getElementById('server-icon-img');
+      if (current.icon) { img.src = current.icon; img.style.display = 'block'; }
+    } else {
+      document.getElementById('current-server-name').textContent = GUILD || 'Unknown Server';
+    }
+    const list = document.getElementById('server-dropdown-list');
+    list.innerHTML = _serverList.map(g => {
+      const isCurrent = g.id === GUILD;
+      return `<a href="/dashboard/${g.id}" style="display:flex;align-items:center;gap:8px;padding:7px 12px;font-size:12px;color:${isCurrent?'var(--gold)':'var(--text)'};text-decoration:none;background:${isCurrent?'rgba(245,197,24,.06)':'transparent'}"
+        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='${isCurrent?'rgba(245,197,24,.06)':'transparent'}'"
+      >
+        ${g.icon ? `<img src="${g.icon}" style="width:20px;height:20px;border-radius:50%">` : `<div style="width:20px;height:20px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:10px">${g.name[0]}</div>`}
+        <span>${g.name}</span>
+        ${isCurrent ? '<span style="margin-left:auto;font-size:9px;color:var(--gold)">●</span>' : ''}
+      </a>`;
+    }).join('');
+  } catch(e) { document.getElementById('current-server-name').textContent = 'Server'; }
+}
+
+function toggleServerDropdown() {
+  const dd = document.getElementById('server-dropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('server-switcher-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const dd = document.getElementById('server-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
 
 // Initialize on nav
 </script>
