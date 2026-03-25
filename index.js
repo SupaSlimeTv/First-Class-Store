@@ -2927,6 +2927,38 @@ setInterval(async () => {
   } catch(e) { console.error('Data leak tick error:', e.message); }
 }, 6 * 60 * 60 * 1000); // every 6 hours
 
+
+// ── PENDING NOTIFICATION PROCESSOR (every 30s) ───────────────
+// Picks up DM notifications queued by the dashboard (data leaks, etc.)
+setInterval(async () => {
+  try {
+    const { col: _col } = require('./utils/mongo');
+    const nc    = await _col('pendingNotifications');
+    const pending = await nc.find({ sent: false }).limit(20).toArray();
+    for (const n of pending) {
+      try {
+        if (n.type === 'data_leak_victim') {
+          const user = await client.users.fetch(n.userId).catch(() => null);
+          if (user) {
+            await user.send({ embeds:[new (require('discord.js').EmbedBuilder)()
+              .setColor(0xff3b3b)
+              .setTitle('🔓 Data Breach Alert!')
+              .setDescription(`Your personal information was exposed in a **data breach** and is listed on the dark web for **$${(n.price||0).toLocaleString()}**.
+
+🪪 SSN exposed · 📊 Credit profile included
+
+Freeze your credit immediately: \`/credit freeze\`
+
+*Listing expires in 48 hours.*`)
+            ]}).catch(() => null);
+          }
+        }
+        await nc.updateOne({ _id: n._id }, { $set: { sent: true, sentAt: Date.now() } });
+      } catch {}
+    }
+  } catch {}
+}, 30 * 1000);
+
 // ── LABEL REVENUE TICK (every 15 min) ────────────────────────
 setInterval(async () => {
   try {

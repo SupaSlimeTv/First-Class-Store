@@ -5751,7 +5751,10 @@ async function loadLaptopApps() {
       <td title="Quality Tier ${q} — each tier adds +5% success rate">${'⭐'.repeat(Math.min(q,5))} <span style="font-size:10px;color:var(--muted)">Tier ${q}</span></td>
       <td>$${(a.price||0).toLocaleString()}</td>
       <td>${base != null ? '<strong>' + base + '%</strong>' : '<span style="color:var(--muted)">passive</span>'}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="editItemById('${a.id}')">Edit</button></td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="laptopEditItem('${a.id}','${a.name}',${a.price||0})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="laptopDeleteItem('${a.id}','${a.name}')">🗑️</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -5870,6 +5873,29 @@ async function torRemoveListing(id) {
   const r = await api('DELETE', `/api/${GUILD}/tor/listing/${id}`);
   if (r.success) { toast('Listing removed', 'ok'); loadTorListings(); }
   else toast(r.error || 'Failed', 'err');
+}
+
+// editItemById — opens the item modal pre-filled for a given item ID
+async function editItemById(itemId) {
+  const store = await api('GET', `/api/store?guildId=${GUILD}`).catch(() => ({ items:[] }));
+  const item  = (store.items||[]).find(i => i.id === itemId);
+  if (!item) { toast('Item not found', 'err'); return; }
+  openItemModal(item);
+}
+
+async function laptopEditItem(itemId, name, price) {
+  const store = await api('GET', `/api/store?guildId=${GUILD}`).catch(() => ({ items:[] }));
+  const item  = (store.items||[]).find(i => i.id === itemId);
+  if (!item) { toast('Item not found', 'err'); return; }
+  openItemModal(item);
+}
+
+async function laptopDeleteItem(itemId, name) {
+  const confirmed = await showConfirmModal('🗑️ Delete App?', `Delete <strong>${name}</strong> from the store?`, 'Delete');
+  if (!confirmed) return;
+  const r = await api('DELETE', `/api/store/${itemId}`);
+  if (r.success) { toast('App deleted', 'ok'); loadLaptopApps(); }
+  else toast(r.error||'Failed', 'err');
 }
 
 // Initialize on nav

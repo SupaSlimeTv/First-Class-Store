@@ -1,3 +1,16 @@
+
+// Smart money formatter — abbreviates large numbers to fit on screen
+function smartMoney(n) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e15) return sign + '$' + (abs/1e15).toFixed(2) + 'Q';
+  if (abs >= 1e12) return sign + '$' + (abs/1e12).toFixed(2) + 'T';
+  if (abs >= 1e9)  return sign + '$' + (abs/1e9).toFixed(2) + 'B';
+  if (abs >= 1e6)  return sign + '$' + (abs/1e6).toFixed(2) + 'M';
+  if (abs >= 1e3)  return sign + '$' + Math.round(abs).toLocaleString();
+  return sign + '$' + Math.round(abs).toLocaleString();
+}
+
 // ============================================================
 // utils/embeds.js — UnbelievaBoat-inspired embed system
 // ============================================================
@@ -27,9 +40,9 @@ function balanceEmbed(user, discordUser) {
     .setColor(COLORS.ECONOMY)
     .setAuthor({ name: `${discordUser.username}'s Balance`, iconURL: discordUser.displayAvatarURL({ dynamic: true }) })
     .addFields(
-      { name: '💵 Cash',  value: `**$${wallet.toLocaleString()}**`, inline: true },
-      { name: '🏦 Bank',  value: `**$${bank.toLocaleString()}**`,   inline: true },
-      { name: '💎 Total', value: `**$${total.toLocaleString()}**`,  inline: true },
+      { name: '💵 Cash',  value: `**${smartMoney(wallet)}**`, inline: true },
+      { name: '🏦 Bank',  value: `**${smartMoney(bank)}**`,   inline: true },
+      { name: '💎 Total', value: `**${smartMoney(total)}**`,  inline: true },
     )
     .setFooter({ text: 'Use /deposit to keep your cash safe' })
     .setTimestamp();
@@ -40,9 +53,9 @@ function depositEmbed(user, amount) {
     .setColor(COLORS.DEPOSIT)
     .setTitle('🏦 Deposit Successful')
     .addFields(
-      { name: 'Deposited',   value: `**$${amount.toLocaleString()}**`,      inline: true },
-      { name: '💵 Cash Now', value: `**$${user.wallet.toLocaleString()}**`, inline: true },
-      { name: '🏦 Bank Now', value: `**$${user.bank.toLocaleString()}**`,   inline: true },
+      { name: 'Deposited',   value: `**${smartMoney(amount)}**`,      inline: true },
+      { name: '💵 Cash Now', value: `**${smartMoney(user.wallet)}**`, inline: true },
+      { name: '🏦 Bank Now', value: `**${smartMoney(user.bank)}**`,   inline: true },
     )
     .setTimestamp();
 }
@@ -52,9 +65,9 @@ function withdrawEmbed(user, amount) {
     .setColor(COLORS.WITHDRAW)
     .setTitle('💵 Withdrawal Successful')
     .addFields(
-      { name: 'Withdrawn',   value: `**$${amount.toLocaleString()}**`,      inline: true },
-      { name: '💵 Cash Now', value: `**$${user.wallet.toLocaleString()}**`, inline: true },
-      { name: '🏦 Bank Now', value: `**$${user.bank.toLocaleString()}**`,   inline: true },
+      { name: 'Withdrawn',   value: `**${smartMoney(amount)}**`,      inline: true },
+      { name: '💵 Cash Now', value: `**${smartMoney(user.wallet)}**`, inline: true },
+      { name: '🏦 Bank Now', value: `**${smartMoney(user.bank)}**`,   inline: true },
     )
     .setTimestamp();
 }
@@ -64,8 +77,8 @@ function dailyEmbed(amount, newBalance) {
     .setColor(COLORS.DAILY)
     .setTitle('📅 Daily Reward Claimed!')
     .addFields(
-      { name: '💰 Received',  value: `**$${amount.toLocaleString()}**`,    inline: true },
-      { name: '💵 Cash Now',  value: `**$${newBalance.toLocaleString()}**`, inline: true },
+      { name: '💰 Received',  value: `**${smartMoney(amount)}**`,    inline: true },
+      { name: '💵 Cash Now',  value: `**${smartMoney(newBalance)}**`, inline: true },
     )
     .setFooter({ text: 'Come back in 24 hours for your next reward' })
     .setTimestamp();
@@ -77,8 +90,8 @@ function robSuccessEmbed(stolen, targetUsername, newBalance, purge) {
     .setTitle('🦹 Robbery Successful!')
     .setDescription(`You successfully robbed **${targetUsername}**!`)
     .addFields(
-      { name: '💸 Stolen',    value: `**$${stolen.toLocaleString()}**`,     inline: true },
-      { name: '💵 Your Cash', value: `**$${newBalance.toLocaleString()}**`, inline: true },
+      { name: '💸 Stolen',    value: `**${smartMoney(stolen)}**`,     inline: true },
+      { name: '💵 Your Cash', value: `**${smartMoney(newBalance)}**`, inline: true },
       ...(purge ? [{ name: '⚡ Purge', value: 'No cooldown!', inline: true }] : []),
     )
     .setTimestamp();
@@ -90,8 +103,8 @@ function robFailEmbed(fine, newBalance) {
     .setTitle('🚨 Robbery Failed!')
     .setDescription('You got caught trying to rob someone!')
     .addFields(
-      { name: '💸 Fine',      value: `**$${fine.toLocaleString()}**`,       inline: true },
-      { name: '💵 Your Cash', value: `**$${newBalance.toLocaleString()}**`, inline: true },
+      { name: '💸 Fine',      value: `**${smartMoney(fine)}**`,       inline: true },
+      { name: '💵 Your Cash', value: `**${smartMoney(newBalance)}**`, inline: true },
     )
     .setTimestamp();
 }
@@ -105,7 +118,7 @@ function shopEmbed(items) {
     .setTimestamp();
   for (const item of items) {
     embed.addFields({
-      name: `${typeEmoji[item.type] || '📦'} ${item.name} — $${item.price.toLocaleString()}`,
+      name: `${typeEmoji[item.type] || '📦'} ${item.name} — ${smartMoney(item.price)}`,
       value: `${item.description || 'No description.'}\n${item.reusable ? '`♻️ Reusable`' : '`🗑️ Single-use`'}  \`ID: ${item.id}\``,
       inline: false,
     });
@@ -119,8 +132,8 @@ function purchaseEmbed(item, newBalance) {
     .setTitle(`✅ Purchased: ${item.name}`)
     .setDescription(item.description || '')
     .addFields(
-      { name: '💸 Cost',     value: `**$${item.price.toLocaleString()}**`,          inline: true },
-      { name: '💵 Cash Now', value: `**$${newBalance.toLocaleString()}**`,          inline: true },
+      { name: '💸 Cost',     value: `**${smartMoney(item.price)}**`,          inline: true },
+      { name: '💵 Cash Now', value: `**${smartMoney(newBalance)}**`,          inline: true },
       { name: '📦 Type',     value: item.reusable ? '♻️ Reusable' : '🗑️ One-time', inline: true },
     )
     .setFooter({ text: item.type === 'useable' ? `Use it with /use ${item.id}` : 'Check /shop inventory' })
@@ -134,8 +147,8 @@ function coinflipEmbed(choice, result, bet, won, newBalance) {
     .addFields(
       { name: 'Your Pick',   value: `**${choice}**`,                              inline: true },
       { name: 'Result',      value: `**${result}**`,                              inline: true },
-      { name: won ? '💰 Won' : '💸 Lost', value: `**$${bet.toLocaleString()}**`, inline: true },
-      { name: '💵 Cash Now', value: `**$${newBalance.toLocaleString()}**`,        inline: false },
+      { name: won ? '💰 Won' : '💸 Lost', value: `**${smartMoney(bet)}**`, inline: true },
+      { name: '💵 Cash Now', value: `**${smartMoney(newBalance)}**`,        inline: false },
     )
     .setTimestamp();
 }
@@ -149,8 +162,8 @@ function rouletteEmbed(betType, betDesc, result, resultColor, bet, won, payout, 
     .addFields(
       { name: 'Bet Type',    value: `**${betType}**`,                             inline: true },
       { name: 'Payout',      value: `**${payout}:1**`,                            inline: true },
-      { name: won ? '💰 Won' : '💸 Lost', value: `**$${bet.toLocaleString()}**`, inline: true },
-      { name: '💵 Cash Now', value: `**$${newBalance.toLocaleString()}**`,        inline: false },
+      { name: won ? '💰 Won' : '💸 Lost', value: `**${smartMoney(bet)}**`, inline: true },
+      { name: '💵 Cash Now', value: `**${smartMoney(newBalance)}**`,        inline: false },
     )
     .setTimestamp();
 }
@@ -206,6 +219,7 @@ function gameEmbed(title, description, won) {
 }
 
 module.exports = {
+  smartMoney,
   COLORS, balanceEmbed, depositEmbed, withdrawEmbed, dailyEmbed,
   robSuccessEmbed, robFailEmbed, shopEmbed, purchaseEmbed,
   coinflipEmbed, rouletteEmbed, purgeEmbed, depressionEmbed, successEmbed, errorEmbed, gameEmbed,

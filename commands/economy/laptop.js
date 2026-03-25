@@ -262,7 +262,17 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
           target.send({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('⚠️ Suspicious Activity').setDescription('Unusual activity detected on your financial profile. Check /credit check.')] }).catch(e => null);
         }, 5*60*1000);
 
-        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setTitle('🪪 SSN Captured').setDescription(`<@${target.id}>'s SSN: \`${vc.ssn}\`\nScore: **${vc.score}** (${getCreditTier(vc.score).label})\n\nRun **Credit Cracker** or **Card Drainer** next.`)], components:[] });
+        // DM the attacker the full SSN (private)
+        await interaction.user.send({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+          .setTitle('🪪 SSN Captured — Private')
+          .setDescription(`**Full SSN:** \`${vc.ssn}\`\n**Score:** ${vc.score} (${getCreditTier(vc.score).label})\n\nSaved to your hacker profile. Run **/laptop run app:credit_cracker** next.`)
+        ]}).catch(() => null);
+        // Public embed — masked
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+          .setTitle(`🪪 ${interaction.user.username} ran SSN Scanner on <@${target.id}>`)
+          .setDescription(`Scan successful. SSN captured.\n\nScore: **${vc.score}** (${getCreditTier(vc.score).label})\n\n*Full SSN sent to attacker via DM.*`)
+          .setFooter({ text:`${successRate}% success rate` })
+        ], components:[] });
       }
 
       // ── CREDIT CRACKER ────────────────────────────────────
@@ -377,16 +387,24 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         const tgang = getGangByMember(target.id);
         const ttier = getStatusTier(phone?.status||0);
 
+        // Also pull routing and credit
+        let tRouting = null;
+        try { const {col:_sc}=require('../../utils/mongo'); const rc=await _sc('routingNumbers'); const rd=await rc.findOne({_id:target.id}); tRouting=rd?.routing||null; } catch {}
+        const { getCredit } = require('../../utils/creditDb');
+        const tCredit = getCredit(target.id);
+
         return interaction.editReply({ embeds:[new EmbedBuilder()
           .setColor(0x2c2f73)
-          .setTitle(`👁️ Intel: ${target.username}`)
+          .setTitle(`👁️ ${interaction.user.username} — Intel on ${target.username}`)
           .addFields(
-            { name:'💵 Wallet',   value:fmtMoney(tv?.wallet||0),                      inline:true },
-            { name:'🏦 Bank',     value:fmtMoney(tv?.bank||0),                        inline:true },
-            { name:'📱 Status',   value:ttier?.label||'None',                          inline:true },
-            { name:'🏠 Home',     value:home?`${home.tier} · ${(home.stash||[]).length} stash`:'None', inline:true },
-            { name:'🏢 Business', value:tbiz?`${tbiz.name} Lv${tbiz.level||1}`:'None', inline:true },
-            { name:'🏴 Gang',     value:tgang?.name||'None',                           inline:true },
+            { name:'💵 Wallet',    value:fmtMoney(tv?.wallet||0),                       inline:true },
+            { name:'🏦 Bank',      value:fmtMoney(tv?.bank||0),                         inline:true },
+            { name:'📱 Status',    value:ttier?.label||'None',                           inline:true },
+            { name:'🏠 Home',      value:home?`${home.tier} · ${(home.stash||[]).length} stash`:'None', inline:true },
+            { name:'🏢 Business',  value:tbiz?`${tbiz.name} Lv${tbiz.level||1}`:'None', inline:true },
+            { name:'🏴 Gang',      value:tgang?.name||'None',                            inline:true },
+            { name:'📊 Credit',    value:tCredit?`Score: ${tCredit.score}${tCredit.frozen?' ❄️':''}`:'No profile', inline:true },
+            { name:'🏦 Routing #', value:tRouting?`\`${tRouting}\``:'None on file',     inline:true },
           )
         ], components:[] });
       }
@@ -454,12 +472,14 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         const biz2 = getBusiness(ownerId2);
         const u2   = getOrCreateUser(ownerId2);
         return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x00d2ff)
-          .setTitle(`🏦 Bank Mirror — \`${routingNum}\``)
-          .setDescription('*Read-only access established.*')
+          .setTitle(`🏦 ${interaction.user.username} mirrored routing \`${routingNum}\``)
+          .setDescription(`*Read-only access to banking system established.*`)
           .addFields(
-            { name:'💵 Wallet',        value:fmtMoney(u2.wallet||0),      inline:true },
-            { name:'🏦 Bank Balance',  value:fmtMoney(u2.bank||0),        inline:true },
+            { name:'🪪 Account Owner', value:`<@${ownerId2}>`,             inline:true },
+            { name:'💵 Wallet',        value:fmtMoney(u2.wallet||0),       inline:true },
+            { name:'🏦 Bank Balance',  value:fmtMoney(u2.bank||0),         inline:true },
             { name:'🏢 Business Rev',  value:biz2 ? fmtMoney(biz2.revenue||0) : '—', inline:true },
+            { name:'🔢 Routing #',     value:`\`${routingNum}\``,          inline:true },
           )
         ], components:[] });
       }

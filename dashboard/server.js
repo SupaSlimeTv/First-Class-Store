@@ -984,7 +984,21 @@ app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) =>
         card:  credit.card  || null,
         limit: credit.limit || 0,
       });
-      if (listing) leaked++;
+      if (listing) {
+        leaked++;
+        // Write a pending DM notification so the bot process picks it up
+        try {
+          const notifCol = await col('pendingNotifications');
+          await notifCol.insertOne({
+            type:      'data_leak_victim',
+            userId,
+            listingId: listing.id,
+            price:     listing.price,
+            createdAt: Date.now(),
+            sent:      false,
+          });
+        } catch {}
+      }
     }
 
     await writeAudit(req.guildId, req.session.user?.id, 'tor_manual_leak', { leaked });
