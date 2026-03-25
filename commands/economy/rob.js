@@ -2,11 +2,12 @@ const { SlashCommandBuilder } = require('discord.js');
 const { getHome: _gh, isSleeping: _is } = require('../../utils/homeDb');
 const { getOrCreateUser, saveUser, isPurgeActive, getConfig } = require('../../utils/db');
 const { robSuccessEmbed, robFailEmbed, errorEmbed } = require('../../utils/embeds');
+const { addHeat, checkPoliceRaid, isJailed, getJailTimeLeft } = require('../../utils/police');
 const { noAccount } = require('../../utils/accountCheck');
 
 const cooldowns      = new Map();
-const SUCCESS_CHANCE = 0.45;
-const PURGE_CHANCE   = 0.70;
+const SUCCESS_CHANCE = 0.80;
+const PURGE_CHANCE   = 0.95;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -27,12 +28,17 @@ module.exports = {
     if (target.id === robberId) return interaction.reply({ embeds: [errorEmbed("You can't rob yourself!")], ephemeral: true });
     if (target.bot)             return interaction.reply({ embeds: [errorEmbed("You can't rob a bot!")],   ephemeral: true });
 
+    // ── JAIL CHECK ────────────────────────────────────────────
+    if (isJailed(robberId)) {
+      const mins = getJailTimeLeft(robberId);
+      return interaction.reply({ embeds: [errorEmbed(`🚔 You're in jail! Release in **${mins} minute(s)**.`)], ephemeral: true });
+    }
+
     // ---- PROTECTED ROLE CHECK ----
     const protectedRoles = Array.isArray(config.protectedRoles) ? config.protectedRoles : [];
     if (protectedRoles.length > 0) {
       const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
       if (targetMember) {
-        // Force refresh the member's roles cache
         await targetMember.fetch().catch(() => {});
         const isProtected = protectedRoles.some(roleId => targetMember.roles.cache.has(roleId));
         if (isProtected) {
@@ -76,12 +82,27 @@ module.exports = {
       saveUser(target.id, victim);
       saveUser(robberId, robber);
       await interaction.reply({ embeds: [robSuccessEmbed(stolen, target.username, robber.wallet, purge)] });
+      // Heat for successful rob
+      await addHeat(robberId, 10, 'robbery');
     } else {
       const robber = getOrCreateUser(robberId);
       const fine   = Math.floor(robber.wallet * 0.1);
       robber.wallet = Math.max(0, robber.wallet - fine);
       saveUser(robberId, robber);
       await interaction.reply({ embeds: [robFailEmbed(fine, robber.wallet)] });
+      // More heat for getting caught
+      await addHeat(robberId, 20, 'caught robbing');
+    }
+
+    // Check if heat is high enough to trigger a police raid → prison
+    const raid = await checkPoliceRaid(robberId, interaction.client, config.prisonChannelId || config.purgeChannelId);
+    if (raid) {
+      const mins = raid.jailTime;
+      await interaction.followUp({ embeds: [{
+        color: 0x003580,
+        title: '🚨 POLICE RAID — You\'re Locked Up!',
+        description: `Too much heat! Police raided you.\n\n💸 Seized: **$${raid.stolen.toLocaleString()}**\n⏳ Jailed: **${mins} minutes**\n\nYou've been sent to the prison channel.`,
+      }], ephemeral: true });
     }
   },
 };

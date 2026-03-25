@@ -43,21 +43,22 @@ module.exports = {
     const apps    = laptop?.apps || [];
 
     if (!apps.length) {
-      return interaction.respond([{ name:'No apps installed — use /laptop appstore', value:'__none__' }]);
+      return interaction.respond([{ name:'No apps installed — use /laptop appstore first', value:'__none__' }]).catch(()=>null);
     }
 
-    const choices = apps
-      .map(a => {
-        const def = BUILTIN_APPS[a.id] || {};
-        return {
-          name: `${def.emoji||'💻'} ${def.name||a.id} (Tier ${a.quality||1})`,
-          value: a.id,
-        };
-      })
-      .filter(c => c.name.toLowerCase().includes(focused))
-      .slice(0, 25);
+    const choices = apps.map(a => {
+      const def  = BUILTIN_APPS[a.id] || {};
+      const pct  = a.successOverride || (def.baseSuccess != null ? Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5) : null);
+      const hint = pct != null ? `${pct}% success` : 'passive';
+      return {
+        name: `${def.emoji||'💻'} ${def.name||a.id} — ${hint} (Tier ${a.quality||1})`,
+        value: a.id,
+      };
+    })
+    .filter(c => c.name.toLowerCase().includes(focused))
+    .slice(0, 25);
 
-    return interaction.respond(choices.length ? choices : [{ name:'No matching apps', value:'__none__' }]);
+    return interaction.respond(choices.length ? choices : [{ name:'No matching apps', value:'__none__' }]).catch(()=>null);
   },
 
   async execute(interaction) {
@@ -243,7 +244,7 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
       const successRate = getEffectiveSuccess(userId, appId);
       const success     = Math.random() * 100 < successRate;
 
-      await interaction.deferReply({ ephemeral:true });
+      await interaction.deferReply(); // public — app runs are visible to everyone
 
       // ── SSN SCANNER ───────────────────────────────────────
       if (appId === 'ssn_scanner') {
@@ -415,7 +416,97 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         ], components:[] });
       }
 
-      return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('App function coming soon.')], components:[] });
+      // ── DARK SEARCH ───────────────────────────────────────
+      if (appId === 'dark_search') {
+        // Search TOR market by SSN fragment or routing number
+        const query = interaction.options.getString('routing')?.trim().toUpperCase()
+                   || (target ? target.id : null);
+        if (!query) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Provide a `routing:` number or `target:` user to search for.')], components:[] });
+
+        if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('🔍 Search Failed').setDescription(`Dark web servers didn't respond. (${successRate}% chance)`)], components:[] });
+
+        const { getActiveListings } = require('../../utils/torDb');
+        const listings = getActiveListings();
+        // Search by victimId (if target given) or routing number in data
+        const matches = listings.filter(l =>
+          (target && l.victimId === target.id) ||
+          (!target && (l.data?.routingNumber === query || l.data?.ssn?.includes(query)))
+        ).slice(0, 5);
+
+        if (!matches.length) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2c2c2c).setTitle('🔍 DarkSearch — No Results').setDescription('No listings found for that query on the dark web.')], components:[] });
+
+        const lines = matches.map((l, i) =>
+          `**${i+1}.** \`${l.id.slice(-6)}\` — ${l.typeName}\nPrice: **${fmtMoney(l.price)}** · Seller: \`${l.sellerHandle}\``
+        ).join('\n\n');
+
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x0a0a0a).setTitle('🔍 DarkSearch Results').setDescription(lines).setFooter({ text:'Use /tor buy listing_id: to purchase' })], components:[] });
+      }
+
+      // ── BANK MIRROR ───────────────────────────────────────
+      if (appId === 'bank_mirror') {
+        // Read any routing number — 100% success rate, passive tool
+        const routingNum = interaction.options.getString('routing')?.trim().toUpperCase();
+        if (!routingNum) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Provide a `routing:` number to mirror.')], components:[] });
+
+        const ownerId2 = await getUserByRouting(routingNum);
+        if (!ownerId2) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Routing \`${routingNum}\` not found in banking system.`)], components:[] });
+
+        const biz2 = getBusiness(ownerId2);
+        const u2   = getOrCreateUser(ownerId2);
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x00d2ff)
+          .setTitle(`🏦 Bank Mirror — \`${routingNum}\``)
+          .setDescription('*Read-only access established.*')
+          .addFields(
+            { name:'💵 Wallet',        value:fmtMoney(u2.wallet||0),      inline:true },
+            { name:'🏦 Bank Balance',  value:fmtMoney(u2.bank||0),        inline:true },
+            { name:'🏢 Business Rev',  value:biz2 ? fmtMoney(biz2.revenue||0) : '—', inline:true },
+          )
+        ], components:[] });
+      }
+
+      // ── KEYLOGGER ─────────────────────────────────────────
+      if (appId === 'keylogger') {
+        // Passive — buffs phishing/hacking success while installed
+        // When run directly, shows current intercepts from any recent phishing
+        const hc = await getOrCreateCredit(userId);
+        const intercepts = Object.entries(hc.ssnStolen || {}).slice(-5);
+
+        if (!intercepts.length) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2c2c2c)
+          .setTitle('⌨️ Keylogger — No Intercepts')
+          .setDescription('No keystroke data captured yet.\n\nKeylogger passively boosts all phishing/hacking success by **+20%** while installed.')
+        ], components:[] });
+
+        const lines = intercepts.map(([uid, d]) =>
+          `<@${uid}> — SSN: \`${d.ssn||'?'}\` · Score: **${d.score||'?'}**`
+        ).join('\n');
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2c2c2c)
+          .setTitle('⌨️ Keylogger — Captured Credentials')
+          .setDescription(lines)
+        ], components:[] });
+      }
+
+      // ── VPN SHIELD ────────────────────────────────────────
+      if (appId === 'vpn_shield') {
+        // Passive — run to check current TOR trace protection status
+        const { TOR_TRACE_CHANCE, TOR_VPN_REDUCTION } = require('../../utils/torDb');
+        const laptop2   = getLaptop(userId);
+        const appCount  = (laptop2?.apps||[]).length;
+        let traceChance = TOR_TRACE_CHANCE * (1 - TOR_VPN_REDUCTION);
+        traceChance    *= Math.max(0.1, 1 - appCount * 0.05);
+        const pct       = Math.round(traceChance * 100);
+
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x3498db)
+          .setTitle('🛡️ VPN Shield — Active')
+          .setDescription(`Your TOR connections are protected.
+
+📉 Current trace risk: **${pct}%**
+🔒 Apps installed: **${appCount}** (each -5% trace risk)
+
+*VPN Shield runs passively. No action required.*`)
+        ], components:[] });
+      }
+
+      return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Unknown app.')], components:[] });
     }
   },
 };

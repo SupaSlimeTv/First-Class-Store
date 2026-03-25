@@ -1,8 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { getHome: _gh, isSleeping: _is } = require('../../utils/homeDb');
 const { getOrCreateUser, saveUser, getConfig, isPurgeActive } = require('../../utils/db');
 const { getGangByMember } = require('../../utils/gangDb');
 const { getGunInventory, saveGunInventory, getGunById } = require('../../utils/gunDb');
-const { addHeat, isJailed, getJailTimeLeft } = require('../../utils/police');
+const { addHeat, checkPoliceRaid, isJailed, getJailTimeLeft } = require('../../utils/police');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
 
@@ -187,7 +188,15 @@ module.exports = {
     }
 
     const heatAdded = purge ? 0 : (damage > 0 ? (damage > 50 ? 20 : 8) : 3);
-    if (heatAdded > 0) await addHeat(userId, heatAdded, 'shooting');
+    if (heatAdded > 0) {
+      await addHeat(userId, heatAdded, 'shooting');
+      // Check if heat triggers arrest → prison
+      const config = require('../../utils/db').getConfig(interaction.guildId);
+      const raid = await checkPoliceRaid(userId, interaction.client, config.prisonChannelId || config.purgeChannelId);
+      if (raid) {
+        await interaction.followUp({ embeds:[{ color:0x003580, title:'🚨 Arrested After Shooting!', description:`Too much heat — police showed up!\n\n💸 Seized: **$${raid.stolen.toLocaleString()}**\n⏳ Jailed: **${raid.jailTime} minutes**` }], ephemeral:true });
+      }
+    }
 
     // ── BUILD EMBED ──
     const outcomeMsg = OUTCOME_MSGS[outcomeType]?.[Math.floor(Math.random()*OUTCOME_MSGS[outcomeType].length)] || '';

@@ -238,6 +238,13 @@ module.exports = {
         try {
           const { addHeat } = require('../../utils/gangDb');
           await addHeat(userId, 15, 'failed break-in');
+          // Check if caught triggers prison
+          try {
+            const { checkPoliceRaid } = require('../../utils/police');
+            const _cfg = require('../../utils/db').getConfig(interaction.guildId);
+            const _raid = await checkPoliceRaid(userId, interaction.client, _cfg.prisonChannelId || _cfg.purgeChannelId);
+            if (_raid) await interaction.followUp({ embeds:[{ color:0x003580, title:'🚨 Arrested After Break-In!', description:`Police caught you!\n\n💸 Seized: **$${_raid.stolen.toLocaleString()}**\n⏳ Jailed: **${_raid.jailTime} minutes**` }], ephemeral:true });
+          } catch {}
         } catch {}
         // DM target
         interaction.client.users.fetch(targetId).then(u => u.send({ embeds:[new EmbedBuilder()

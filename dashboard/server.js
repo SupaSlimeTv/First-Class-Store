@@ -845,8 +845,7 @@ app.post('/api/:guildId/users/:id/credit-score', requireGuildAuth, async (req, r
 // ── ILLUMINATI RANK SET ───────────────────────────────────────
 app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req, res) => {
   try {
-    const { getIlluminati, saveIlluminati } = require('./utils/illuminatiDb');
-    const org = getIlluminati(req.guildId);
+    const org = illuminatiDb.getIlluminati(req.guildId);
     if (!org) return res.status(400).json({ error:'No Illuminati in this server.' });
     const mem = (org.members||[]).find(m => m.userId === req.params.id);
     if (!mem) return res.status(400).json({ error:'User is not an Illuminati member.' });
@@ -1804,6 +1803,21 @@ app.get('/', (req, res) => {
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// ── PRELOAD CACHES ON STARTUP ────────────────────────────────
+(async () => {
+  try { await illuminatiDb.preloadIlluminatiCache(); console.log('[dashboard] illuminati cache ready'); } catch(e) { console.error('[dashboard] illuminati preload err:', e.message); }
+  try {
+    const creditDb2 = require('../utils/creditDb');
+    if (creditDb2.preloadCreditCache) await creditDb2.preloadCreditCache();
+    console.log('[dashboard] credit cache ready');
+  } catch(e) { console.error('[dashboard] credit preload err:', e.message); }
+  try {
+    const torDb2 = require('../utils/torDb');
+    if (torDb2.preloadTorCache) await torDb2.preloadTorCache();
+    console.log('[dashboard] tor cache ready');
+  } catch(e) { console.error('[dashboard] tor preload err:', e.message); }
+})();
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🖥️  Dashboard running at http://0.0.0.0:${PORT}`);

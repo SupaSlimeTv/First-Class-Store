@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getOrCreateUser, saveUser, getAllUsers, isPurgeActive } = require('../../utils/db');
 const { getGangByMember, getAllGangs, saveGang, getWar, saveWar, deleteWar, getMemberRank } = require('../../utils/gangDb');
-const { addHeat, checkPoliceRaid, isJailed, getJailTimeLeft } = require('../../utils/police');
+const { addHeat, checkPoliceRaid, isJailed, getJailTimeLeft } = require('../../utils/gangDb');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
 const { gangAutocomplete } = require('../../utils/autocomplete');
