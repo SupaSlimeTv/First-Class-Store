@@ -28,8 +28,14 @@ for (const folder of folders) {
   for (const file of files) {
     const command = require(path.join(folderPath, file));
     if (command.data) {
-      commands.push(command.data.toJSON());
-      console.log(`📝 Queued: /${command.data.name}`);
+      const json = command.data.toJSON();
+      // Skip duplicates — prevents DiscordAPIError[50035]
+      if (commands.some(c => c.name === json.name)) {
+        console.log(`⚠️  Skipped duplicate: /${json.name} (${file})`);
+        continue;
+      }
+      commands.push(json);
+      console.log(`📝 Queued: /${json.name}`);
     }
   }
 }
