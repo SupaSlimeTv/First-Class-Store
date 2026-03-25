@@ -860,7 +860,13 @@ app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req
 // ── ILLUMINATI DASHBOARD ──────────────────────────────────────
 app.get('/api/:guildId/illuminati', requireGuildAuth, async (req, res) => {
   try {
-    const org = illuminatiDb.getIlluminati(req.guildId);
+    // Try in-memory cache first, fall back to MongoDB directly
+    let org = illuminatiDb.getIlluminati(req.guildId);
+    if (!org) {
+      const c = await col('illuminati');
+      const doc = await c.findOne({ _id: req.guildId });
+      if (doc) { const { _id, ...data } = doc; org = data; }
+    }
     res.json({ org: org || null });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
@@ -882,16 +888,20 @@ app.get('/api/:guildId/credit-scores', requireGuildAuth, async (req, res) => {
     const { getCreditTier } = creditDb;
     const filterTier = req.query.filter || 'all';
 
-    // Pull fresh from MongoDB — dashboard process cache may be stale
+    // Pull fresh from MongoDB — always current
     const creditCol = await col('credit');
     const allDocs   = await creditCol.find({}).toArray();
 
-    // Get guild member IDs
-    const members   = await fetchAllMembers(req.guildId);
-    const memberIds = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
+    // Get guild member IDs — if fetchAllMembers fails, show ALL credit profiles
+    let memberIds = new Set();
+    try {
+      const members = await fetchAllMembers(req.guildId);
+      memberIds = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
+    } catch {}
+    const useFilter = memberIds.size > 0;
 
     let profiles = allDocs
-      .filter(p => memberIds.has(p._id))
+      .filter(p => !useFilter || memberIds.has(p._id))
       .map(p => {
         const tier = getCreditTier(p.score||680);
         return {

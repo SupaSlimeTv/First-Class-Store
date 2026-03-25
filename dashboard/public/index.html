@@ -38,7 +38,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:16px;position:relative;overflow:hidden}
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent)}
 .stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px}
-.stat-val{font-size:clamp(13px,2.2vw,26px);font-weight:700;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.stat-val{font-size:26px;font-weight:700;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .c-gold{color:var(--gold)}.c-green{color:var(--green)}.c-red{color:var(--accent)}.c-blue{color:var(--blue)}
 .purge-panel{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;transition:all .3s}
 .purge-panel.on{border-color:rgba(255,59,59,.4);box-shadow:0 0 30px rgba(255,59,59,.15)}
@@ -2358,7 +2358,13 @@ function renderStats(){
   const s=S.stats;
   document.getElementById('s-members').textContent=s.totalMembers??'—';
   document.getElementById('s-users').textContent=s.totalUsers??'—';
-  const smEl=document.getElementById('s-money'); smEl.textContent=s.totalMoney!=null?fmtStat(s.totalMoney):'—'; smEl.title=s.totalMoney!=null?'$'+Math.round(s.totalMoney).toLocaleString():'';
+  const smEl=document.getElementById('s-money');
+  const smText = s.totalMoney!=null ? fmtStat(s.totalMoney) : '—';
+  smEl.textContent = smText;
+  smEl.title = s.totalMoney!=null ? '$'+Math.floor(s.totalMoney).toLocaleString() : '';
+  // Shrink font if text is long (e.g. $1,234,567 vs $1.23B)
+  const smLen = smText.length;
+  smEl.style.fontSize = smLen > 10 ? '13px' : smLen > 7 ? '17px' : smLen > 5 ? '21px' : '26px';
   document.getElementById('s-items').textContent=s.storeItems??'—';
   document.getElementById('s-warns').textContent=s.totalWarnings??'—';
   const pe=document.getElementById('s-purge');
