@@ -106,7 +106,7 @@ module.exports = {
 
       return interaction.reply({ embeds:[new EmbedBuilder().setColor(tier.color)
         .setTitle(`${pType.emoji} ${interaction.user.username} — ${tier.label}`)
-        .setDescription(`*${fmtNum(tier.fanCount)} NPC fans follow you faithfully.*`)
+        .setDescription(`*You have **${fmtNum(phone.followers||0)} fans** following you across all platforms.*`)
         .addFields(
           { name:'🏆 Status',        value:`${(phone.status||0).toLocaleString()} pts`,   inline:true },
           { name:'👥 Followers',     value:fmtNum(phone.followers||0),                    inline:true },
@@ -343,7 +343,8 @@ module.exports = {
       const priceBoost  = Math.min(8.0, 1 + (totalPower * 0.15));
 
       // Fan investment — % of NPC fans "buy in" driving fake volume
-      const investingFans   = Math.floor(tier.fanCount * (0.08 + Math.random() * 0.12));
+      const actualFans2     = Math.max(phone.followers||0, tier.fanCount);
+      const investingFans   = Math.floor(actualFans2 * (0.08 + Math.random() * 0.12));
       const avgFanInvestment= Math.floor((50 + totalPower * 80) * (0.7 + Math.random() * 0.6));
       const totalFanVolume  = investingFans * avgFanInvestment;
 
@@ -523,7 +524,8 @@ module.exports = {
       const creatorTier    = getStatusTier(creatorPhone.status||0);
 
       // Followers gained by creator — scales with shoutout power
-      const followersGained = Math.floor(tier.fanCount * (0.03 + Math.random() * 0.05));
+      const actualFans      = Math.max(phone.followers||0, tier.fanCount); // use actual if higher
+      const followersGained = Math.floor(actualFans * (0.03 + Math.random() * 0.05));
       // Hype gained
       const hypeGained      = Math.floor(totalPower * 2000 * (0.7 + Math.random() * 0.6));
       // Status boost
@@ -560,13 +562,13 @@ module.exports = {
       creator.send({ embeds:[new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle('📣 You Just Got Bigged Up!')
-        .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted you out!\n\n${message ? `*"${message}"*\n\n` : ''}+**${followersGained.toLocaleString()}** followers · +**${hypeGained.toLocaleString()}** hype · +**${statusGained.toLocaleString()}** status${tieredUp ? `\n\n🎊 **STATUS UP → ${newCreatorTier.label}!**` : ''}${artistTierUp ? `\n🎵 **ARTIST TIER UP → ${artistTierLabel}!**` : ''}`)
+        .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(phone.followers||tier.fanCount)} fans) shouted you out!\n\n${message ? `*"${message}"*\n\n` : ''}+**${followersGained.toLocaleString()}** followers · +**${hypeGained.toLocaleString()}** hype · +**${statusGained.toLocaleString()}** status${tieredUp ? `\n\n🎊 **STATUS UP → ${newCreatorTier.label}!**` : ''}${artistTierUp ? `\n🎵 **ARTIST TIER UP → ${artistTierLabel}!**` : ''}`)
       ]}).catch(()=>{});
 
       return interaction.editReply({ embeds:[new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle(`📣 Bigged Up — <@${creator.id}>`)
-        .setDescription(`${message ? `*"${message}"*\n\n` : ''}Your **${fmtNum(tier.fanCount)} fans** just discovered **${creator.username}**.${tieredUp ? `\n\n🎊 They hit **${newCreatorTier.label}**!` : ''}${artistTierUp ? `\n🎵 Artist tier up: **${artistTierLabel}**!` : ''}`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}Your **${fmtNum(phone.followers||tier.fanCount)} fans** just discovered **${creator.username}**.${tieredUp ? `\n\n🎊 They hit **${newCreatorTier.label}**!` : ''}${artistTierUp ? `\n🎵 Artist tier up: **${artistTierLabel}**!` : ''}`)
         .addFields(
           { name:'👥 Followers Given',  value:`+${followersGained.toLocaleString()}`, inline:true },
           { name:'✨ Hype Given',       value:`+${hypeGained.toLocaleString()}`,       inline:true },
@@ -624,7 +626,8 @@ module.exports = {
       const priceMult  = 1 - crashPct;
 
       // Fan panic selling — fans dump the coin
-      const panicSellers   = Math.floor(tier.fanCount * (0.06 + Math.random() * 0.08));
+      const actualFans3    = Math.max(phone.followers||0, tier.fanCount);
+      const panicSellers   = Math.floor(actualFans3 * (0.06 + Math.random() * 0.08));
       const avgDump        = Math.floor((100 + totalPower * 60) * (0.5 + Math.random() * 0.5));
       const totalDumpVolume= panicSellers * avgDump;
 
@@ -667,14 +670,14 @@ module.exports = {
         interaction.client.users.fetch(coin.ownerId).then(u => u.send({ embeds:[new EmbedBuilder()
           .setColor(0xff3b3b)
           .setTitle('💀 Your Coin Got HATED On!')
-          .setDescription(`**${interaction.user.username}** (👑 Cultural Icon — ${fmtNum(tier.fanCount)} fans) publicly trashed **${coin.emoji||''} ${coin.name}**!\n\n📉 Price crashed **-${Math.round(crashPct*100)}%** ($${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)})\n🔥 Hype destroyed: -${hypeDestroyed.toLocaleString()}\n😱 ${fmtNum(panicSellers)} fans panic dumped`)
+          .setDescription(`**${interaction.user.username}** (👑 Cultural Icon — ${fmtNum(phone.followers||tier.fanCount)} fans) publicly trashed **${coin.emoji||''} ${coin.name}**!\n\n📉 Price crashed **-${Math.round(crashPct*100)}%** ($${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)})\n🔥 Hype destroyed: -${hypeDestroyed.toLocaleString()}\n😱 ${fmtNum(panicSellers)} fans panic dumped`)
         ]}).catch(()=>{})).catch(()=>{});
       }
 
       return interaction.editReply({ embeds:[new EmbedBuilder()
         .setColor(0xff3b3b)
         .setTitle(`💀 HATE POST — ${coin.emoji||'🪙'} ${coin.name} IS COOKED`)
-        .setDescription(`${message ? `*"${message}"*\n\n` : ''}👑 Your **${fmtNum(tier.fanCount)} fans** are dumping **${coin.name}** immediately.`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}👑 Your **${fmtNum(phone.followers||tier.fanCount)} fans** are dumping **${coin.name}** immediately.`)
         .addFields(
           { name:'📉 Price Crash',       value:`-${Math.round(crashPct*100)}% ($${oldPrice.toFixed(4)} → $${newPrice.toFixed(4)})`, inline:false },
           { name:'😱 Panic Sellers',     value:fmtNum(panicSellers),                   inline:true },

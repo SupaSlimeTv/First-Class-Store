@@ -860,15 +860,15 @@ app.post('/api/:guildId/users/:id/illuminati-rank', requireGuildAuth, async (req
 // ── ILLUMINATI DASHBOARD ──────────────────────────────────────
 app.get('/api/:guildId/illuminati', requireGuildAuth, async (req, res) => {
   try {
-    // Try in-memory cache first, fall back to MongoDB directly
-    let org = illuminatiDb.getIlluminati(req.guildId);
-    if (!org) {
-      const c = await col('illuminati');
-      const doc = await c.findOne({ _id: req.guildId });
-      if (doc) { const { _id, ...data } = doc; org = data; }
-    }
+    // Always query MongoDB directly — cache is unreliable across processes
+    const c   = await col('illuminati');
+    const doc = await c.findOne({ _id: req.guildId });
+    let org = null;
+    if (doc) { const d = {...doc}; delete d._id; org = d; }
+    // Also update local cache so excommunicate works
+    if (org) illuminatiDb._illuminati && (illuminatiDb._illuminati[req.guildId] = org);
     res.json({ org: org || null });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  } catch(e) { console.error('illuminati endpoint error:', e.message); res.status(500).json({ error:e.message }); }
 });
 
 app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req, res) => {
@@ -888,17 +888,11 @@ app.get('/api/:guildId/credit-scores', requireGuildAuth, async (req, res) => {
     const { getCreditTier } = creditDb;
     const filterTier = req.query.filter || 'all';
 
-    // Pull fresh from MongoDB — always current
+    // Always pull from MongoDB — never rely on cache
     const creditCol = await col('credit');
-    const allDocs   = await creditCol.find({}).toArray();
-
-    // Get guild member IDs — if fetchAllMembers fails, show ALL credit profiles
-    let memberIds = new Set();
-    try {
-      const members = await fetchAllMembers(req.guildId);
-      memberIds = new Set((members||[]).map(m=>m.user?.id).filter(Boolean));
-    } catch {}
-    const useFilter = memberIds.size > 0;
+    const allDocs   = await creditCol.find({ ssn: { $exists: true } }).toArray();
+    // Show all profiles — no member filter (dashboard shows all accounts)
+    const useFilter = false;
 
     let profiles = allDocs
       .filter(p => !useFilter || memberIds.has(p._id))
