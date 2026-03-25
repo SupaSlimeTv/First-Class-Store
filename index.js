@@ -2163,8 +2163,21 @@ client.on('interactionCreate', async interaction => {
   // Claimed — remove immediately to prevent double-claims
   activeDrops.delete(interaction.channelId);
 
-  const { getOrCreateUser, saveUser, setGuildContext } = require('./utils/db');
+  const { getOrCreateUser, saveUser, setGuildContext, hasAccount, openAccount } = require('./utils/db');
   setGuildContext(interaction.guildId);
+
+  // Auto-open account if they don't have one yet
+  let isNewAccount = false;
+  if (!hasAccount(interaction.user.id)) {
+    openAccount(interaction.user.id);
+    // Also create their credit/SSN profile
+    try {
+      const { getOrCreateCredit } = require('./utils/creditDb');
+      await getOrCreateCredit(interaction.user.id);
+    } catch {}
+    isNewAccount = true;
+  }
+
   const user = getOrCreateUser(interaction.user.id);
   user.wallet += drop.amount;
   saveUser(interaction.user.id, user);
@@ -2172,11 +2185,15 @@ client.on('interactionCreate', async interaction => {
   const tier = dropTier(drop.amount);
   const { EmbedBuilder } = require('discord.js');
 
+  const newAccountLine = isNewAccount
+    ? `\n\n🆕 **Account automatically created!** Welcome to First Class Store.\nYour SSN and credit profile are ready — use \`!balance\` to check your wallet.`
+    : '';
+
   await interaction.update({
     embeds: [new EmbedBuilder()
       .setColor(tier.color)
       .setTitle(`${tier.emoji} Claimed by ${interaction.user.username}!`)
-      .setDescription(`<@${interaction.user.id}> snatched up **$${drop.amount.toLocaleString()}**!\n\n💵 New wallet: **$${user.wallet.toLocaleString()}**`)
+      .setDescription(`<@${interaction.user.id}> snatched up **$${drop.amount.toLocaleString()}**!\n\n💵 New wallet: **$${user.wallet.toLocaleString()}**${newAccountLine}`)
       .setTimestamp()
     ],
     components: [],
