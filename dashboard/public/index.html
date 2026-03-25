@@ -38,7 +38,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:16px;position:relative;overflow:hidden}
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent)}
 .stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px}
-.stat-val{font-size:26px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.stat-val{font-size:clamp(13px,2.2vw,26px);font-weight:700;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .c-gold{color:var(--gold)}.c-green{color:var(--green)}.c-red{color:var(--accent)}.c-blue{color:var(--blue)}
 .purge-panel{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;transition:all .3s}
 .purge-panel.on{border-color:rgba(255,59,59,.4);box-shadow:0 0 30px rgba(255,59,59,.15)}
@@ -2358,7 +2358,7 @@ function renderStats(){
   const s=S.stats;
   document.getElementById('s-members').textContent=s.totalMembers??'—';
   document.getElementById('s-users').textContent=s.totalUsers??'—';
-  document.getElementById('s-money').textContent=s.totalMoney!=null?'$'+formatNum(s.totalMoney):'—';
+  const smEl=document.getElementById('s-money'); smEl.textContent=s.totalMoney!=null?fmtStat(s.totalMoney):'—'; smEl.title=s.totalMoney!=null?'$'+Math.round(s.totalMoney).toLocaleString():'';
   document.getElementById('s-items').textContent=s.storeItems??'—';
   document.getElementById('s-warns').textContent=s.totalWarnings??'—';
   const pe=document.getElementById('s-purge');
@@ -3206,11 +3206,25 @@ async function saveShotTimeout(){
 // ════════════════════════════════════════════════
 function formatNum(n) {
   if (n == null) return '—';
-  if (n >= 1e12) return (n / 1e12).toFixed(n % 1e12 === 0 ? 0 : 1) + 'T';
-  if (n >= 1e9)  return (n / 1e9).toFixed(n % 1e9  === 0 ? 0 : 1) + 'B';
-  if (n >= 1e6)  return (n / 1e6).toFixed(n % 1e6  === 0 ? 0 : 1) + 'M';
-  if (n >= 1e3)  return (n / 1e3).toFixed(n % 1e3  === 0 ? 0 : 1) + 'K';
-  return n.toLocaleString();
+  const a = Math.abs(n), s = n < 0 ? '-' : '';
+  if (a >= 1e15) return s + (a/1e15).toFixed(2) + 'Q';
+  if (a >= 1e12) return s + (a/1e12).toFixed(2) + 'T';
+  if (a >= 1e9)  return s + (a/1e9).toFixed(2)  + 'B';
+  if (a >= 1e6)  return s + (a/1e6).toFixed(2)  + 'M';
+  if (a >= 1e3)  return s + Math.round(a).toLocaleString();
+  return s + Math.round(a).toLocaleString();
+}
+
+// Smart money display with $ prefix and auto-abbreviation
+function fmtStat(n) {
+  if (n == null) return '—';
+  const a = Math.abs(n), s = n < 0 ? '-' : '';
+  if (a >= 1e15) return s + '$' + (a/1e15).toFixed(2) + 'Q';
+  if (a >= 1e12) return s + '$' + (a/1e12).toFixed(2) + 'T';
+  if (a >= 1e9)  return s + '$' + (a/1e9).toFixed(2)  + 'B';
+  if (a >= 1e6)  return s + '$' + (a/1e6).toFixed(2)  + 'M';
+  if (a >= 1e3)  return s + '$' + Math.round(a).toLocaleString();
+  return s + '$' + Math.round(a).toLocaleString();
 }
 
 // ════════════════════════════════════════════════
