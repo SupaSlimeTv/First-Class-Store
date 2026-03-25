@@ -529,10 +529,24 @@ module.exports = {
       // Status boost
       const statusGained    = Math.floor(totalPower * 50 * (0.8 + Math.random() * 0.4));
 
-      // Update creator's phone
+      // Update creator's phone — boost influencer/creator stats AND artist career
       creatorPhone.followers = (creatorPhone.followers||0) + followersGained;
       creatorPhone.hype      = (creatorPhone.hype||0) + hypeGained;
       creatorPhone.status    = (creatorPhone.status||0) + statusGained;
+
+      // If the target is an artist, also boost their artist career fame
+      let artistTierUp = false;
+      let artistTierLabel = null;
+      if (creatorPhone.artistCareer) {
+        const famBoost = Math.floor(totalPower * 500 * (0.8 + Math.random() * 0.4));
+        creatorPhone.artistCareer.fame = (creatorPhone.artistCareer.fame||0) + famBoost;
+        const newArtistTier = getArtistTier(creatorPhone.artistCareer.fame);
+        if (newArtistTier.id !== creatorPhone.artistCareer.tier) {
+          artistTierUp = true;
+          artistTierLabel = newArtistTier.label;
+        }
+        creatorPhone.artistCareer.tier = newArtistTier.id;
+      }
       await savePhone(creator.id, creatorPhone);
 
       // Update shoutout's phone cooldown
@@ -546,18 +560,19 @@ module.exports = {
       creator.send({ embeds:[new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle('📣 You Just Got Bigged Up!')
-        .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted you out!\n\n${message ? `*"${message}"*\n\n` : ''}+**${followersGained.toLocaleString()}** followers · +**${hypeGained.toLocaleString()}** hype · +**${statusGained.toLocaleString()}** status${tieredUp ? `\n\n🎊 **STATUS UP → ${newCreatorTier.label}!**` : ''}`)
+        .setDescription(`**${interaction.user.username}** (${tier.label} — ${fmtNum(tier.fanCount)} fans) shouted you out!\n\n${message ? `*"${message}"*\n\n` : ''}+**${followersGained.toLocaleString()}** followers · +**${hypeGained.toLocaleString()}** hype · +**${statusGained.toLocaleString()}** status${tieredUp ? `\n\n🎊 **STATUS UP → ${newCreatorTier.label}!**` : ''}${artistTierUp ? `\n🎵 **ARTIST TIER UP → ${artistTierLabel}!**` : ''}`)
       ]}).catch(()=>{});
 
       return interaction.editReply({ embeds:[new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle(`📣 Bigged Up — <@${creator.id}>`)
-        .setDescription(`${message ? `*"${message}"*\n\n` : ''}Your **${fmtNum(tier.fanCount)} fans** just discovered **${creator.username}**.${tieredUp ? `\n\n🎊 They hit **${newCreatorTier.label}**!` : ''}`)
+        .setDescription(`${message ? `*"${message}"*\n\n` : ''}Your **${fmtNum(tier.fanCount)} fans** just discovered **${creator.username}**.${tieredUp ? `\n\n🎊 They hit **${newCreatorTier.label}**!` : ''}${artistTierUp ? `\n🎵 Artist tier up: **${artistTierLabel}**!` : ''}`)
         .addFields(
           { name:'👥 Followers Given',  value:`+${followersGained.toLocaleString()}`, inline:true },
           { name:'✨ Hype Given',       value:`+${hypeGained.toLocaleString()}`,       inline:true },
           { name:'🏆 Status Given',    value:`+${statusGained.toLocaleString()}`,     inline:true },
           { name:'📣 Your Power',       value:`${totalPower.toFixed(1)}×`,             inline:true },
+          ...(creatorPhone.artistCareer ? [{ name:'🎵 Artist Fame',  value:`+${Math.floor(totalPower * 500).toLocaleString()}`, inline:true }] : []),
         )
         .setFooter({ text:`${tier.label} · 1hr cooldown per creator` })
       ]});
