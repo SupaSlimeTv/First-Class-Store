@@ -27,6 +27,8 @@ const DEFAULT_CONFIG = {
   protectedRoles: [], purgeChannelId: null, shotTimeoutMinutes: 5,
   prisonRoleId: null, prisonChannelId: null, prisonCategoryId: null, solitaryRoleId: null,
   lottery: { active: true, ticketPrice: 100, intervalHours: 24 },
+  newsChannelId: null,
+  newsEnabled: false,
 };
 
 const DEFAULT_STORE = {
@@ -69,6 +71,7 @@ function getUser(userId)           { return _users[userId] || null; }
 function getOrCreateUser(userId)   { if (!_users[userId]) _users[userId] = { ...DEFAULT_USER }; return _users[userId]; }
 function hasAccount(userId)        { return !!_users[userId]; }
 function getAllUsers()              { return { ..._users }; }
+function getAllConfigs()             { return { ..._config }; }
 
 function openAccount(userId) {
   if (_users[userId]) return false;
@@ -145,7 +148,7 @@ function isBotBanned(userId) {
 
 module.exports = {
   preloadCache, setGuildContext, getGuildContext,
-  getUser, getOrCreateUser, openAccount, hasAccount, saveUser, getAllUsers, saveAllUsers,
+  getUser, getOrCreateUser, openAccount, hasAccount, saveUser, getAllUsers, saveAllUsers, getAllConfigs,
   getConfig, saveConfig,
   getStore, saveStore,
   addToWallet, deposit, withdraw, isPurgeActive,

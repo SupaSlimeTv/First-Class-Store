@@ -2546,13 +2546,54 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
   const { customId } = interaction;
   if (!customId.startsWith('illum_accept_') && !customId.startsWith('illum_decline_') &&
-      !customId.startsWith('illum_pay_tribute_') && !customId.startsWith('illum_refuse_tribute_')) return;
+      !customId.startsWith('illum_pay_tribute_') && !customId.startsWith('illum_refuse_tribute_') &&
+      !customId.startsWith('illum_soul_') && !customId.startsWith('illum_soul_decline_')) return;
 
   const { EmbedBuilder } = require('discord.js');
   const { getOrCreateIlluminati, saveIlluminati, isMember, INITIATION_FEE, RANKS } = require('./utils/illuminatiDb');
   const { getOrCreateUser, saveUser } = require('./utils/db');
   const { _pendingInvites } = require('./commands/economy/illuminati');
   const userId = interaction.user.id;
+
+  // ── SOUL SELL ACCEPT ──────────────────────────────────────
+  if (customId.startsWith('illum_soul_') && !customId.startsWith('illum_soul_decline_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[2];
+    const srcId   = parts[3]; // who initiated (same as userId for sell soul)
+
+    const user = getOrCreateUser(userId);
+    if (user.wallet < INITIATION_FEE) return interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0xff3b3b).setDescription(`You need **$${INITIATION_FEE.toLocaleString()}** to seal the deal. You have **$${user.wallet.toLocaleString()}**.`)
+    ], components:[] });
+
+    user.wallet -= INITIATION_FEE;
+    saveUser(userId, user);
+
+    const org = getOrCreateIlluminati(guildId);
+    org.members.push({
+      userId, rank:'initiate', joinedAt:Date.now(), contribution:INITIATION_FEE,
+      guildId, soulSold:true, // marked as soul-sold — full control
+    });
+    org.vault += INITIATION_FEE;
+    await saveIlluminati(guildId, org);
+
+    // Log operation
+    if (!org.operations) org.operations = [];
+    org.operations.push({ type:'soul_sold', by:userId, at:Date.now() });
+    await saveIlluminati(guildId, org);
+
+    return interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0x1a1a2e)
+      .setTitle('🖤 Your Soul Belongs to the Illuminati')
+      .setDescription(`The deal is sealed. **$${INITIATION_FEE.toLocaleString()}** has been taken.\n\nYour rank: **🔺 Initiate**\n\n*You are now property of the order. They control everything.*\n\nUse \`/illuminati status\` to see your standing.`)
+    ], components:[] });
+  }
+
+  if (customId.startsWith('illum_soul_decline_')) {
+    return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888)
+      .setDescription('You walked away. The door closes.')
+    ], components:[] });
+  }
 
   if (customId.startsWith('illum_accept_')) {
     const parts   = customId.split('_');
@@ -2569,7 +2610,7 @@ client.on('interactionCreate', async interaction => {
     delete _pendingInvites[invKey];
 
     const org = getOrCreateIlluminati(guildId);
-    org.members.push({ userId, rank:'initiate', joinedAt:Date.now(), contribution:INITIATION_FEE, guildId });
+    org.members.push({ userId, rank:'initiate', joinedAt:Date.now(), contribution:INITIATION_FEE, guildId, soulSold:false });
     org.vault += INITIATION_FEE;
     await saveIlluminati(guildId, org);
 
@@ -2940,7 +2981,15 @@ setInterval(async () => {
     const pending = await nc.find({ sent: false }).limit(20).toArray();
     for (const n of pending) {
       try {
-        if (n.type === 'data_leak_victim') {
+        if (n.type === 'news_feed') {
+          const { generateNewsFeed } = require('./utils/newsFeed');
+          const config = require('./utils/db').getConfig(n.guildId);
+          const channel = config.newsChannelId ? await client.channels.fetch(config.newsChannelId).catch(()=>null) : null;
+          if (channel) {
+            const embed = await generateNewsFeed(client, n.guildId, config);
+            if (embed) await channel.send({ embeds:[embed] });
+          }
+        } else if (n.type === 'data_leak_victim') {
           const user = await client.users.fetch(n.userId).catch(() => null);
           if (user) {
             await user.send({ embeds:[new (require('discord.js').EmbedBuilder)()
@@ -2961,6 +3010,29 @@ Freeze your credit immediately: \`/credit freeze\`
     }
   } catch {}
 }, 30 * 1000);
+
+
+// ── NEWS FEED TICK (every 24 hrs) ────────────────────────────
+const _lastNewsFeed = {};
+setInterval(async () => {
+  try {
+    const { generateNewsFeed } = require('./utils/newsFeed');
+    const { getAllConfigs } = require('./utils/db');
+    const configs = getAllConfigs ? getAllConfigs() : {};
+    for (const [guildId, config] of Object.entries(configs)) {
+      if (!config.newsEnabled || !config.newsChannelId) continue;
+      const last = _lastNewsFeed[guildId] || 0;
+      if (Date.now() - last < 23 * 60 * 60 * 1000) continue; // 23hr minimum
+      const channel = await client.channels.fetch(config.newsChannelId).catch(() => null);
+      if (!channel) continue;
+      const embed = await generateNewsFeed(client, guildId, config);
+      if (embed) {
+        await channel.send({ embeds: [embed] });
+        _lastNewsFeed[guildId] = Date.now();
+      }
+    }
+  } catch(e) { console.error('news tick error:', e.message); }
+}, 60 * 60 * 1000); // check every hour
 
 // ── LABEL REVENUE TICK (every 15 min) ────────────────────────
 setInterval(async () => {

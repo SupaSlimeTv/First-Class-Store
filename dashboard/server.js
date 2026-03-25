@@ -882,6 +882,30 @@ app.post('/api/:guildId/illuminati/excommunicate', requireGuildAuth, async (req,
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
+// ── NEWS FEED CONFIG ─────────────────────────────────────────
+app.get('/api/:guildId/news/config', requireGuildAuth, (req, res) => {
+  const config = db.getConfig(req.guildId);
+  res.json({ newsEnabled: !!config.newsEnabled, newsChannelId: config.newsChannelId || null });
+});
+app.post('/api/:guildId/news/config', requireGuildAuth, async (req, res) => {
+  const config = db.getConfig(req.guildId);
+  config.newsEnabled   = !!req.body.enabled;
+  config.newsChannelId = req.body.channelId || null;
+  db.saveConfig(req.guildId, config);
+  res.json({ success: true });
+});
+app.post('/api/:guildId/news/trigger', requireGuildAuth, async (req, res) => {
+  try {
+    const { generateNewsFeed } = require('../utils/newsFeed');
+    const config = db.getConfig(req.guildId);
+    if (!config.newsChannelId) return res.status(400).json({ error: 'No news channel set.' });
+    // We can't send directly from dashboard process (no bot client), write a pending notification
+    const notifCol = await col('pendingNotifications');
+    await notifCol.insertOne({ type: 'news_feed', guildId: req.guildId, createdAt: Date.now(), sent: false });
+    res.json({ success: true, message: 'News feed queued — will post within 1 minute.' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── CREDIT SCORES DASHBOARD ───────────────────────────────────
 app.get('/api/:guildId/credit-scores', requireGuildAuth, async (req, res) => {
   try {
@@ -1536,13 +1560,14 @@ app.post('/api/:guildId/config/jail', requireGuildAuth, (req, res) => {
 // ── INFLUENCER DASHBOARD ──────────────────────────────────────
 app.get('/api/:guildId/influencers', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllPhones, getStatusTier, PHONE_TYPES } = require('../utils/phoneDb');
-    const all     = getAllPhones();
-    const members = await fetchAllMembers(req.guildId);
-    const memberIds = new Set((members||[]).map(m => m.user?.id).filter(Boolean));
+    const { getStatusTier } = require('../utils/phoneDb');
+    // Always pull fresh from MongoDB — cache unreliable across processes
+    const phoneCol = await col('phones');
+    const phoneDocs = await phoneCol.find({ status: { $gt: 0 } }).toArray();
+    const all = Object.fromEntries(phoneDocs.map(d => { const {_id,...o}=d; return [_id,o]; }));
 
     const list = Object.entries(all)
-      .filter(([id]) => memberIds.has(id))
+      .filter(([,p]) => (p.status||0) > 0) // any phone activity
       .map(([id, p]) => {
         const tier = getStatusTier(p.status||0);
         return {
