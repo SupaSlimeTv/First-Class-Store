@@ -49,8 +49,8 @@ module.exports = {
     // What each app needs shown inline so user knows what to fill in
     const NEEDS = {
       ssn_scanner:    'needs: target:@user',
-      credit_cracker: 'needs: target:@user (SSN required first)',
-      card_drainer:   'needs: target:@user (SSN required first)',
+      credit_cracker: 'needs: ssn:<paste-stolen-ssn> (from /tor buy)',
+      card_drainer:   'needs: ssn:<paste-stolen-ssn> (from /tor buy)',
       biz_intrude:    'needs: routing:<number> + action:',
       bank_mirror:    'needs: routing:<number>',
       stalker_app:    'needs: target:@user',
@@ -294,47 +294,89 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
 
       // ── CREDIT CRACKER ────────────────────────────────────
       if (appId === 'credit_cracker') {
-        if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target.')], components:[] });
-        const hc = await getOrCreateCredit(userId);
-        if (!hc.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`No SSN on file for <@${target.id}>. Run SSN Scanner first.`)], components:[] });
-        const vc = await getOrCreateCredit(target.id);
-        if (vc.frozen) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target has credit freeze active.')], components:[] });
-        const tier   = getCreditTier(vc.score);
-        if (!tier.card) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target score too low for a card.')], components:[] });
-        if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('💻 Crack Failed').setDescription(`Couldn't bypass security. (${successRate}% chance)`)], components:[] });
+        const ssnInput = interaction.options.getString('ssn');
+        let victimId = null;
+        // Path 1: ssn: field — look up who owns this SSN (from /tor buy)
+        if (ssnInput) {
+          try {
+            const { col: _mCol } = require('../../utils/mongo');
+            const _cc = await _mCol('credit');
+            const _doc = await _cc.findOne({ ssn: ssnInput.trim() });
+            if (_doc) victimId = _doc._id;
+          } catch {}
+          if (!victimId) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('SSN `' + ssnInput + '` not found. Check you copied it correctly from /tor buy.')
+          ], components:[] });
+        // Path 2: target: field — use SSN already scanned from that user
+        } else if (target) {
+          const hc = await getOrCreateCredit(userId);
+          if (!hc.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('No SSN on file for that user. Either scan them with SSN Scanner first, or paste their SSN from /tor buy into the ssn: field.')
+          ], components:[] });
+          victimId = target.id;
+        } else {
+          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('Provide one of:\n**ssn:** — paste a stolen SSN you bought from /tor market\n**target:** — a user whose SSN you already scanned with SSN Scanner')
+          ], components:[] });
+        }
+        const vc = await getOrCreateCredit(victimId);
+        if (vc.frozen) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target has a credit freeze active.')], components:[] });
+        const tier = getCreditTier(vc.score);
+        if (!tier.card) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target score too low for a card (580+ required).')], components:[] });
+        if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('💻 Crack Failed').setDescription('Security blocked the attempt. (' + successRate + '% chance)')], components:[] });
 
-        const tv   = getOrCreateUser(target.id);
+        const tv   = getOrCreateUser(victimId);
         const limit= Math.floor((tv.bank||0)*(tier.limitPct||0.2)*0.5);
         const amt  = Math.floor(limit*(0.5+Math.random()*0.5));
         user.wallet += amt;
         vc.balance   = (vc.balance||0)+amt;
         if (!vc.card) { vc.card=tier.card; vc.limit=limit; }
-        await adjustScore(target.id, -45, 'Fraud via Credit Cracker');
+        await adjustScore(victimId, -45, 'Fraud via Credit Cracker');
         saveUser(userId, user);
-        await saveCredit(target.id, vc);
+        await saveCredit(victimId, vc);
         try { const { addHeat } = require('../../utils/gangDb'); await addHeat(userId, 35, 'credit fraud'); } catch {}
-        void (async () => { try { await target.send({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('\u{1F6A8} Fraud Alert').setDescription('Fraudulent card opened on your SSN. $' + amt.toLocaleString() + ' charged. Score -45. Freeze your credit!')] }); } catch(e){} })()
-        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xf5c518).setTitle('💳 Fraud Successful').setDescription(`Opened ${tier.card} on <@${target.id}>'s SSN.\n\n💰 Stolen: **${fmtMoney(amt)}** → wallet\nScore hit: **-45**`)], components:[] });
+        try { const vu = await interaction.client.users.fetch(victimId); await vu.send({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('Fraud Alert').setDescription('A fraudulent card was opened on your SSN. $' + amt.toLocaleString() + ' charged. Score -45. Freeze with /credit freeze!')] }); } catch {}
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xf5c518).setTitle('💳 Fraud Successful').setDescription('Opened **' + tier.card + '** on the stolen SSN.\n\nVictim: <@' + victimId + '>\nStolen: **' + fmtMoney(amt) + '** added to your wallet\nScore hit: **-45**')], components:[] });
       }
 
       // ── CARD DRAINER ──────────────────────────────────────
       if (appId === 'card_drainer') {
-        if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target.')], components:[] });
-        const hc = await getOrCreateCredit(userId);
-        if (!hc.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No SSN on file. Run SSN Scanner first.')], components:[] });
-        const vc = await getOrCreateCredit(target.id);
-        if (!vc.card) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target has no card to drain.')], components:[] });
-        if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('💻 Drain Failed').setDescription(`Card drain blocked. (${successRate}% chance)`)], components:[] });
+        const ssnInput2 = interaction.options.getString('ssn');
+        let victimId2 = null;
+        if (ssnInput2) {
+          try {
+            const { col: _mCol2 } = require('../../utils/mongo');
+            const _cc2 = await _mCol2('credit');
+            const _doc2 = await _cc2.findOne({ ssn: ssnInput2.trim() });
+            if (_doc2) victimId2 = _doc2._id;
+          } catch {}
+          if (!victimId2) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('SSN `' + ssnInput2 + '` not found. Check you copied it correctly.')
+          ], components:[] });
+        } else if (target) {
+          const hc2 = await getOrCreateCredit(userId);
+          if (!hc2.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('No SSN on file for that user. Paste the stolen SSN into the ssn: field instead.')
+          ], components:[] });
+          victimId2 = target.id;
+        } else {
+          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('Provide **ssn:** (paste stolen SSN from /tor buy) or **target:** (user you already scanned).')
+          ], components:[] });
+        }
+        const vc2 = await getOrCreateCredit(victimId2);
+        if (!vc2.card) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No card linked to that SSN. Use Credit Cracker to open one first.')], components:[] });
+        if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('💻 Drain Failed').setDescription('Card drain blocked. (' + successRate + '% chance)')], components:[] });
 
-        const avail  = (vc.limit||0)-(vc.balance||0);
-        if (avail < 100) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Card already maxed.')], components:[] });
+        const avail = (vc2.limit||0)-(vc2.balance||0);
+        if (avail < 100) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Card already maxed out.')], components:[] });
         user.wallet += avail;
-        vc.balance  += avail;
-        await adjustScore(target.id, -25, 'Card drained');
+        vc2.balance += avail;
+        await adjustScore(victimId2, -25, 'Card drained');
         saveUser(userId, user);
-        await saveCredit(target.id, vc);
-        target.send({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('Card Maxed').setDescription('Card remotely drained. $' + avail.toLocaleString() + ' taken. Score -25.')] }).catch(e => null)
-        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xf5c518).setTitle('💸 Card Drained').setDescription(`Drained **${fmtMoney(avail)}** from <@${target.id}>'s card. Score hit: **-25**`)], components:[] });
+        await saveCredit(victimId2, vc2);
+        try { const vu2 = await interaction.client.users.fetch(victimId2); await vu2.send({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('Card Drained').setDescription('Your card was remotely drained. $' + avail.toLocaleString() + ' stolen. Score -25.')] }); } catch {}
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xf5c518).setTitle('💸 Card Drained').setDescription('Drained **' + fmtMoney(avail) + '** from the card.\n\nVictim: <@' + victimId2 + '>\nScore hit: **-25**')], components:[] });
       }
 
       // ── BIZ INTRUDER ──────────────────────────────────────
