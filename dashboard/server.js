@@ -967,10 +967,14 @@ app.post('/api/:guildId/store/create-apps', requireGuildAuth, async (req, res) =
 // ── TOR DASHBOARD ─────────────────────────────────────────────
 app.get('/api/:guildId/tor', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllListings, getActiveListings } = torDb;
-    const config   = db.getConfig(req.guildId);
-    const all      = Object.values(getAllListings());
-    const now      = Date.now();
+    const config = db.getConfig(req.guildId);
+    const now    = Date.now();
+
+    // Always pull fresh from MongoDB — cache unreliable across processes
+    const listingsCol = await col('torListings');
+    const allDocs     = await listingsCol.find({}).toArray();
+    const all         = allDocs.map(d => { const {_id,...o} = d; return o; });
+
     const volume   = all.reduce((s,l) => s+(l.price||0), 0);
     const enriched = all.map(l => {
       if (l.isLeak) {
@@ -1051,8 +1055,10 @@ app.post('/api/:guildId/tor/trigger-leak', requireGuildAuth, async (req, res) =>
 
 app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) => {
   try {
-    const { getAllListings, saveListing } = torDb;
-    const all = getAllListings();
+    // Pull fresh from MongoDB
+    const _lc2 = await col('torListings');
+    const _ld2 = await _lc2.find({}).toArray();
+    const all  = _ld2;
     const now = Date.now();
     let cleared = 0;
     for (const [id, l] of Object.entries(all)) {
@@ -1068,8 +1074,9 @@ app.post('/api/:guildId/tor/clear-expired', requireGuildAuth, async (req, res) =
 
 app.delete('/api/:guildId/tor/listing/:id', requireGuildAuth, async (req, res) => {
   try {
-    const { getListing, saveListing } = torDb;
-    const listing = getListing(req.params.id);
+    const _lc3   = await col('torListings');
+    const _ld3   = await _lc3.findOne({ _id: req.params.id });
+    const listing = _ld3 ? (({_id,...o}) => o)(_ld3) : null;
     if (!listing) return res.status(404).json({ error:'Not found.' });
     listing.sold = true; listing.removedByAdmin = true;
     await saveListing(req.params.id, listing);
