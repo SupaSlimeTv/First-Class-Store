@@ -4103,6 +4103,14 @@ async function resolveNames(ids) {
 
 function resolveName(id) { return _nameCache[id] || id; }
 
+// Async single-user resolver — pre-fetches if not in cache
+async function resolveUser(id) {
+  if (!id) return '?';
+  if (_nameCache[id] && _nameCache[id] !== id) return _nameCache[id];
+  await resolveNames([id]);
+  return _nameCache[id] || id;
+}
+
 // ════════════════════════════════════════════════
 // AUDIT LOG
 // ════════════════════════════════════════════════
@@ -5803,18 +5811,39 @@ async function loadLaptopApps() {
 // TOR MARKET DASHBOARD
 // ════════════════════════════════════════════════
 async function loadTorListings() {
-  const data     = await api('GET', `/api/${GUILD}/tor`).catch(() => ({ listings:[], config:{} }));
+  const leaksTbody = document.getElementById('tor-leaks-tbody');
+  const tbody       = document.getElementById('tor-tbody');
+  if (leaksTbody) leaksTbody.innerHTML = '<tr><td colspan="8" class="empty-cell" style="color:var(--muted)">Loading...</td></tr>';
+  if (tbody)       tbody.innerHTML      = '<tr><td colspan="7" class="empty-cell" style="color:var(--muted)">Loading...</td></tr>';
+
+  let data = {};
+  try { data = await api('GET', `/api/${GUILD}/tor`); } catch(e) {
+    if (leaksTbody) leaksTbody.innerHTML = '<tr><td colspan="8" class="empty-cell" style="color:var(--accent)">Error loading — try refreshing.</td></tr>';
+    return;
+  }
+
   const listings = data.listings || [];
   const config   = data.config   || {};
   const now      = Date.now();
 
+  // Declare userListings BEFORE using it
+  const filterVal   = document.getElementById('tor-filter')?.value || 'all';
+  let userListings  = listings.filter(l => !l.isLeak);
+  if (filterVal === 'active') userListings = userListings.filter(l => !l.sold && (l.expiresAt||0) > now);
+  if (filterVal === 'sold')   userListings = userListings.filter(l => l.sold);
+
   const active = listings.filter(l => !l.sold && (l.expiresAt||0) > now);
   const leaks  = active.filter(l => l.isLeak);
 
-  document.getElementById('tor-active').textContent = active.length;
-  document.getElementById('tor-leaks').textContent  = leaks.length;
-  document.getElementById('tor-total').textContent  = listings.filter(l => l.sold).length;
-  document.getElementById('tor-volume').textContent = '$' + listings.reduce((s,l) => s+(l.price||0), 0).toLocaleString();
+  // Update stat cards
+  const torActive = document.getElementById('tor-active');
+  const torLeaks  = document.getElementById('tor-leaks');
+  const torTotal  = document.getElementById('tor-total');
+  const torVol    = document.getElementById('tor-volume');
+  if (torActive) torActive.textContent = active.length;
+  if (torLeaks)  torLeaks.textContent  = leaks.length;
+  if (torTotal)  torTotal.textContent  = listings.filter(l => l.sold).length;
+  if (torVol)    torVol.textContent    = '$' + listings.reduce((s,l) => s+(l.price||0), 0).toLocaleString();
 
   const maxEl = document.getElementById('tor-max-leaks');
   const intEl = document.getElementById('tor-leak-interval');
@@ -5826,13 +5855,21 @@ async function loadTorListings() {
   const statusEl = document.getElementById('tor-config-status');
   if (statusEl) statusEl.textContent = `Max ${config.maxLeaks||5} leaks · every ${config.leakInterval||6}h · ${config.leakCount||2}/cycle`;
 
-  // Leaks table
-  const leaksTbody = document.getElementById('tor-leaks-tbody');
+  // Batch resolve all user IDs upfront
+  const allIds = [...new Set([
+    ...leaks.map(l => l.victimId),
+    ...userListings.map(l => l.sellerId),
+    ...userListings.map(l => l.victimId),
+  ].filter(Boolean))];
+  if (allIds.length) await resolveNames(allIds);
+
+  // ── Leaks table ──────────────────────────────────────────
+  if (!leaksTbody) return;
   if (!leaks.length) {
-    leaksTbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No active data leaks.</td></tr>';
+    leaksTbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No active data leaks. Click Trigger Leak Now to create some.</td></tr>';
   } else {
-    leaksTbody.innerHTML = (await Promise.all(leaks.map(async l => {
-      const victim  = await resolveUser(l.victimId).catch(() => l.victimId||'?');
+    leaksTbody.innerHTML = leaks.map(l => {
+      const victim  = resolveName(l.victimId) || l.victimId || '?';
       const exp     = new Date(l.expiresAt).toLocaleString();
       const ssn     = l.data?.ssn ? l.data.ssn.replace(/\d{4}$/, 'XXXX') : '???';
       const routing = l.data?.routingNumber || '—';
@@ -5847,24 +5884,19 @@ async function loadTorListings() {
         <td style="font-size:11px">${exp}</td>
         <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button></td>
       </tr>`;
-    }))).join('');
+    }).join('');
   }
 
-  // User listings table
-  const filterVal = document.getElementById('tor-filter')?.value || 'all';
-  let userListings = listings.filter(l => !l.isLeak);
-  if (filterVal === 'active') userListings = userListings.filter(l => !l.sold && (l.expiresAt||0) > now);
-  if (filterVal === 'sold')   userListings = userListings.filter(l => l.sold);
-
-  const tbody = document.getElementById('tor-tbody');
+  // ── User listings table ───────────────────────────────────
+  if (!tbody) return;
   if (!userListings.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No user listings found.</td></tr>';
     return;
   }
-  const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊' };
-  tbody.innerHTML = (await Promise.all(userListings.slice(0,30).map(async l => {
-    const seller = await resolveUser(l.sellerId).catch(() => `\`${l.sellerHandle||'?'}\``);
-    const victim = await resolveUser(l.victimId).catch(() => l.victimId?.slice(0,10)||'?');
+  const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊', full_identity:'🪪🏢' };
+  tbody.innerHTML = userListings.slice(0,50).map(l => {
+    const seller = resolveName(l.sellerId) || l.sellerHandle || '?';
+    const victim = resolveName(l.victimId) || (l.victimId||'?').slice(0,10);
     const status = l.sold
       ? '<span class="tag t-green">Sold</span>'
       : (l.expiresAt||0) > now
@@ -5879,7 +5911,7 @@ async function loadTorListings() {
       <td>${status}</td>
       <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button></td>
     </tr>`;
-  }))).join('');
+  }).join('');
 }
 
 async function saveTorConfig() {
