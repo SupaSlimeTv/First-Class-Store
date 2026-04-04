@@ -66,13 +66,11 @@ async function createDataLeak(userId, victimData) {
   const price        = routingPrice > 0 ? Math.floor(ssnPrice + routingPrice) : ssnPrice;
   const listingId = 'LEAK' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random()*100);
 
-  // Try to pull business routing number
+  // Auto-create routing number for victim if they don't have one yet
   let routingNumber = null;
   try {
-    const { col: _col } = require('./mongo');
-    const rc  = await _col('routingNumbers');
-    const doc = await rc.findOne({ _id: userId });
-    if (doc?.routing) routingNumber = doc.routing;
+    const { getRoutingNumber } = require('./routingDb');
+    routingNumber = await getRoutingNumber(userId);
   } catch {}
 
   // Try to pull business name

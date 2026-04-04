@@ -1187,6 +1187,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <thead><tr><th>ID</th><th>Victim</th><th>Wealth</th><th>SSN</th><th>Routing #</th><th>Price</th><th>Expires</th><th>Actions</th></tr></thead>
           <tbody id="tor-leaks-tbody"><tr><td colspan="6" class="empty-cell">Loading...</td></tr></tbody>
         </table>
+        <div id="tor-leaks-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid var(--border)"></div>
       </div>
       <div class="tbl-wrap">
         <div class="tbl-head">
@@ -1201,6 +1202,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <thead><tr><th>ID</th><th>Type</th><th>Seller</th><th>Victim</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="tor-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
         </table>
+        <div id="tor-listings-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid var(--border)"></div>
       </div>
     </div>
 </div>
@@ -2387,6 +2389,9 @@ function renderStats(){
 
 const PAGE_SIZE = 20;
 let usersPage = 0;
+const TOR_PAGE_SIZE = 15;
+let torLeaksPage = 0;
+let torListingsPage = 0;
 let filteredUsers = [];
 
 function filterUsers(q) {
@@ -5843,7 +5848,8 @@ async function loadTorListings() {
   if (torActive) torActive.textContent = active.length;
   if (torLeaks)  torLeaks.textContent  = leaks.length;
   if (torTotal)  torTotal.textContent  = listings.filter(l => l.sold).length;
-  if (torVol)    torVol.textContent    = '$' + listings.reduce((s,l) => s+(l.price||0), 0).toLocaleString();
+  const rawVol = listings.reduce((s,l) => s+(l.price||0), 0);
+  if (torVol) { torVol.textContent = fmtStat(rawVol); torVol.title = '$' + rawVol.toLocaleString(); }
 
   const maxEl = document.getElementById('tor-max-leaks');
   const intEl = document.getElementById('tor-leak-interval');
@@ -5863,43 +5869,90 @@ async function loadTorListings() {
   ].filter(Boolean))];
   if (allIds.length) await resolveNames(allIds);
 
-  // ── Leaks table ──────────────────────────────────────────
+  // ── Leaks table with pagination ──────────────────────────
   if (!leaksTbody) return;
-  if (!leaks.length) {
-    leaksTbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No active data leaks. Click Trigger Leak Now to create some.</td></tr>';
-  } else {
-    leaksTbody.innerHTML = leaks.map(l => {
-      const victim  = resolveName(l.victimId) || l.victimId || '?';
-      const exp     = new Date(l.expiresAt).toLocaleString();
-      const ssn     = l.data?.ssn ? l.data.ssn.replace(/\d{4}$/, 'XXXX') : '???';
-      const routing = l.data?.routingNumber || '—';
-      const bizTag  = l.hasBusinessData ? '<span class="tag t-orange" style="font-size:9px">🏢 +Biz</span> ' : '';
-      return `<tr style="background:rgba(255,59,48,.04)">
-        <td><code style="color:#ff8080">${l.id?.slice(-6)||'?'}</code></td>
-        <td>${bizTag}<strong>${victim}</strong>${l.data?.bizName ? `<div style="font-size:10px;color:var(--muted)">${l.data.bizName}</div>` : ''}</td>
-        <td>$${((l.victimWealth||0)).toLocaleString()}</td>
-        <td><code style="color:var(--muted);font-size:11px">${ssn}</code></td>
-        <td><code style="color:#f5c518;font-size:11px">${routing}</code></td>
-        <td><strong style="color:#ff8080">$${(l.price||0).toLocaleString()}</strong></td>
-        <td style="font-size:11px">${exp}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button></td>
-      </tr>`;
-    }).join('');
-  }
+  renderTorLeaks(leaks);
+  renderTorListings(userListings, now);
+}
 
-  // ── User listings table ───────────────────────────────────
-  if (!tbody) return;
-  if (!userListings.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No user listings found.</td></tr>';
+function buildTorPagination(page, total, pageSize, setPageFn, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = page * pageSize + 1;
+  const end   = Math.min((page + 1) * pageSize, total);
+  if (total === 0) { el.innerHTML = ''; return; }
+  let btns = '';
+  btns += `<span style="font-size:11px;color:var(--muted)">Showing ${start}–${end} of ${total}</span>`;
+  btns += `<div style="display:flex;gap:4px">`;
+  btns += `<button class="btn btn-sm" style="background:${page===0?'var(--bg4)':'var(--accent)'};color:${page===0?'var(--muted)':'#fff'};border:none" ${page===0?'disabled':''} onclick="${setPageFn}(${page-1})">◀</button>`;
+  const sp = Math.max(0, page-2);
+  const ep = Math.min(totalPages-1, sp+4);
+  for (let p=sp; p<=ep; p++) {
+    const ac = p===page;
+    btns += `<button class="btn btn-sm" style="background:${ac?'var(--accent)':'var(--bg4)'};color:${ac?'#fff':'var(--text)'};border:none;min-width:28px" onclick="${setPageFn}(${p})">${p+1}</button>`;
+  }
+  btns += `<button class="btn btn-sm" style="background:${page>=totalPages-1?'var(--bg4)':'var(--accent)'};color:${page>=totalPages-1?'var(--muted)':'#fff'};border:none" ${page>=totalPages-1?'disabled':''} onclick="${setPageFn}(${page+1})">▶</button>`;
+  btns += `</div>`;
+  el.innerHTML = btns;
+}
+
+// Store leaks/listings globally for pagination
+let _torLeaks = [];
+let _torUserListings = [];
+let _torNow = Date.now();
+
+function renderTorLeaks(leaks) {
+  if (leaks) _torLeaks = leaks;
+  const leaksTbody = document.getElementById('tor-leaks-tbody');
+  if (!leaksTbody) return;
+  if (!_torLeaks.length) {
+    leaksTbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No active data leaks. Click Trigger Leak Now to create some.</td></tr>';
+    buildTorPagination(0, 0, TOR_PAGE_SIZE, 'goTorLeaksPage', 'tor-leaks-pagination');
     return;
   }
+  const totalPages = Math.max(1, Math.ceil(_torLeaks.length / TOR_PAGE_SIZE));
+  if (torLeaksPage >= totalPages) torLeaksPage = totalPages - 1;
+  const slice = _torLeaks.slice(torLeaksPage * TOR_PAGE_SIZE, (torLeaksPage + 1) * TOR_PAGE_SIZE);
+  leaksTbody.innerHTML = slice.map(l => {
+    const victim  = resolveName(l.victimId) || l.victimId || '?';
+    const exp     = new Date(l.expiresAt).toLocaleString();
+    const ssn     = l.data?.ssn ? l.data.ssn.replace(/\d{4}$/, 'XXXX') : '???';
+    const routing = l.data?.routingNumber || '—';
+    const bizTag  = l.hasBusinessData ? '<span class="tag t-orange" style="font-size:9px">🏢 +Biz</span> ' : '';
+    return `<tr style="background:rgba(255,59,48,.04)">
+      <td><code style="color:#ff8080">${l.id?.slice(-6)||'?'}</code></td>
+      <td>${bizTag}<strong>${victim}</strong>${l.data?.bizName ? `<div style="font-size:10px;color:var(--muted)">${l.data.bizName}</div>` : ''}</td>
+      <td>$${((l.victimWealth||0)).toLocaleString()}</td>
+      <td><code style="color:var(--muted);font-size:11px">${ssn}</code></td>
+      <td><code style="color:#f5c518;font-size:11px">${routing}</code></td>
+      <td><strong style="color:#ff8080">$${(l.price||0).toLocaleString()}</strong></td>
+      <td style="font-size:11px">${exp}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+  buildTorPagination(torLeaksPage, _torLeaks.length, TOR_PAGE_SIZE, 'goTorLeaksPage', 'tor-leaks-pagination');
+}
+
+function renderTorListings(listings, now) {
+  if (listings) { _torUserListings = listings; _torNow = now || Date.now(); }
+  const tbody = document.getElementById('tor-tbody');
+  if (!tbody) return;
+  if (!_torUserListings.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No user listings found.</td></tr>';
+    buildTorPagination(0, 0, TOR_PAGE_SIZE, 'goTorListingsPage', 'tor-listings-pagination');
+    return;
+  }
+  const totalPages = Math.max(1, Math.ceil(_torUserListings.length / TOR_PAGE_SIZE));
+  if (torListingsPage >= totalPages) torListingsPage = totalPages - 1;
+  const slice = _torUserListings.slice(torListingsPage * TOR_PAGE_SIZE, (torListingsPage + 1) * TOR_PAGE_SIZE);
   const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊', full_identity:'🪪🏢' };
-  tbody.innerHTML = userListings.slice(0,50).map(l => {
+  tbody.innerHTML = slice.map(l => {
     const seller = resolveName(l.sellerId) || l.sellerHandle || '?';
     const victim = resolveName(l.victimId) || (l.victimId||'?').slice(0,10);
     const status = l.sold
       ? '<span class="tag t-green">Sold</span>'
-      : (l.expiresAt||0) > now
+      : (l.expiresAt||0) > _torNow
         ? '<span class="tag t-orange">Active</span>'
         : '<span class="tag t-muted">Expired</span>';
     return `<tr>
@@ -5912,7 +5965,11 @@ async function loadTorListings() {
       <td><button class="btn btn-danger btn-sm" onclick="torRemoveListing('${l.id}')">✕</button></td>
     </tr>`;
   }).join('');
+  buildTorPagination(torListingsPage, _torUserListings.length, TOR_PAGE_SIZE, 'goTorListingsPage', 'tor-listings-pagination');
 }
+
+function goTorLeaksPage(p)    { torLeaksPage = p;    renderTorLeaks(); }
+function goTorListingsPage(p) { torListingsPage = p; renderTorListings(); }
 
 async function saveTorConfig() {
   const maxLeaks     = parseInt(document.getElementById('tor-max-leaks')?.value)     || 5;
