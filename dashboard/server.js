@@ -89,21 +89,31 @@ async function fetchBotAPI(endpoint, method = 'GET', body = null) {
   return res.json().catch(() => ({ ok: true }));
 }
 
+// Cache admin checks for 5 min to avoid Discord rate limits
+const _adminCache = new Map(); // `${userId}:${guildId}` -> { result, expiresAt }
 async function isAdminInGuild(userId, guildId) {
+  const key     = `${userId}:${guildId}`;
+  const cached  = _adminCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
   try {
     const member = await fetchBotAPI(`/guilds/${guildId}/members/${userId}`);
-    if (!member) return false;
-    const guild = await fetchBotAPI(`/guilds/${guildId}`);
-    if (guild?.owner_id === userId) return true;
-    const roles      = await fetchBotAPI(`/guilds/${guildId}/roles`);
+    if (!member) { _adminCache.set(key, { result:false, expiresAt:Date.now()+60000 }); return false; }
+    const guild  = await fetchBotAPI(`/guilds/${guildId}`);
+    if (guild?.owner_id === userId) { _adminCache.set(key, { result:true, expiresAt:Date.now()+300000 }); return true; }
+    const roles  = await fetchBotAPI(`/guilds/${guildId}/roles`);
     const memberRoles = member.roles || [];
-    return (roles || []).some(r => memberRoles.includes(r.id) && (BigInt(r.permissions) & 0x8n) === 0x8n);
+    const result = (roles||[]).some(r => memberRoles.includes(r.id) && (BigInt(r.permissions) & 0x8n) === 0x8n);
+    _adminCache.set(key, { result, expiresAt: Date.now() + 300000 }); // cache 5min
+    return result;
   } catch { return false; }
 }
 
 
 // ── PAGINATED MEMBER FETCH (handles servers > 1000 members) ──
+const _membersCache = new Map(); // guildId -> { members, expiresAt }
 async function fetchAllMembers(guildId) {
+  const cached = _membersCache.get(guildId);
+  if (cached && cached.expiresAt > Date.now()) return cached.members;
   let all = [];
   let after = '0';
   while (true) {
@@ -113,6 +123,7 @@ async function fetchAllMembers(guildId) {
     if (batch.length < 1000) break;
     after = batch[batch.length - 1].user.id;
   }
+  _membersCache.set(guildId, { members: all, expiresAt: Date.now() + 180000 }); // cache 3min
   return all;
 }
 function requireAuth(req, res, next) {
@@ -973,7 +984,7 @@ app.get('/api/:guildId/tor', requireGuildAuth, async (req, res) => {
     // Always pull fresh from MongoDB — cache unreliable across processes
     const listingsCol = await col('torListings');
     const allDocs     = await listingsCol.find({}).toArray();
-    const all         = allDocs.map(d => { const {_id,...o} = d; return o; });
+    const all         = allDocs.map(d => { const {_id,...o} = d; return { ...o, id: o.id || _id }; });
 
     const volume   = all.reduce((s,l) => s+(l.price||0), 0);
     const enriched = all.map(l => {
