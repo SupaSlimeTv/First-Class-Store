@@ -10,19 +10,56 @@ let _laptops = {}; // userId -> { apps:[], deviceId, installedAt }
 // with effect type 'laptop_app' and appType field
 const BUILTIN_APPS = {
   // Hacking / criminal
-  ssn_scanner:    { name:'SSN Scanner',      emoji:'🪪', category:'hack',     desc:'Scan targets for SSN — required for /hack ssn',       baseSuccess:40 },
-  credit_cracker: { name:'Credit Cracker',   emoji:'💳', category:'hack',     desc:'Open fraud cards on stolen SSNs',                     baseSuccess:35 },
-  card_drainer:   { name:'Card Drainer',     emoji:'💸', category:'hack',     desc:'Drain credit cards remotely',                         baseSuccess:45 },
-  biz_intrude:    { name:'Biz Intruder',     emoji:'🏢', category:'hack',     desc:'Access business accounts via routing numbers',        baseSuccess:50 },
-  keylogger:      { name:'Keylogger Pro',    emoji:'⌨️', category:'hack',     desc:'+20% success on all phishing attacks',                bonusPct:20    },
-  vpn_shield:     { name:'VPN Shield',       emoji:'🛡️', category:'defense',  desc:'Reduces chance of being traced back on hacks',        bonusPct:30    },
+  ssn_scanner: {
+    name:'SSN Scanner', emoji:'🪪', category:'hack', baseSuccess:40,
+    desc:'Scans a target and steals their full SSN + credit profile. Required before running Credit Cracker or Card Drainer. Full SSN sent to you via DM privately.',
+  },
+  credit_cracker: {
+    name:'Credit Cracker', emoji:'💳', category:'hack', baseSuccess:35,
+    desc:'Uses a stolen SSN to open a fraudulent credit card under the victim's name. Charges money to their account and tanks their credit score by 45 points.',
+  },
+  card_drainer: {
+    name:'Card Drainer', emoji:'💸', category:'hack', baseSuccess:45,
+    desc:'Remotely maxes out a victim's credit card, draining their available limit directly to your wallet. Requires their SSN on file first.',
+  },
+  biz_intrude: {
+    name:'Biz Intruder', emoji:'🏢', category:'hack', baseSuccess:50,
+    desc:'Breaks into a business account using their routing number. Can check balances, withdraw revenue, or launder dirty money through their books.',
+  },
+  keylogger: {
+    name:'Keylogger Pro', emoji:'⌨️', category:'hack', bonusPct:20,
+    desc:'Passive app — runs in the background and captures credentials from all your hacking attempts. Gives +20% success rate on every phishing and hacking operation.',
+  },
+  vpn_shield: {
+    name:'VPN Shield', emoji:'🛡️', category:'defense', bonusPct:30,
+    desc:'Passive app — routes all your criminal activity through encrypted tunnels. Reduces your chance of being traced on TOR transactions and hacks by 60%. Illuminati members are always exempt.',
+  },
   // Finance
-  bank_mirror:    { name:'Bank Mirror',      emoji:'🏦', category:'finance',  desc:'Read-only access to any routing number — no item req', baseSuccess:100 },
-  launder_bot:    { name:'LaunderBot',       emoji:'🧺', category:'finance',  desc:'+15% clean rate when laundering dirty money',         bonusPct:15    },
+  bank_mirror: {
+    name:'Bank Mirror', emoji:'🏦', category:'finance', baseSuccess:100,
+    desc:'Read-only mirror of any bank account via routing number. Shows wallet, bank balance, and business revenue. Always succeeds — 100% success rate. Use with /laptop run routing:<number>.',
+  },
+  launder_bot: {
+    name:'LaunderBot', emoji:'🧺', category:'finance', bonusPct:15,
+    desc:'Passive app — upgrades your money laundering rate by 15%. Higher quality tiers increase the clean rate further (up to 85% clean at Tier 5). Works with /launder and gang dirty money.',
+  },
   // Intel
-  stalker_app:    { name:'Stalker App',      emoji:'👁️', category:'intel',    desc:'View any user full profile (home, status, biz)',      baseSuccess:60 },
-  dark_search:    { name:'DarkSearch',       emoji:'🔍', category:'intel',    desc:'Search SSN database — find who owns a given SSN',     baseSuccess:55 },
-  home_hack:      { name:'HomeHack Pro',     emoji:'🏚️', category:'hack',     desc:'Bypass home security — shuts down defenses for 30min', baseSuccess:45 },
+  stalker_app: {
+    name:'Stalker App', emoji:'👁️', category:'intel', baseSuccess:60,
+    desc:'Pulls a full dossier on any user — wallet, bank, home tier, business, gang, credit score, routing number, and debit card number. Stolen card auto-saved to your hacker profile for draining.',
+  },
+  dark_search: {
+    name:'DarkSearch', emoji:'🔍', category:'intel', baseSuccess:55,
+    desc:'Searches the TOR dark web marketplace for active listings tied to a target user or routing number. Shows what data is already for sale on them. Use with /laptop run target:@user.',
+  },
+  home_hack: {
+    name:'HomeHack Pro', emoji:'🏚️', category:'hack', baseSuccess:45,
+    desc:'Remotely disables a homeowner's security system for 30 minutes. Sets their break-in defense to 0% and disables cameras. Victim gets a warning DM. Follow up with /use break-in-kit immediately.',
+  },
+  tor_browser: {
+    name:'TOR Browser', emoji:'🌐', category:'intel', baseSuccess:100,
+    desc:'Passive app — gives you access to the dark web marketplace commands. With this installed your TOR trace risk drops by an additional 20%. Use /tor market to browse · /tor buy to purchase stolen identities · /tor sell to list your own data.',
+  },
 };
 
 async function preloadLaptopCache() {

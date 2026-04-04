@@ -25,16 +25,16 @@ module.exports = {
     .addSubcommand(s => s.setName('open').setDescription('Open your laptop — view device and installed apps'))
     .addSubcommand(s => s.setName('appstore').setDescription('Browse and install apps from your item inventory'))
     .addSubcommand(s => s.setName('run').setDescription('Run an installed app')
-      .addStringOption(o => o.setName('app').setDescription('App to run — only shows your installed apps').setRequired(true).setAutocomplete(true))
-      .addUserOption(o => o.setName('target').setDescription('Target user (for hacking/intel apps)').setRequired(false))
-      .addStringOption(o => o.setName('routing').setDescription('Routing number (for Biz Intruder)').setRequired(false))
-      .addStringOption(o => o.setName('action').setDescription('Action for Biz Intruder (check/withdraw/launder)').setRequired(false)
+      .addStringOption(o => o.setName('app').setDescription('App to run').setRequired(true).setAutocomplete(true))
+      .addUserOption(o => o.setName('target').setDescription('🎯 Required for: SSN Scanner, Credit Cracker, Card Drainer, Stalker App, HomeHack, DarkSearch').setRequired(false))
+      .addStringOption(o => o.setName('routing').setDescription('🏦 Required for: Biz Intruder, Bank Mirror — enter routing number here').setRequired(false))
+      .addStringOption(o => o.setName('action').setDescription('⚡ Biz Intruder only — what to do once inside').setRequired(false)
         .addChoices(
-          { name:'📊 Check Balances', value:'check' },
-          { name:'💵 Withdraw Revenue', value:'withdraw' },
-          { name:'🧺 Launder Dirty Money', value:'launder' },
+          { name:'📊 Check Balances — see revenue & dirty money', value:'check' },
+          { name:'💵 Withdraw Revenue — steal clean revenue', value:'withdraw' },
+          { name:'🧺 Launder Dirty Money — clean their dirty cash', value:'launder' },
         ))
-      .addIntegerOption(o => o.setName('amount').setDescription('Amount (for launder/withdraw)').setRequired(false).setMinValue(1))),
+      .addIntegerOption(o => o.setName('amount').setDescription('💰 Biz Intruder only — amount to withdraw or launder').setRequired(false).setMinValue(1))),
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
@@ -46,12 +46,28 @@ module.exports = {
       return interaction.respond([{ name:'No apps installed — use /laptop appstore first', value:'__none__' }]).catch(()=>null);
     }
 
+    // What each app needs shown inline so user knows what to fill in
+    const NEEDS = {
+      ssn_scanner:    'needs: target:@user',
+      credit_cracker: 'needs: target:@user (SSN required first)',
+      card_drainer:   'needs: target:@user (SSN required first)',
+      biz_intrude:    'needs: routing:<number> + action:',
+      bank_mirror:    'needs: routing:<number>',
+      stalker_app:    'needs: target:@user',
+      dark_search:    'needs: target:@user  OR  routing:<number>',
+      home_hack:      'needs: target:@user',
+      keylogger:      'passive — no inputs needed',
+      vpn_shield:     'passive — no inputs needed',
+      launder_bot:    'passive — no inputs needed',
+      tor_browser:    'passive — no inputs needed',
+    };
+
     const choices = apps.map(a => {
-      const def  = BUILTIN_APPS[a.id] || {};
-      const pct  = a.successOverride || (def.baseSuccess != null ? Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5) : null);
-      const hint = pct != null ? `${pct}% success` : 'passive';
+      const def   = BUILTIN_APPS[a.id] || {};
+      const pct   = a.successOverride || (def.baseSuccess != null ? Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5) : null);
+      const needs = NEEDS[a.id] || (pct != null ? `${pct}% success` : 'passive');
       return {
-        name: `${def.emoji||'💻'} ${def.name||a.id} — ${hint} (Tier ${a.quality||1})`,
+        name: `${def.emoji||'💻'} ${def.name||a.id} (T${a.quality||1}) — ${needs}`,
         value: a.id,
       };
     })
@@ -127,7 +143,8 @@ module.exports = {
           const owned   = (user.inventory||[]).includes(i.id);
           const instd   = installedIds.includes(appId);
           const status  = instd ? '✅ Installed' : owned ? '📦 In Inventory' : `$${(i.price||0).toLocaleString()}`;
-          return `${i.emoji||'💻'} **${i.name}** — ${def.desc||i.description||''}\nQuality: ${'⭐'.repeat(q)} · Success: ${pct!=null?pct+'%':'passive'} · ${status}`;
+          const descText = (def.desc||i.description||'').slice(0,120);
+          return `${i.emoji||'💻'} **${i.name}** — Quality ${'⭐'.repeat(q)} · ${pct!=null?pct+'% success':'passive'}\n> *${descText}*\n${status}`;
         }).join('\n\n');
 
         return new EmbedBuilder()
@@ -147,7 +164,7 @@ module.exports = {
           const label  = instd ? `✅ ${i.name} (installed)` : owned ? `📦 ${i.name} (install)` : `🛒 ${i.name} — $${(i.price||0).toLocaleString()}`;
           return new StringSelectMenuOptionBuilder()
             .setLabel(label.slice(0,100))
-            .setDescription((def.desc||i.description||'').slice(0,100))
+            .setDescription((def.desc||i.description||'').slice(0,97) + ((def.desc||'').length > 97 ? '...' : ''))
             .setValue(i.id)
             .setEmoji(i.emoji||'💻');
         });
@@ -557,7 +574,35 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         ], components:[] });
       }
 
-            return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Unknown app.')], components:[] });
+            // ── TOR BROWSER ───────────────────────────────────────
+      if (appId === 'tor_browser') {
+        const { TOR_TRACE_CHANCE, TOR_VPN_REDUCTION } = require('../../utils/torDb');
+        const laptop2   = getLaptop(userId);
+        const hasVPN    = (laptop2?.apps||[]).some(a => a.id === 'vpn_shield');
+        let traceChance = TOR_TRACE_CHANCE;
+        if (hasVPN) traceChance *= (1 - TOR_VPN_REDUCTION);
+        traceChance *= 0.80; // TOR Browser adds extra -20%
+        const appCount  = (laptop2?.apps||[]).length;
+        traceChance    *= Math.max(0.1, 1 - appCount * 0.05);
+        const pct       = Math.round(traceChance * 100);
+        return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x1a1a1a)
+          .setTitle('🌐 TOR Browser — Connected')
+          .setDescription(
+            'You are connected to the dark web marketplace.\n\n' +
+            '**How to use the TOR Market:**\n' +
+            '`/tor market` — Browse all active listings (stolen SSNs, routing numbers, identities)\n' +
+            '`/tor buy listing_id:<ID>` — Purchase a listing using its 6-character ID\n' +
+            '`/tor sell type: price:` — List your own stolen data for sale\n' +
+            '`/tor profile` — View your dark web reputation and handle\n\n' +
+            '**Your protection:**\n' +
+            `📉 Current trace risk: **${pct}%**${hasVPN ? ' (VPN active)' : ''}\n` +
+            `🌐 TOR Browser bonus: **-20% trace risk**\n\n` +
+            '*Higher quality TOR Browser reduces trace risk further.*'
+          )
+        ], components:[] });
+      }
+
+      return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Unknown app.')], components:[] });
     }
   },
 };
