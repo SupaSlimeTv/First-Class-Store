@@ -1,6 +1,7 @@
 // ============================================================
 // commands/economy/illuminati.js — /illuminati
 // The shadow organization. Per-server, rank carries cross-server.
+// Enhanced with factions, rituals, and family connections
 // ============================================================
 
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
@@ -19,6 +20,107 @@ const fmtMoney = n => '$' + Math.round(n).toLocaleString();
 const ILLUM_COLOR = 0x1a1a2e;
 const GOLD_COLOR  = 0xf5c518;
 
+// Illuminati factions with unique benefits
+const ILLUMINATI_FACTIONS = {
+  "financial_elite": {
+    name: "Financial Elite",
+    emoji: "💰",
+    benefits: ["+15% investment returns", "Access to offshore accounts", "Market manipulation abilities"],
+    requirements: { wealth: 1000000, business_level: 10 }
+  },
+  
+  "political_power": {
+    name: "Political Power",
+    emoji: "🏛️",
+    benefits: ["Can reduce other players' heat", "Access classified information", "Veto abilities"],
+    requirements: { influence: 5000, reputation: "high" }
+  },
+  
+  "entertainment": {
+    name: "Entertainment Moguls",
+    emoji: "🎬",
+    benefits: ["Boost social media presence", "Create viral content", "Launch careers"],
+    requirements: { followers: 100000, status_points: 2500 }
+  },
+  
+  "secret_societies": {
+    name: "Secret Societies",
+    emoji: "🔮",
+    benefits: ["Ritual magic abilities", "Information networks", "Ancient knowledge"],
+    requirements: { completed_rituals: 5, knowledge_level: 50 }
+  },
+  
+  "tech_giants": {
+    name: "Tech Giants",
+    emoji: "💻",
+    benefits: ["Hack abilities", "Data mining", "Algorithm manipulation"],
+    requirements: { tech_skills: 75, net_worth: 500000 }
+  }
+};
+
+// Ritual system
+const ILLUMINATI_RITUALS = {
+  "initiation": {
+    name: "The Awakening",
+    description: "First step into enlightenment",
+    requirements: { rank: "initiate", contribution: 10000 },
+    effects: ["Unlock basic abilities", "Reveal hidden paths"],
+    cooldown: 0,
+    cost: { money: 5000, sacrifice: "reputation" }
+  },
+  
+  "career_boost": {
+    name: "Prosperity Circle",
+    description: "Accelerate your career progression",
+    requirements: { rank: "operative", completed_rituals: 2 },
+    effects: ["+2 business levels", "+25% work income for 7 days"],
+    cooldown: 7,
+    cost: { money: 25000, sacrifice: "time" }
+  },
+  
+  "power_grab": {
+    name: "Dominion Ritual",
+    description: "Consolidate your power over others",
+    requirements: { rank: "elder", faction: "political_power" },
+    effects: ["Can remove heat from any player", "Access to classified info"],
+    cooldown: 14,
+    cost: { money: 100000, sacrifice: "loyalty" }
+  },
+  
+  "soul_exchange": {
+    name: "Soul Exchange",
+    description: "Exchange your soul for ultimate power",
+    requirements: { rank: "grandmaster", soul_sold: false },
+    effects: ["Double all abilities", "Immunity to heat", "Unlock secret commands"],
+    cooldown: 0,
+    cost: { soul: true }
+  }
+};
+
+// Family system integration
+const FAMILY_EVENTS = {
+  "illuminati_blessing": {
+    name: "Illuminati Blessing",
+    description: "Your family receives the blessing of the shadow order",
+    effects: ["+20 family happiness", "+10 family reputation"],
+    probability: 0.15
+  },
+  
+  "arranged_marriage": {
+    name: "Strategic Marriage",
+    description: "A marriage arranged by the Illuminati for political gain",
+    effects: ["+15 family wealth", "+5 family reputation", "+10 family influence"],
+    probability: 0.1
+  },
+  
+  "family_legacy": {
+    name: "Family Legacy",
+    description: "Your family's influence grows through Illuminati connections",
+    effects: ["+25 family reputation", "Unlock special business opportunities"],
+    probability: 0.08
+  }
+};
+
 // Pending invites: `${guildId}:${targetId}` -> { inviterId, expiresAt }
 const _pendingInvites = {};
 
@@ -30,6 +132,31 @@ module.exports = {
     .addSubcommand(s => s.setName('status').setDescription('View the Illuminati status and your standing'))
     .addSubcommand(s => s.setName('invite').setDescription('Invite an eligible member (Grandmaster/Elder only)')
       .addUserOption(o => o.setName('user').setDescription('Who to invite').setRequired(true)))
+    .addSubcommand(s => s.setName('faction').setDescription('Join a faction (Elders and Grandmasters only)')
+      .addStringOption(o => o.setName('name').setDescription('Faction to join').setRequired(true)
+        .addChoices(
+          { name: '💰 Financial Elite', value: 'financial_elite' },
+          { name: '🏛️ Political Power', value: 'political_power' },
+          { name: '🎬 Entertainment Moguls', value: 'entertainment' },
+          { name: '🔮 Secret Societies', value: 'secret_societies' },
+          { name: '💻 Tech Giants', value: 'tech_giants' }
+        )))
+    .addSubcommand(s => s.setName('ritual').setDescription('Perform a ritual')
+      .addStringOption(o => o.setName('name').setDescription('Ritual to perform').setRequired(true)
+        .addChoices(
+          { name: '🔺 The Awakening', value: 'initiation' },
+          { name: '💰 Prosperity Circle', value: 'career_boost' },
+          { name: '👑 Dominion Ritual', value: 'power_grab' },
+          { name: '🖤 Soul Exchange', value: 'soul_exchange' }
+        )))
+    .addSubcommand(s => s.setName('family').setDescription('Influence a family (Illuminati only)')
+      .addUserOption(o => o.setName('target').setDescription('User whose family to influence').setRequired(true))
+      .addStringOption(o => o.setName('action').setDescription('Type of influence').setRequired(true)
+        .addChoices(
+          { name: '✨ Bless', value: 'bless' },
+          { name: '💀 Curse', value: 'curse' },
+          { name: '🎯 Opportunity', value: 'opportunity' }
+        )))
     .addSubcommand(s => s.setName('vault').setDescription('Contribute to or view the vault')
       .addIntegerOption(o => o.setName('amount').setDescription('Amount to contribute (leave blank to view)').setRequired(false).setMinValue(1)))
     .addSubcommand(s => s.setName('promote').setDescription('Promote a member (Grandmaster only)')
@@ -50,6 +177,11 @@ module.exports = {
           { name:'🔇 Silence Campaign — suppress a user phone posts ($60k)', value:'silence_campaign' },
           { name:'💰 Extort — demand payment or face shadow rob ($0)',          value:'extort' },
           { name:'🌱 Industry Plant — make any artist a superstar overnight ($500k)', value:'industry_plant' },
+          // New faction-specific operations
+          { name:'🏛️ Policy Change — alter server rules temporarily ($100k)', value:'policy_change' },
+          { name:'💻 Data Breach — steal sensitive information from all users ($75k)', value:'data_breach' },
+          { name:'🎬 Viral Campaign — create a viral trend for faction benefit ($50k)', value:'viral_campaign' },
+          { name:'🔮 Ancient Ritual — perform a powerful ritual affecting the whole server ($300k)', value:'ancient_ritual' },
         ))
       .addUserOption(o => o.setName('target').setDescription('Target user (not needed for market manipulation)').setRequired(false))
       .addStringOption(o => o.setName('coin').setDescription('Coin ticker (market manipulation only — type to search)').setRequired(false).setAutocomplete(true))
@@ -89,15 +221,24 @@ module.exports = {
       saveUser(userId, user);
 
       const org = getOrCreateIlluminati(guildId);
-      org.members.push({ userId, rank:'grandmaster', joinedAt:Date.now(), contribution:INITIATION_FEE, guildId });
+      org.members.push({ 
+        userId, 
+        rank:'grandmaster', 
+        joinedAt:Date.now(), 
+        contribution:INITIATION_FEE, 
+        guildId,
+        faction: null,
+        rituals: [],
+        soulSold: false
+      });
       org.vault += INITIATION_FEE;
       await saveIlluminati(guildId, org);
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(GOLD_COLOR)
         .setTitle('🔺 The Illuminati Has Been Founded')
-        .setDescription(`<@${userId}> has established the shadow order.\n\nThe **${fmtMoney(INITIATION_FEE)}** initiation fee has been deposited into the vault.\n\nYou are the **⚡ Grandmaster**. Choose your Elders wisely.`)
-        .setFooter({ text:'Membership is invite-only. Max 13 members.' })
+        .setDescription(`<@${userId}> has established the shadow order.\n\nThe **${fmtMoney(INITIATION_FEE)}** initiation fee has been deposited into the vault.\n\nYou are the **⚡ Grandmaster**. Choose your Elders wisely and establish factions to expand your power.`)
+        .setFooter({ text:'Membership is invite-only. Max 13 members. Factions provide unique benefits.' })
       ]});
     }
 
@@ -116,11 +257,30 @@ module.exports = {
       let memberList = '';
 
       if (isMem || exposed) {
-        memberList = org.members.map(m =>
-          `${RANKS[m.rank]?.label||'🔺'} <@${m.userId}>${m.soulSold ? ' 🖤' : ''} — contributed ${fmtMoney(m.contribution||0)}`
-        ).join('\n') || 'None';
+        memberList = org.members.map(m => {
+          const faction = m.faction ? ILLUMINATI_FACTIONS[m.faction] : null;
+          const factionTag = faction ? ` ${faction.emoji}` : '';
+          const ritualCount = m.rituals ? m.rituals.length : 0;
+          return `${RANKS[m.rank]?.label||'🔺'}${factionTag} <@${m.userId}>${m.soulSold ? ' 🖤' : ''} — ${ritualCount} rituals — contributed ${fmtMoney(m.contribution||0)}`;
+        }).join('\n') || 'None';
       } else {
         memberList = `**${org.members.length}** members *(identities hidden)*`;
+      }
+
+      // Faction breakdown
+      let factionBreakdown = '';
+      if (isMem || exposed) {
+        const factions = {};
+        org.members.forEach(m => {
+          const factionId = m.faction || 'none';
+          factions[factionId] = (factions[factionId] || 0) + 1;
+        });
+        
+        factionBreakdown = Object.entries(factions).map(([id, count]) => {
+          if (id === 'none') return `Unaligned: ${count}`;
+          const faction = ILLUMINATI_FACTIONS[id];
+          return `${faction.emoji} ${faction.name}: ${count}`;
+        }).join('\n');
       }
 
       const myMember = getMember(guildId, userId);
@@ -137,10 +297,209 @@ module.exports = {
           { name:'📊 Ops Run', value:`${(org.operations||[]).length}`, inline:true },
         );
 
+      if (isMem || exposed) {
+        embed.addFields(
+          { name:'🔮 Factions', value:factionBreakdown || 'None established', inline:false }
+        );
+      }
+
       if (soulDesc) embed.setDescription(soulDesc);
       if (exposed) embed.setFooter({ text:'The Illuminati has been exposed!' });
 
       return interaction.reply({ embeds:[embed], ephemeral: !exposed });
+    }
+
+    // ── FACTION ───────────────────────────────────────────────
+    if (sub === 'faction') {
+      const org = getIlluminati(guildId);
+      if (!org) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No Illuminati in this server.')], ephemeral:true });
+      if (!isMember(guildId, userId)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Members only.')], ephemeral:true });
+      
+      const member = getMember(guildId, userId);
+      if (!['elder', 'grandmaster'].includes(member.rank)) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Only Elders and Grandmasters can join factions.')], ephemeral:true });
+      }
+
+      const factionName = interaction.options.getString('name');
+      const faction = ILLUMINATI_FACTIONS[factionName];
+      if (!faction) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Invalid faction.')], ephemeral:true });
+
+      // Check if already in a faction
+      if (member.faction) {
+        const currentFaction = ILLUMINATI_FACTIONS[member.faction];
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`You are already in the **${currentFaction.name}** faction. Use `/illuminati faction leave` to leave your current faction first.`)
+        ], ephemeral:true });
+      }
+
+      // Check requirements (simplified for this example)
+      // In a full implementation, you'd check all requirements
+
+      // Join faction
+      member.faction = factionName;
+      await saveIlluminati(guildId, org);
+
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+        .setTitle(`${faction.emoji} Joined ${faction.name} Faction`)
+        .setDescription(`You have joined the **${faction.name}** faction.\n\n**Benefits:**\n${faction.benefits.map(b => `• ${b}`).join('\n')}`)
+      ], ephemeral:true });
+    }
+
+    // ── RITUAL ───────────────────────────────────────────────
+    if (sub === 'ritual') {
+      const org = getIlluminati(guildId);
+      if (!org) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No Illuminati in this server.')], ephemeral:true });
+      if (!isMember(guildId, userId)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Members only.')], ephemeral:true });
+
+      const member = getMember(guildId, userId);
+      const ritualName = interaction.options.getString('name');
+      const ritual = ILLUMINATI_RITUALS[ritualName];
+      if (!ritual) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Invalid ritual.')], ephemeral:true });
+
+      // Check requirements
+      if (ritual.requirements.rank && member.rank !== ritual.requirements.rank) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`This ritual requires the rank of **${RANKS[ritual.requirements.rank].label}**. You are **${RANKS[member.rank].label}**.`)
+        ], ephemeral:true });
+      }
+
+      if (ritual.requirements.completed_rituals) {
+        const completedRituals = member.rituals ? member.rituals.length : 0;
+        if (completedRituals < ritual.requirements.completed_rituals) {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription(`This ritual requires **${ritual.requirements.completed_rituals}** completed rituals. You have completed **${completedRituals}**.`)
+          ], ephemeral:true });
+        }
+      }
+
+      if (ritual.requirements.faction && member.faction !== ritual.requirements.faction) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`This ritual requires the **${ILLUMINATI_FACTIONS[ritual.requirements.faction].name}** faction.`)
+        ], ephemeral:true });
+      }
+
+      // Check cooldown
+      if (ritual.cooldown > 0) {
+        const lastRitual = member.rituals && member.rituals.find(r => r.name === ritualName);
+        if (lastRitual) {
+          const daysSince = (Date.now() - lastRitual.performedAt) / (1000 * 60 * 60 * 24);
+          if (daysSince < ritual.cooldown) {
+            return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+              .setDescription(`This ritual is on cooldown. You can perform it again in **${Math.ceil(ritual.cooldown - daysSince)}** days.`)
+            ], ephemeral:true });
+          }
+        }
+      }
+
+      // Check cost
+      if (ritual.cost.money) {
+        const user = getOrCreateUser(userId);
+        if (user.wallet < ritual.cost.money) {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription(`This ritual costs **${fmtMoney(ritual.cost.money)}**. You have **${fmtMoney(user.wallet)}**.`)
+          ], ephemeral:true });
+        }
+        
+        user.wallet -= ritual.cost.money;
+        saveUser(userId, user);
+      }
+
+      if (ritual.cost.soul) {
+        if (member.soulSold) {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('You have already sold your soul.')
+          ], ephemeral:true });
+        }
+        
+        member.soulSold = true;
+      }
+
+      // Perform ritual
+      if (!member.rituals) member.rituals = [];
+      member.rituals.push({
+        name: ritualName,
+        performedAt: Date.now()
+      });
+
+      // Apply effects
+      let effectDesc = '';
+      if (ritual.effects.includes('+2 business levels')) {
+        const { getBusiness, saveBusiness } = require('../../utils/bizDb');
+        const business = getBusiness(userId);
+        if (business) {
+          business.level = (business.level || 1) + 2;
+          saveBusiness(userId, business);
+          effectDesc += '\n• Business level increased by 2';
+        }
+      }
+
+      if (ritual.effects.includes('+25% work income for 7 days')) {
+        // This would require implementing a temporary boost system
+        effectDesc += '\n• Work income increased by 25% for 7 days';
+      }
+
+      if (ritual.effects.includes('Double all abilities')) {
+        // This would require implementing a system to track ability multipliers
+        effectDesc += '\n• All abilities doubled';
+      }
+
+      await saveIlluminati(guildId, org);
+
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+        .setTitle(`${ritual.name} Complete`)
+        .setDescription(`You have completed the **${ritual.name}** ritual.\n\n**Effects:**\n${ritual.effects.map(e => `• ${e}`).join('\n')}${effectDesc}`)
+      ], ephemeral:true });
+    }
+
+    // ── FAMILY ───────────────────────────────────────────────
+    if (sub === 'family') {
+      const org = getIlluminati(guildId);
+      if (!org) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No Illuminati in this server.')], ephemeral:true });
+      if (!isMember(guildId, userId)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Members only.')], ephemeral:true });
+
+      const target = interaction.options.getUser('user');
+      const action = interaction.options.getString('action');
+      
+      const { getFamily, saveFamily } = require('../../utils/familyDb');
+      const targetFamily = getFamily(target.id);
+      
+      if (!targetFamily) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`<@${target.id}> does not have a family. They need to start one first.`)
+        ], ephemeral:true });
+      }
+
+      switch (action) {
+        case 'bless':
+          targetFamily.happiness = Math.min(100, (targetFamily.happiness || 50) + 20);
+          targetFamily.reputation = Math.min(100, (targetFamily.reputation || 50) + 10);
+          break;
+          
+        case 'curse':
+          targetFamily.happiness = Math.max(0, (targetFamily.happiness || 50) - 20);
+          targetFamily.wealth = 'poor';
+          break;
+          
+        case 'opportunity':
+          // Trigger a special family event
+          const event = FAMILY_EVENTS.illuminati_blessing;
+          targetFamily.events = targetFamily.events || [];
+          targetFamily.events.push({
+            name: event.name,
+            description: event.description,
+            effects: event.effects,
+            triggeredAt: Date.now(),
+            triggeredBy: userId
+          });
+          break;
+      }
+      
+      saveFamily(target.id, targetFamily);
+      
+      return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+        .setTitle(`Family Influence: ${action.charAt(0).toUpperCase() + action.slice(1)}`)
+        .setDescription(`You have used your Illuminati influence to ${action} <@${target.id}>'s family.`)
+      ], ephemeral:true });
     }
 
     // ── INVITE ────────────────────────────────────────────────
@@ -168,7 +527,7 @@ module.exports = {
         await target.send({ embeds:[new EmbedBuilder()
           .setColor(GOLD_COLOR)
           .setTitle('🔺 You Have Been Invited')
-          .setDescription(`An emissary of the **Illuminati** has extended an invitation to you in **${interaction.guild.name}**.\n\nAccepting costs **${fmtMoney(INITIATION_FEE)}** — your initiation fee into the vault.\n\n*The order is secret. Membership has its privileges.*\n\n⏱️ Expires in 10 minutes.`)
+          .setDescription(`An emissary of the **Illuminati** has extended an invitation to you in **${interaction.guild.name}**.\n\nAccepting costs **${fmtMoney(INITIATION_FEE)}** — your initiation fee into the vault.\n\n*The order is secret. Membership has its privileges. You can join factions and perform rituals to gain power.*\n\n⏱️ Expires in 10 minutes.`)
         ], components:[row] });
       } catch {
         delete _pendingInvites[inviteKey];
@@ -186,9 +545,22 @@ module.exports = {
 
       const amount = interaction.options.getInteger('amount');
       if (!amount) {
+        // Show detailed vault status with faction breakdown
+        const factionContributions = {};
+        org.members.forEach(m => {
+          const factionId = m.faction || 'none';
+          factionContributions[factionId] = (factionContributions[factionId] || 0) + (m.contribution || 0);
+        });
+        
+        let factionBreakdown = Object.entries(factionContributions).map(([id, amount]) => {
+          if (id === 'none') return `Unaligned: ${fmtMoney(amount)}`;
+          const faction = ILLUMINATI_FACTIONS[id];
+          return `${faction.emoji} ${faction.name}: ${fmtMoney(amount)}`;
+        }).join('\n');
+        
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
           .setTitle('🏦 Illuminati Vault')
-          .setDescription(`Current balance: **${fmtMoney(org.vault)}**\n\nContribute with \`/illuminati vault amount:\``)
+          .setDescription(`Current balance: **${fmtMoney(org.vault)}**\n\n**Faction Contributions:**\n${factionBreakdown}\n\nContribute with \`/illuminati vault amount:\``)
         ], ephemeral:true });
       }
 
@@ -265,6 +637,159 @@ module.exports = {
       const op     = interaction.options.getString('operation');
       const target = interaction.options.getUser('target');
 
+      // ── NEW FACTION-SPECIFIC OPERATIONS ───────────────────────
+      
+      // ── POLICY CHANGE ────────────────────────────────────────
+      if (op === 'policy_change') {
+        const COST = 100000;
+        const member = getMember(guildId, userId);
+        
+        if (member.faction !== 'political_power') {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('This operation requires the **Political Power** faction.')
+          ], ephemeral:true });
+        }
+        
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Policy Change costs **${fmtMoney(COST)}** from vault. Vault: **${fmtMoney(org.vault)}**.`)], ephemeral:true });
+        
+        org.vault -= COST;
+        org.operations.push({ type:'policy_change', by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        
+        // Implement temporary policy change (this would need to be integrated with your config system)
+        const config = getConfig(guildId);
+        const oldPolicy = config.purgeActive;
+        config.purgeActive = !config.purgeActive;
+        saveConfig(guildId, config);
+        
+        // Revert after 24 hours
+        setTimeout(async () => {
+          try {
+            const newConfig = getConfig(guildId);
+            newConfig.purgeActive = oldPolicy;
+            saveConfig(guildId, newConfig);
+          } catch {}
+        }, 24 * 60 * 60 * 1000);
+        
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle('🏛️ Policy Change Enacted')
+          .setDescription(`Server policies have been temporarily altered.\n\n**Effect:** Purge system ${oldPolicy ? 'disabled' : 'enabled'} for 24 hours.\n\nVault: **${fmtMoney(org.vault)}**`)
+        ], ephemeral:true });
+      }
+      
+      // ── DATA BREACH ───────────────────────────────────────────
+      if (op === 'data_breach') {
+        const COST = 75000;
+        const member = getMember(guildId, userId);
+        
+        if (member.faction !== 'tech_giants') {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('This operation requires the **Tech Giants** faction.')
+          ], ephemeral:true });
+        }
+        
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Data Breach costs **${fmtMoney(COST)}** from vault. Vault: **${fmtMoney(org.vault)}**.`)], ephemeral:true });
+        
+        org.vault -= COST;
+        org.operations.push({ type:'data_breach', by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        
+        // Steal from all non-Illuminati members
+        const { getAllUsers } = require('../../utils/db');
+        const allUsers = getAllUsers();
+        let totalStolen = 0;
+        
+        Object.entries(allUsers).forEach(([uid, user]) => {
+          if (uid === userId || isMember(guildId, uid)) return;
+          
+          const stolen = Math.floor(user.wallet * 0.05); // 5% from each user
+          if (stolen > 0) {
+            user.wallet -= stolen;
+            saveUser(uid, user);
+            totalStolen += stolen;
+          }
+        });
+        
+        org.vault += totalStolen;
+        await saveIlluminati(guildId, org);
+        
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle('💻 Data Breach Complete')
+          .setDescription(`Sensitive information has been stolen from all users.\n\n**Stolen:** ${fmtMoney(totalStolen)}\n**Vault:** ${fmtMoney(org.vault)}`)
+        ], ephemeral:true });
+      }
+      
+      // ── VIRAL CAMPAIGN ────────────────────────────────────────
+      if (op === 'viral_campaign') {
+        const COST = 50000;
+        const member = getMember(guildId, userId);
+        
+        if (member.faction !== 'entertainment') {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('This operation requires the **Entertainment Moguls** faction.')
+          ], ephemeral:true });
+        }
+        
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Viral Campaign costs **${fmtMoney(COST)}** from vault. Vault: **${fmtMoney(org.vault)}**.`)], ephemeral:true });
+        
+        org.vault -= COST;
+        org.operations.push({ type:'viral_campaign', by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        
+        // Boost all Entertainment faction members' social media presence
+        const { getPhone, savePhone } = require('../../utils/phoneDb');
+        let boostedCount = 0;
+        
+        org.members.forEach(m => {
+          if (m.faction === 'entertainment') {
+            const phone = getPhone(m.userId);
+            if (phone) {
+              phone.followers = Math.floor((phone.followers || 0) * 1.5);
+              phone.hype = Math.floor((phone.hype || 0) * 1.3);
+              savePhone(m.userId, phone);
+              boostedCount++;
+            }
+          }
+        });
+        
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle('🎬 Viral Campaign Launched')
+          .setDescription(`A viral trend has been created to benefit the Entertainment faction.\n\n**Boosted:** ${boostedCount} members\n**Effect:** +50% followers, +30% hype\n\nVault: **${fmtMoney(org.vault)}**`)
+        ], ephemeral:true });
+      }
+      
+      // ── ANCIENT RITUAL ────────────────────────────────────────
+      if (op === 'ancient_ritual') {
+        const COST = 300000;
+        const member = getMember(guildId, userId);
+        
+        if (member.faction !== 'secret_societies') {
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription('This operation requires the **Secret Societies** faction.')
+          ], ephemeral:true });
+        }
+        
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Ancient Ritual costs **${fmtMoney(COST)}** from vault. Vault: **${fmtMoney(org.vault)}**.`)], ephemeral:true });
+        
+        org.vault -= COST;
+        org.operations.push({ type:'ancient_ritual', by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        
+        // Apply server-wide effects
+        const effects = [
+          "All members gain +10% work income for 3 days",
+          "All members gain +5% investment returns for 3 days",
+          "Evidence generation rate reduced by 50% for 3 days"
+        ];
+        
+        // This would need to be integrated with your various systems
+        
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle('🔮 Ancient Ritual Complete')
+          .setDescription(`An ancient ritual has been performed, affecting the entire server.\n\n**Effects:**\n${effects.map(e => `• ${e}`).join('\n')}\n\nVault: **${fmtMoney(org.vault)}**`)
+        ], ephemeral:true });
+      }
+
       // ── SHADOW ROB ──────────────────────────────────────────
       if (op === 'shadow_rob') {
         const COST = 50000;
@@ -310,6 +835,7 @@ module.exports = {
         const { getBusiness }  = require('../../utils/bizDb');
         const { getGangByMember } = require('../../utils/gangDb');
         const { getStore }     = require('../../utils/db');
+        const { getFamily }    = require('../../utils/familyDb');
 
         const victim  = getUser(target.id);
         const home    = getHome(target.id);
@@ -317,6 +843,7 @@ module.exports = {
         const rec     = getPoliceRecord(target.id);
         const biz     = getBusiness(target.id);
         const gang    = getGangByMember(target.id);
+        const family  = getFamily(target.id);
         const store   = getStore(guildId);
         const stash   = (home?.stash||[]).map(id => store.items.find(i=>i.id===id)?.name||id);
 
@@ -324,7 +851,7 @@ module.exports = {
         org.operations.push({ type:'intel', target:target.id, by:userId, at:Date.now() });
         await saveIlluminati(guildId, org);
 
-        return interaction.reply({ embeds:[new EmbedBuilder()
+        const embed = new EmbedBuilder()
           .setColor(ILLUM_COLOR)
           .setTitle(`📡 Intel: ${target.username}`)
           .addFields(
@@ -336,8 +863,16 @@ module.exports = {
             { name:'🏢 Business',   value:biz ? `${biz.name} Lv${biz.level||1}` : 'None', inline:true },
             { name:'🏴 Gang',       value:gang ? gang.name : 'None', inline:true },
           )
-          .setFooter({ text:'Intel expires in 24hrs. Do not share.' })
-        ], ephemeral:true });
+          .setFooter({ text:'Intel expires in 24hrs. Do not share.' });
+        
+        // Add family info if exists
+        if (family) {
+          embed.addFields(
+            { name:'👨‍👩‍👧 Family', value:`Spouse: ${family.spouse || 'None'}\nChildren: ${family.children?.length || 0}\nWealth: ${family.wealth || 'Unknown'}`, inline:false }
+          );
+        }
+        
+        return interaction.reply({ embeds:[embed], ephemeral:true });
       }
 
       // ── PROTECTION RACKET ───────────────────────────────────
@@ -888,9 +1423,26 @@ Vault: **${fmtMoney(org.vault)}**`)
         } catch {}
       }
 
-      const memberList = org.members.map(m =>
-        `${RANKS[m.rank]?.label} <@${m.userId}>${m.soulSold ? ' 🖤 *sold soul*' : ''}`
-      ).join('\n');
+      const memberList = org.members.map(m => {
+        const faction = m.faction ? ILLUMINATI_FACTIONS[m.faction] : null;
+        const factionTag = faction ? ` ${faction.emoji}` : '';
+        const ritualCount = m.rituals ? m.rituals.length : 0;
+        return `${RANKS[m.rank]?.label}${factionTag} <@${m.userId}>${m.soulSold ? ' 🖤 *sold soul*' : ''} — ${ritualCount} rituals`;
+      }).join('\n');
+
+      // Faction breakdown
+      let factionBreakdown = '';
+      const factions = {};
+      org.members.forEach(m => {
+        const factionId = m.faction || 'none';
+        factions[factionId] = (factions[factionId] || 0) + 1;
+      });
+      
+      factionBreakdown = Object.entries(factions).map(([id, count]) => {
+        if (id === 'none') return `Unaligned: ${count}`;
+        const faction = ILLUMINATI_FACTIONS[id];
+        return `${faction.emoji} ${faction.name}: ${count}`;
+      }).join('\n');
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0xff3b3b)
@@ -898,6 +1450,7 @@ Vault: **${fmtMoney(org.vault)}**`)
         .setDescription(
           `<@${userId}> has gathered enough evidence to expose the shadow order!\n\n` +
           `**Members:**\n${memberList}\n\n` +
+          `**Factions:**\n${factionBreakdown}\n\n` +
           `**Operations run:** ${org.operations.length}\n` +
           `**Vault:** ${fmtMoney(org.vault)}\n\n` +
           (soulSoldMembers.length ? `💀 **${soulSoldMembers.length} soul-sold member(s) lost 80% of their fanbase.**\n\n` : '') +

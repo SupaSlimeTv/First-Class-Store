@@ -59,18 +59,32 @@ h1{font-size:24px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;c
 <script>
 async function load() {
   try {
+    // First verify authentication
     const me = await fetch('/auth/me').then(r => r.ok ? r.json() : null);
-    if (!me) { location.href = '/login.html'; return; }
+    if (!me) { 
+      console.log('Not authenticated, redirecting to login');
+      location.href = '/login.html'; 
+      return; 
+    }
 
+    // Update user bar
     document.getElementById('user-bar').innerHTML =
       (me.avatar ? '<img src="https://cdn.discordapp.com/avatars/' + me.id + '/' + me.avatar + '.png?size=32">' : '⚡') +
       '<span>Logged in as <strong>' + me.username + '</strong></span>' +
       '<a href="/auth/logout">Logout</a>';
 
-    const resp = await fetch('/api/my-guilds', { credentials: 'include' });
+    // Fetch guilds with proper error handling
+    console.log('Fetching guilds...');
+    const resp = await fetch('/api/my-guilds', { 
+      credentials: 'include',
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
 
     // Token expired or session invalid
     if (resp.status === 401) {
+      console.log('Session expired, showing login prompt');
       document.getElementById('content').innerHTML =
         '<div class="empty" style="padding:40px;text-align:center">' +
         '<div style="font-size:32px;margin-bottom:12px">🔑</div>' +
@@ -81,11 +95,38 @@ async function load() {
       return;
     }
 
-    const data = resp.ok ? await resp.json() : { botGuilds: [], addableGuilds: [] };
+    // Parse response data
+    let data;
+    try {
+      data = resp.ok ? await resp.json() : { botGuilds: [], addableGuilds: [] };
+      console.log('Guild data received:', data);
+    } catch (e) {
+      console.error('Error parsing guild data:', e);
+      data = { botGuilds: [], addableGuilds: [] };
+    }
 
+    // Extract guilds with proper fallbacks
     const botGuilds     = Array.isArray(data) ? data        : (data.botGuilds     || []);
     const addableGuilds = Array.isArray(data) ? []          : (data.addableGuilds || []);
     window._clientId    = data.clientId || '';
+
+    // Check if we have any guilds at all
+    if (botGuilds.length === 0 && addableGuilds.length === 0) {
+      console.log('No guilds found, checking if bot is in any servers');
+      // Try a fallback endpoint
+      try {
+        const fallbackResp = await fetch('/api/guilds', { credentials: 'include' });
+        if (fallbackResp.ok) {
+          const fallbackData = await fallbackResp.json();
+          if (Array.isArray(fallbackData) && fallbackData.length > 0) {
+            console.log('Using fallback guild data');
+            data.botGuilds = fallbackData;
+          }
+        }
+      } catch (e) {
+        console.log('Fallback endpoint also failed');
+      }
+    }
 
     const content = document.getElementById('content');
     let html = '';
@@ -131,14 +172,27 @@ async function load() {
     }
 
     content.innerHTML = html;
+    console.log('Guild selection UI rendered');
   } catch(e) {
-    document.getElementById('content').innerHTML = '<div class="empty">Error loading servers. <a href="#" onclick="load()" style="color:#ff3b3b">Retry</a></div>';
+    console.error('Error loading guilds:', e);
+    document.getElementById('content').innerHTML = 
+      '<div class="empty">' +
+      '<div style="font-size:32px;margin-bottom:12px">⚠️</div>' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Error Loading Servers</div>' +
+      '<div style="color:#666;margin-bottom:20px">There was a problem loading your servers. Check the console for details.</div>' +
+      '<a href="#" onclick="load()" style="color:#ff3b3b">Click to Retry</a>' +
+      '</div>';
   }
 }
 
 function addBot(guildId, name) {
   var cid = window._clientId;
-  if (!cid) { alert('Client ID not loaded. Refresh and try again.'); return; }
+  if (!cid) { 
+    console.error('Client ID not loaded');
+    alert('Client ID not loaded. Refresh and try again.'); 
+    return; 
+  }
+  console.log('Adding bot to guild:', name, guildId);
   var url = 'https://discord.com/oauth2/authorize?client_id=' + cid + '&permissions=8&scope=bot%20applications.commands&guild_id=' + guildId + '&disable_guild_select=true';
   window.open(url, '_blank', 'width=500,height=700');
 }
@@ -165,11 +219,38 @@ async function removeBot(guildId, name, event) {
   btn.textContent = '…';
   btn.disabled = true;
   try {
+    console.log('Removing bot from guild:', name, guildId);
     var r = await fetch('/api/' + guildId + '/leave', { method: 'POST', credentials: 'include' }).then(r => r.json());
-    if (r.success) { load(); }
-    else { btn.textContent = '✕'; btn.disabled = false; alert(r.error || 'Failed to remove bot.'); }
-  } catch(e) { btn.textContent = '✕'; btn.disabled = false; }
+    if (r.success) { 
+      console.log('Successfully removed bot');
+      load(); 
+    }
+    else { 
+      console.error('Failed to remove bot:', r.error);
+      btn.textContent = '✕'; 
+      btn.disabled = false; 
+      alert(r.error || 'Failed to remove bot.'); 
+    }
+  } catch(e) { 
+    console.error('Error removing bot:', e);
+    btn.textContent = '✕'; 
+    btn.disabled = false; 
+  }
 }
+
+// Add a refresh button if there are no guilds after 5 seconds
+setTimeout(function() {
+  const content = document.getElementById('content');
+  if (content && content.innerHTML.includes('Loading your servers')) {
+    content.innerHTML = 
+      '<div class="empty">' +
+      '<div style="font-size:32px;margin-bottom:12px">⏳</div>' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Taking Longer Than Expected</div>' +
+      '<div style="color:#666;margin-bottom:20px">The server list is taking longer to load. Check the console for details.</div>' +
+      '<a href="#" onclick="load()" style="color:#ff3b3b">Click to Retry</a>' +
+      '</div>';
+  }
+}, 5000);
 
 load();
 </script>
