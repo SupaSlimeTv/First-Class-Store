@@ -3428,24 +3428,13 @@ function renderRoleIncome() {
   }).join('');
 }
 
-let _cachedGuildRoles = null;
-
-async function loadGuildRoles() {
-  if (_cachedGuildRoles) return _cachedGuildRoles;
-  try {
-    const roles = await api('GET', `/api/${GUILD}/guild/roles`);
-    _cachedGuildRoles = Array.isArray(roles) ? roles : [];
-  } catch { _cachedGuildRoles = []; }
-  return _cachedGuildRoles;
-}
-
 function roleColor(color) {
   if (!color) return '';
   const hex = '#' + color.toString(16).padStart(6, '0');
   return `style="color:${hex}"`;
 }
 
-async function openAddRole() {
+function openAddRole() {
   document.getElementById('role-modal-h').textContent = 'Add Role Income';
   document.getElementById('rm-orig-id').value  = '';
   document.getElementById('rm-amount').value   = '';
@@ -3456,21 +3445,19 @@ async function openAddRole() {
   document.getElementById('role-modal').classList.add('open');
 
   const sel = document.getElementById('rm-role-select');
-  sel.innerHTML = '<option value="">— Loading… —</option>';
-  sel.disabled = true;
+  sel.disabled = false;
 
-  const roles = await loadGuildRoles();
+  const roles = Array.isArray(guildRoles) ? guildRoles : [];
   const existing = Object.keys(S.roleIncome || {});
   const available = roles.filter(r => !existing.includes(r.id));
 
   if (!available.length) {
-    sel.innerHTML = '<option value="">All roles already have income set</option>';
+    sel.innerHTML = '<option value="">No roles available</option>';
     return;
   }
 
   sel.innerHTML = '<option value="">— Pick a role —</option>' +
     available.map(r => `<option value="${r.id}" data-name="${r.name}">${r.name}</option>`).join('');
-  sel.disabled = false;
 }
 
 async function openEditRole(roleId) {
@@ -3506,7 +3493,6 @@ function closeRoleModal() {
   const rsel = document.getElementById('rm-role-select');
   rsel.disabled = false;
   document.getElementById('rm-role-hint').style.display = 'none';
-  _cachedGuildRoles = null; // refresh next open
 }
 
 async function saveRoleIncome() {
