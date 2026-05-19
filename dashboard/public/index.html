@@ -1546,24 +1546,22 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
 <!-- ROLE INCOME MODAL -->
 <div id="role-modal" class="backdrop">
-  <div class="modal" style="max-width:440px">
+  <div class="modal" style="max-width:400px">
     <div class="modal-top"><h3 id="role-modal-h">Add Role Income</h3></div>
     <div class="modal-body">
       <input type="hidden" id="rm-orig-id">
       <div class="fg">
-        <label class="flabel">Discord Role ID *</label>
-        <input class="finput" id="rm-roleid" placeholder="e.g. 1234567890123456789">
-        <div class="hint">Right-click a role in Discord → Copy Role ID (requires Developer Mode)</div>
+        <label class="flabel">Role *</label>
+        <select class="fselect" id="rm-role-select" onchange="onRoleSelectChange()">
+          <option value="">— Loading roles… —</option>
+        </select>
+        <div class="hint" id="rm-role-hint" style="display:none">Editing role — ID cannot be changed.</div>
       </div>
       <div class="fg">
-        <label class="flabel">Display Name *</label>
-        <input class="finput" id="rm-name" placeholder="e.g. VIP, Booster, Member">
+        <label class="flabel">Income Amount ($) *</label>
+        <input class="finput" id="rm-amount" type="number" min="1" placeholder="e.g. 500">
       </div>
       <div class="grid2">
-        <div class="fg">
-          <label class="flabel">Income Amount ($) *</label>
-          <input class="finput" id="rm-amount" type="number" min="1" placeholder="500">
-        </div>
         <div class="fg">
           <label class="flabel">Paid Into</label>
           <select class="fselect" id="rm-location">
@@ -1571,16 +1569,23 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <option value="bank">🏦 Bank</option>
           </select>
         </div>
-      </div>
-      <div class="fg">
-        <label class="flabel">Collect Every (hours)</label>
-        <input class="finput" id="rm-interval" type="number" min="0.5" step="0.5" placeholder="24">
-        <div class="hint">How many hours between each collection. Use 0.5 for 30 minutes, 1 for 1 hour, 24 for daily, etc.</div>
+        <div class="fg">
+          <label class="flabel">Collect Every</label>
+          <select class="fselect" id="rm-interval">
+            <option value="0.5">Every 30 min</option>
+            <option value="1">Every 1 hour</option>
+            <option value="6">Every 6 hours</option>
+            <option value="12">Every 12 hours</option>
+            <option value="24" selected>Every 24 hours (daily)</option>
+            <option value="48">Every 2 days</option>
+            <option value="168">Every week</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeRoleModal()">Cancel</button>
-      <button class="btn btn-gold" onclick="saveRoleIncome()">Save</button>
+      <button class="btn btn-gold" id="rm-save-btn" onclick="saveRoleIncome()" disabled>Save</button>
     </div>
   </div>
 </div>
@@ -3423,46 +3428,101 @@ function renderRoleIncome() {
   }).join('');
 }
 
-function openAddRole() {
+let _cachedGuildRoles = null;
+
+async function loadGuildRoles() {
+  if (_cachedGuildRoles) return _cachedGuildRoles;
+  try {
+    const roles = await api('GET', `/api/${GUILD}/guild/roles`);
+    _cachedGuildRoles = Array.isArray(roles) ? roles : [];
+  } catch { _cachedGuildRoles = []; }
+  return _cachedGuildRoles;
+}
+
+function roleColor(color) {
+  if (!color) return '';
+  const hex = '#' + color.toString(16).padStart(6, '0');
+  return `style="color:${hex}"`;
+}
+
+async function openAddRole() {
   document.getElementById('role-modal-h').textContent = 'Add Role Income';
   document.getElementById('rm-orig-id').value  = '';
-  document.getElementById('rm-roleid').value   = '';
-  document.getElementById('rm-name').value     = '';
   document.getElementById('rm-amount').value   = '';
   document.getElementById('rm-location').value = 'wallet';
   document.getElementById('rm-interval').value = '24';
-  document.getElementById('rm-roleid').disabled = false;
+  document.getElementById('rm-role-hint').style.display = 'none';
+  document.getElementById('rm-save-btn').disabled = true;
   document.getElementById('role-modal').classList.add('open');
+
+  const sel = document.getElementById('rm-role-select');
+  sel.innerHTML = '<option value="">— Loading… —</option>';
+  sel.disabled = true;
+
+  const roles = await loadGuildRoles();
+  const existing = Object.keys(S.roleIncome || {});
+  const available = roles.filter(r => !existing.includes(r.id));
+
+  if (!available.length) {
+    sel.innerHTML = '<option value="">All roles already have income set</option>';
+    return;
+  }
+
+  sel.innerHTML = '<option value="">— Pick a role —</option>' +
+    available.map(r => `<option value="${r.id}" data-name="${r.name}">${r.name}</option>`).join('');
+  sel.disabled = false;
 }
 
-function openEditRole(roleId) {
+async function openEditRole(roleId) {
   const income = S.roleIncome[roleId];
   if (!income) return;
   document.getElementById('role-modal-h').textContent = 'Edit Role Income';
   document.getElementById('rm-orig-id').value  = roleId;
-  document.getElementById('rm-roleid').value   = roleId;
-  document.getElementById('rm-name').value     = income.name || '';
   document.getElementById('rm-amount').value   = income.amount || '';
   document.getElementById('rm-location').value = income.location || 'wallet';
-  document.getElementById('rm-interval').value = income.intervalHours || 24;
-  document.getElementById('rm-roleid').disabled = true; // can't change role ID on edit
+
+  // Match interval to preset or default to closest
+  const ih = String(income.intervalHours || 24);
+  const sel = document.getElementById('rm-interval');
+  const match = [...sel.options].find(o => o.value === ih);
+  sel.value = match ? ih : '24';
+
+  // Role select — locked to current role, just show its name
+  const rsel = document.getElementById('rm-role-select');
+  rsel.innerHTML = `<option value="${roleId}" selected>${income.name || roleId}</option>`;
+  rsel.disabled = true;
+  document.getElementById('rm-role-hint').style.display = 'block';
+  document.getElementById('rm-save-btn').disabled = false;
   document.getElementById('role-modal').classList.add('open');
+}
+
+function onRoleSelectChange() {
+  const sel = document.getElementById('rm-role-select');
+  document.getElementById('rm-save-btn').disabled = !sel.value;
 }
 
 function closeRoleModal() {
   document.getElementById('role-modal').classList.remove('open');
-  document.getElementById('rm-roleid').disabled = false;
+  const rsel = document.getElementById('rm-role-select');
+  rsel.disabled = false;
+  document.getElementById('rm-role-hint').style.display = 'none';
+  _cachedGuildRoles = null; // refresh next open
 }
 
 async function saveRoleIncome() {
-  const origId  = document.getElementById('rm-orig-id').value;
-  const roleId  = origId || document.getElementById('rm-roleid').value.trim();
-  const name    = document.getElementById('rm-name').value.trim();
-  const amount  = document.getElementById('rm-amount').value;
-  const location = document.getElementById('rm-location').value;
+  const origId = document.getElementById('rm-orig-id').value;
+  const sel    = document.getElementById('rm-role-select');
+  const roleId = origId || sel.value;
+  const selOpt = sel.options[sel.selectedIndex];
+  const name   = origId
+    ? (S.roleIncome[origId]?.name || origId)
+    : (selOpt?.dataset.name || selOpt?.text || roleId);
+  const amount       = document.getElementById('rm-amount').value;
+  const location     = document.getElementById('rm-location').value;
   const intervalHours = document.getElementById('rm-interval').value;
 
-  if (!roleId || !name || !amount) { toast('Role ID, name, and amount are required', 'err'); return; }
+  if (!roleId) { toast('Select a role', 'err'); return; }
+  if (!amount)  { toast('Enter an income amount', 'err'); return; }
 
   const r = await api('POST', `/api/${GUILD}/roleincome`, { roleId, name, amount, location, intervalHours });
   if (r.success) {
