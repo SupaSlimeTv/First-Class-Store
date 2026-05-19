@@ -11,6 +11,8 @@ const { getCredit, getCreditTier } = require('./creditDb');
 const { getLabel, NPC_ARTISTS } = require('./labelDb');
 const { getIlluminati } = require('./illuminatiDb');
 const { BUILTIN_APPS } = require('./laptopDb');
+const { getActiveListings } = require('./torDb');
+const { LIFE_PATHS } = require('./lifePathDb');
 
 // Filter + slice helper
 function filter(choices, typed) {
@@ -133,6 +135,70 @@ function drugAutocomplete(interaction) {
   return interaction.respond(filter(drugs.map(d=>({ name:`${d.name} — $${d.price?.toLocaleString()||'?'}`, value:d.id })), typed));
 }
 
+// ── STOLEN SSN AUTOCOMPLETE ───────────────────────────────────
+// Used by /identity subcommands — shows only victims you own data on
+function stolenSsnAutocomplete(interaction) {
+  const typed  = (interaction.options.getFocused() || '').toLowerCase();
+  const credit = getCredit(interaction.user.id);
+  const stolen = credit?.ssnStolen || {};
+  const entries = Object.entries(stolen);
+
+  if (!entries.length) {
+    return interaction.respond([{
+      name: 'No stolen SSNs — use /hack ssn or /tor buy first',
+      value: '__none__',
+    }]);
+  }
+
+  const choices = entries.map(([victimId, data]) => {
+    const member   = interaction.guild?.members?.cache?.get(victimId);
+    const username = member ? member.user.username : victimId.slice(0, 8);
+    const flag     = data.partial ? ' ⚠️partial' : ' ✅full';
+    return {
+      name: `${username} — ${data.ssn}${flag} · Score ${data.score||'?'}`,
+      value: victimId,
+    };
+  });
+
+  return interaction.respond(filter(choices, typed));
+}
+
+// ── TOR LISTING AUTOCOMPLETE ──────────────────────────────────
+// Used by /tor buy — shows active marketplace listings
+function torListingAutocomplete(interaction) {
+  const typed    = (interaction.options.getFocused() || '').toLowerCase();
+  const listings = getActiveListings().slice(0, 25);
+
+  if (!listings.length) {
+    return interaction.respond([{ name: 'No active listings — check /tor market', value: '__none__' }]);
+  }
+
+  const TYPE_EMOJI = {
+    full_ssn:      '🪪',
+    card_data:     '💳',
+    routing:       '🏢',
+    financial:     '📊',
+    full_identity: '🆔',
+  };
+
+  const choices = listings.map(l => ({
+    name: `${TYPE_EMOJI[l.type]||'📦'} ${l.typeName||l.type} · $${(l.price||0).toLocaleString()} · ${'⭐'.repeat(Math.min(l.quality||1,5))} · ID:${l.id.slice(-6)}`,
+    value: l.id,
+  }));
+
+  return interaction.respond(filter(choices, typed));
+}
+
+// ── LIFE PATH AUTOCOMPLETE ────────────────────────────────────
+function lifePathAutocomplete(interaction) {
+  const typed   = (interaction.options.getFocused() || '').toLowerCase();
+  const choices = Object.values(LIFE_PATHS).map(p => ({
+    name: `${p.emoji} ${p.name} — ${p.description.slice(0, 50)}`,
+    value: p.id,
+  }));
+  return interaction.respond(filter(choices, typed));
+}
+
 module.exports = {
   filter,
   itemAutocomplete,
@@ -145,4 +211,7 @@ module.exports = {
   illuminatiRankAutocomplete,
   gunAutocomplete,
   drugAutocomplete,
+  stolenSsnAutocomplete,
+  torListingAutocomplete,
+  lifePathAutocomplete,
 };

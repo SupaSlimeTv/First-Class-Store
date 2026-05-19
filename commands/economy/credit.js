@@ -41,6 +41,10 @@ module.exports = {
       const utilization = credit.limit > 0 ? Math.round((credit.balance/credit.limit)*100) : 0;
       const loans = (credit.loans||[]).filter(l=>!l.paid);
 
+      const { getAccountAgeDays, getAgeString, getLifePath } = require('../../utils/lifePathDb');
+      const lp = getLifePath(userId);
+      const ageStr = lp?.bornAt ? getAgeString(lp.bornAt) : null;
+
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(tier.color)
         .setTitle('💳 Your Credit Profile')
@@ -48,6 +52,7 @@ module.exports = {
           { name:'🪪 SSN',           value:`||${credit.ssn}||`,                                    inline:true },
           { name:'📊 Credit Score',  value:`**${credit.score}** — ${tier.label}`,                  inline:true },
           { name:'❄️ Frozen',        value:credit.frozen ? '**YES** — credit locked' : 'No',       inline:true },
+          ...(ageStr ? [{ name:'📅 Account Age', value:ageStr, inline:true }] : []),
           { name:'💳 Card',          value:credit.card ? `${tier.card}\nBalance: ${fmtMoney(credit.balance)} / ${fmtMoney(credit.limit)}` : 'None — use `/credit apply`', inline:false },
           { name:'📈 Utilization',   value:credit.card ? `${utilization}%` : 'N/A',                inline:true },
           { name:'✅ On-Time Payments',value:`${credit.payments||0}`,                               inline:true },
@@ -162,6 +167,13 @@ module.exports = {
 
     // ── LOAN ──────────────────────────────────────────────────
     if (sub === 'loan') {
+      const { getAccountAgeDays } = require('../../utils/lifePathDb');
+      const loanAgeDays = getAccountAgeDays(userId);
+      if (loanAgeDays !== null && loanAgeDays < 5) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`Business loans require an account at least **5 days old**.\n\n📅 Current age: **${loanAgeDays} day${loanAgeDays !== 1 ? 's' : ''}**\n\nBuild your credit history first.`)
+        ], ephemeral:true });
+      }
       if (credit.score < 670) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
         .setDescription(`Business loans require a **Good (670+)** credit score.\nYour score: **${credit.score}** (${tier.label})`)
       ], ephemeral:true });

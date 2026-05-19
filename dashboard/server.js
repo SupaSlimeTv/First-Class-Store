@@ -724,7 +724,19 @@ app.delete('/api/:guildId/protected-roles/:roleId', requireGuildAuth, (req, res)
 
 // ── ROLE INCOME ───────────────────────────────────────────────
 
-app.get('/api/:guildId/roleincome', requireGuildAuth, (req, res) => res.json((db.getConfig(req.guildId)).roleIncome||{}));
+app.get('/api/:guildId/roleincome', requireGuildAuth, (req, res) => {
+  const raw = (db.getConfig(req.guildId)).roleIncome || {};
+  const sanitized = {};
+  for (const [id, r] of Object.entries(raw)) {
+    sanitized[id] = {
+      name:          r.name          || '',
+      amount:        parseInt(r.amount)       || 0,
+      location:      r.location      || 'wallet',
+      intervalHours: parseFloat(r.intervalHours) || 24,
+    };
+  }
+  res.json(sanitized);
+});
 
 app.post('/api/:guildId/roleincome', requireGuildAuth, (req, res) => {
   const { roleId, name, amount, location, intervalHours } = req.body;

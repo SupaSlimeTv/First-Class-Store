@@ -102,6 +102,12 @@ client.once('ready', async () => {
   const { preloadIlluminatiCache } = require('./utils/illuminatiDb');
   await preloadIlluminatiCache();
 
+  const { preloadFamilyCache } = require('./utils/familyDb');
+  await preloadFamilyCache();
+
+  const { preloadLifePathCache } = require('./utils/lifePathDb');
+  await preloadLifePathCache();
+
   const { preloadLabelCache } = require('./utils/labelDb');
   await preloadLabelCache();
 
@@ -282,10 +288,13 @@ client.on('messageCreate', async (message) => {
     openAccount(message.author.id);
     const { getOrCreateCredit: _gcc } = require('./utils/creditDb');
     const newCredit = await _gcc(message.author.id);
+    // Record birth timestamp for life path system
+    const { setBornAt: _sba } = require('./utils/lifePathDb');
+    _sba(message.author.id);
     return message.reply({ embeds: [new EmbedBuilder()
       .setColor(COLORS.SUCCESS)
       .setTitle('🏦 Account Opened!')
-      .setDescription(`Welcome, **${message.author.username}**! Your account has been created.\n\n💵 Starting wallet: **$500**\n🪪 Your SSN: **${newCredit.ssn}**\n📊 Credit Score: **${newCredit.score}** (Good)\n\n⚠️ Keep your SSN private — others can steal it to commit fraud!\n\nUse \`${prefix}help\` to see all commands.`)
+      .setDescription(`Welcome, **${message.author.username}**! Your account has been created.\n\n💵 Starting wallet: **$500**\n🪪 Your SSN: **${newCredit.ssn}**\n📊 Credit Score: **${newCredit.score}** (Good)\n\n⚠️ Keep your SSN private — others can steal it to commit fraud!\n\n🌱 Use \`/lifepath choose\` to pick your origin and unlock permanent bonuses!\n\nUse \`${prefix}help\` to see all commands.`)
     ]});
   }
 
@@ -2547,7 +2556,9 @@ client.on('interactionCreate', async interaction => {
   const { customId } = interaction;
   if (!customId.startsWith('illum_accept_') && !customId.startsWith('illum_decline_') &&
       !customId.startsWith('illum_pay_tribute_') && !customId.startsWith('illum_refuse_tribute_') &&
-      !customId.startsWith('illum_soul_') && !customId.startsWith('illum_soul_decline_')) return;
+      !customId.startsWith('illum_soul_') && !customId.startsWith('illum_soul_decline_') &&
+      !customId.startsWith('illum_dark_accept_') && !customId.startsWith('illum_dark_refuse_') &&
+      !customId.startsWith('illum_sacrifice_pay_') && !customId.startsWith('illum_sacrifice_refuse_')) return;
 
   const { EmbedBuilder } = require('discord.js');
   const { getOrCreateIlluminati, saveIlluminati, isMember, INITIATION_FEE, RANKS } = require('./utils/illuminatiDb');
@@ -2592,6 +2603,131 @@ client.on('interactionCreate', async interaction => {
   if (customId.startsWith('illum_soul_decline_')) {
     return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888)
       .setDescription('You walked away. The door closes.')
+    ], components:[] });
+  }
+
+  // ── DARK BARGAIN ACCEPT ───────────────────────────────────
+  if (customId.startsWith('illum_dark_accept_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[3];
+    const targetId = parts[4];
+    if (userId !== targetId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('This offer was not meant for you.')], ephemeral:true, components:[] });
+
+    const org = getOrCreateIlluminati(guildId);
+    const { getMember: _gm } = require('./utils/illuminatiDb');
+    const tMem = _gm(guildId, userId);
+    if (!tMem) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('You are no longer a member of the order.')], components:[] });
+    if (tMem.soulSold) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Your soul is already gone.')], components:[] });
+
+    tMem.soulSold = true;
+    await saveIlluminati(guildId, org);
+
+    return interaction.update({ embeds:[new EmbedBuilder().setColor(0x1a1a2e)
+      .setTitle('🕯️ The Bargain is Sealed')
+      .setDescription('You accepted.\n\n🖤 Your soul now belongs to the order. The Grandmaster has complete authority over your operations.\n\n*Power comes with a price. You will feel both.*')
+    ], components:[] });
+  }
+
+  // ── DARK BARGAIN REFUSE ───────────────────────────────────
+  if (customId.startsWith('illum_dark_refuse_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[3];
+    const targetId = parts[4];
+    if (userId !== targetId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('This offer was not meant for you.')], ephemeral:true, components:[] });
+
+    const org = getOrCreateIlluminati(guildId);
+    const { getMember: _gm2 } = require('./utils/illuminatiDb');
+    const tMem2 = _gm2(guildId, userId);
+    if (!tMem2) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('You are no longer a member of the order.')], components:[] });
+
+    const rankOrder = ['initiate', 'operative', 'elder', 'grandmaster'];
+    const idx = rankOrder.indexOf(tMem2.rank);
+    if (idx > 0) tMem2.rank = rankOrder[idx - 1];
+    await saveIlluminati(guildId, org);
+
+    return interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
+      .setTitle('🕯️ You Refused')
+      .setDescription(`Your defiance cost you.\n\nYou have been demoted to **${RANKS[tMem2.rank].label}**.\n\n*The Grandmaster does not forget.*`)
+    ], components:[] });
+  }
+
+  // ── GRAND SACRIFICE — PAY RANSOM ─────────────────────────
+  if (customId.startsWith('illum_sacrifice_pay_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[3];
+    const targetId = parts[4];
+    if (userId !== targetId) return interaction.reply({ content: 'This demand was not sent to you.', ephemeral: true });
+
+    const org = getOrCreateIlluminati(guildId);
+    const sacrifice = org.pendingSacrifices?.[targetId];
+    if (!sacrifice || Date.now() > sacrifice.expiresAt) {
+      return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('This sacrifice demand has expired.')], components:[] });
+    }
+
+    const victim = getOrCreateUser(userId);
+    if (victim.wallet < sacrifice.amount) {
+      const drain = Math.min(victim.wallet, sacrifice.amount);
+      victim.wallet = 0;
+      org.vault += drain;
+      saveUser(userId, victim);
+      delete org.pendingSacrifices[targetId];
+      await saveIlluminati(guildId, org);
+      return interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
+        .setTitle('⚰️ Partial Ransom Paid')
+        .setDescription(`You couldn't cover the full ransom. **${fmtM(drain)}** was taken — everything you had.\n\n*The order is displeased.*`)
+      ], components:[] });
+    }
+
+    victim.wallet -= sacrifice.amount;
+    org.vault += sacrifice.amount;
+    saveUser(userId, victim);
+    delete org.pendingSacrifices[targetId];
+    await saveIlluminati(guildId, org);
+
+    return interaction.update({ embeds:[new EmbedBuilder().setColor(0x2ecc71)
+      .setTitle('⚰️ Ransom Paid')
+      .setDescription(`**${fmtM(sacrifice.amount)}** has been delivered to the vault.\n\nYou live to see another day.\n\n*The order is satisfied.*`)
+    ], components:[] });
+  }
+
+  // ── GRAND SACRIFICE — REFUSE ──────────────────────────────
+  if (customId.startsWith('illum_sacrifice_refuse_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[3];
+    const targetId = parts[4];
+    if (userId !== targetId) return interaction.reply({ content: 'This demand was not sent to you.', ephemeral: true });
+
+    const org = getOrCreateIlluminati(guildId);
+    const sacrifice = org.pendingSacrifices?.[targetId];
+    if (!sacrifice || Date.now() > sacrifice.expiresAt) {
+      return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('This sacrifice demand has expired.')], components:[] });
+    }
+
+    const victim = getOrCreateUser(userId);
+    const walletSeize = Math.floor((victim.wallet||0) * 0.40);
+    const bankSeize   = Math.floor((victim.bank||0)   * 0.40);
+    victim.wallet = Math.max(0, (victim.wallet||0) - walletSeize);
+    victim.bank   = Math.max(0, (victim.bank||0)   - bankSeize);
+    org.vault += walletSeize + bankSeize;
+    saveUser(userId, victim);
+
+    const { getMember: _gmS } = require('./utils/illuminatiDb');
+    const tMem = _gmS(guildId, userId);
+    if (tMem) {
+      const { getBusiness: _gbS, saveBusiness: _sbS } = require('./utils/bizDb');
+      const biz = _gbS(userId);
+      if (biz && biz.level > 1) { biz.level -= 1; _sbS(userId, biz); }
+      const { getPhone: _gpS, savePhone: _spS } = require('./utils/phoneDb');
+      const ph = _gpS(userId);
+      if (ph) { ph.status = Math.max(0, Math.floor((ph.status||0) * 0.80)); await _spS(userId, ph); }
+    }
+
+    delete org.pendingSacrifices[targetId];
+    await saveIlluminati(guildId, org);
+
+    return interaction.update({ embeds:[new EmbedBuilder().setColor(0xff3b3b)
+      .setTitle('⚰️ Sacrifice Enacted')
+      .setDescription(`You refused the ransom.\n\n• **${fmtM(walletSeize + bankSeize)}** seized from wallet + bank\n• Business level reduced by 1\n• Status reduced by 20%\n\n*The order takes what it is owed.*`)
     ], components:[] });
   }
 
@@ -2695,6 +2831,116 @@ Use \`/illuminati status\` to view the order.`)
       .setDescription(`You refused. **$${penalty.toLocaleString()}** was taken from your wallet by force.`)
     ], components:[] });
   }
+});
+
+// ── FAMILY EVENT BUTTON HANDLER ──────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('fam:')) return;
+
+  const parts        = customId.split(':');
+  const targetUserId = parts[1];
+  const eventId      = parts[2];
+  const choiceIdx    = parseInt(parts[3]);
+
+  if (interaction.user.id !== targetUserId) {
+    return interaction.reply({ content: 'This life event isn\'t yours to decide.', ephemeral: true });
+  }
+
+  const { EmbedBuilder } = require('discord.js');
+  const { getFamily, saveFamily, generateChild, EVENTS } = require('./utils/familyDb');
+  const { getOrCreateUser, saveUser } = require('./utils/db');
+  const fmtM = n => '$' + Math.round(n).toLocaleString();
+
+  const family = getFamily(targetUserId);
+  if (!family) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Could not find your family.')], components:[] });
+
+  const event = EVENTS.find(e => e.id === eventId);
+  if (!event)  return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('This event is no longer valid.')], components:[] });
+
+  const choice = event.choices[choiceIdx];
+  if (!choice) return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Invalid choice.')], components:[] });
+
+  const user    = getOrCreateUser(targetUserId);
+  const results = [];
+
+  // ── Wallet outcomes ────────────────────────────────────────
+  if (choice.wallet) {
+    if (choice.wallet < 0) {
+      const loss = Math.min(Math.abs(choice.wallet), user.wallet);
+      user.wallet -= loss;
+      if (loss > 0) results.push(`💸 Lost **${fmtM(loss)}**`);
+    } else {
+      user.wallet += choice.wallet;
+      results.push(`💰 Gained **${fmtM(choice.wallet)}**`);
+    }
+  }
+  if (choice.walletLoss) {
+    const loss = Math.floor(user.wallet * choice.walletLoss);
+    user.wallet = Math.max(0, user.wallet - loss);
+    results.push(`💸 Lost **${fmtM(loss)}** (${Math.round(choice.walletLoss*100)}% of wallet)`);
+  }
+  if (choice.walletRange) {
+    const [min, max] = choice.walletRange;
+    const change = Math.floor(min + Math.random() * (max - min));
+    if (change < 0) {
+      const loss = Math.min(Math.abs(change), user.wallet);
+      user.wallet -= loss;
+      results.push(`💸 Lost **${fmtM(loss)}** *(the gamble failed)*`);
+    } else {
+      user.wallet += change;
+      results.push(`💰 Gained **${fmtM(change)}** *(the gamble paid off)*`);
+    }
+  }
+  saveUser(targetUserId, user);
+
+  // ── Family stat outcomes ───────────────────────────────────
+  if (choice.happiness !== undefined) {
+    const old = family.happiness;
+    family.happiness = Math.max(0, Math.min(100, (family.happiness||70) + choice.happiness));
+    results.push(choice.happiness > 0 ? `💛 Happiness **+${choice.happiness}** (${old}→${family.happiness})` : `💔 Happiness **${choice.happiness}** (${old}→${family.happiness})`);
+  }
+  if (choice.reputation !== undefined) {
+    const old = family.reputation;
+    family.reputation = Math.max(0, Math.min(100, (family.reputation||50) + choice.reputation));
+    results.push(choice.reputation > 0 ? `⭐ Reputation **+${choice.reputation}**` : `⭐ Reputation **${choice.reputation}**`);
+  }
+  if (choice.legacy !== undefined) {
+    family.legacy = (family.legacy||0) + choice.legacy;
+    results.push(choice.legacy > 0 ? `🏆 Legacy **+${choice.legacy}** (total: ${family.legacy})` : `🏆 Legacy **${choice.legacy}** (total: ${family.legacy})`);
+  }
+  if (choice.divorce) {
+    const pName = family.partner?.name || 'your partner';
+    family.partner = null;
+    results.push(`💔 Divorce finalized. **${pName}** is gone.`);
+  }
+  if (choice.addChild) {
+    if (!family.children) family.children = [];
+    const child = generateChild(family.eventCount || 0);
+    family.children.push(child);
+    results.push(`👶 **${child.name}** joined your family *(${child.trait})*`);
+  }
+  if (choice.dynasty) {
+    family.dynasty = true;
+    results.push(`⛓️ Dynasty contract sealed — your bloodline is Illuminati-bound`);
+  }
+
+  // ── Record event ───────────────────────────────────────────
+  family.eventCount = (family.eventCount||0) + 1;
+  family.lastEvent  = Date.now();
+  if (!family.events) family.events = [];
+  family.events.push({ eventId, choiceIdx, at: Date.now() });
+  if (family.events.length > 50) family.events = family.events.slice(-50);
+
+  await saveFamily(targetUserId, family);
+
+  return interaction.update({ embeds:[new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle(event.name)
+    .setDescription(`**${choice.label}** — *${choice.desc}*\n\n${results.length ? results.join('\n') : '*No immediate changes.*'}`)
+    .setFooter({ text: `Event #${family.eventCount} • Happiness: ${family.happiness}/100 · Legacy: ${family.legacy}` })
+  ], components:[] });
 });
 
 // ── BREAK-IN CHOICE BUTTON HANDLER ──────────────────────────
@@ -3102,6 +3348,57 @@ setInterval(async () => {
     }
   } catch(e) { console.error('Drop tick error:', e.message); }
 }, 60_000);
+
+// ── LIFE PATH CHOICE BUTTONS ──────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const { customId } = interaction;
+  if (!customId.startsWith('lp_choose_')) return;
+
+  const pathId = customId.replace('lp_choose_', '');
+  const userId = interaction.user.id;
+
+  const {
+    getLifePath: _glp, createLifePath: _clp, LIFE_PATHS: _LP,
+  } = require('./utils/lifePathDb');
+  const { getOrCreateUser: _gou, saveUser: _su } = require('./utils/db');
+  const { EmbedBuilder: _EB } = require('discord.js');
+
+  const existing = _glp(userId);
+  if (existing?.path) {
+    const def = _LP[existing.path];
+    return interaction.reply({ embeds:[new _EB()
+      .setColor(0x888888)
+      .setDescription(`You already chose **${def.emoji} ${def.name}**. Life paths are permanent.`)
+    ], ephemeral: true });
+  }
+
+  const pathDef = _LP[pathId];
+  if (!pathDef) return interaction.reply({ content: 'Unknown path.', ephemeral: true });
+
+  // Create life path record
+  _clp(userId, pathId);
+
+  // Grant starting bonus to wallet
+  const user = _gou(userId);
+  user.wallet = (user.wallet || 0) + pathDef.startingBonus;
+  _su(userId, user);
+
+  await interaction.update({
+    embeds:[new _EB()
+      .setColor(pathDef.color)
+      .setTitle(`${pathDef.emoji} ${pathDef.name}`)
+      .setDescription(
+        `*"${pathDef.flavor}"*\n\n` +
+        `Your path has been chosen. There is no going back.\n\n` +
+        `**Bonuses unlocked:**\n${pathDef.bonusText.map(b => `• ${b}`).join('\n')}\n\n` +
+        `💰 Starting bonus: **+$${pathDef.startingBonus.toLocaleString()}** added to your wallet.\n\n` +
+        `🔺 *Illuminati factions available to you: ${pathDef.illuminatiEligible.join(', ').replace(/_/g, ' ')}*`
+      )
+    ],
+    components: [],
+  });
+});
 
 // ── GLOBAL ERROR HANDLERS ─────────────────────────────────────
 process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));

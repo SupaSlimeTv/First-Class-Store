@@ -66,11 +66,13 @@ module.exports = {
 
     cooldowns.set(robberId, Date.now());
 
-    // Apply rob_boost consume buff
+    // Apply rob_boost consume buff + life path bonus
     const { getConsumeBuff } = require('../../utils/consumeBuffs');
+    const { getPathBonus }   = require('../../utils/lifePathDb');
     const robBoost    = getConsumeBuff(robberId, 'rob_boost');
+    const pathBonus   = getPathBonus(robberId, 'robBonus');
     const baseChance  = purge ? PURGE_CHANCE : SUCCESS_CHANCE;
-    const finalChance = Math.min(0.95, baseChance + robBoost / 100);
+    const finalChance = Math.min(0.95, baseChance + robBoost / 100 + pathBonus);
     const success     = Math.random() < finalChance;
 
     if (success) {

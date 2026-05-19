@@ -3394,19 +3394,24 @@ function renderRoleIncome() {
   }
 
   tb.innerHTML = entries.map(([roleId, income]) => {
-    const interval = income.intervalHours >= 24
-      ? `${income.intervalHours / 24}d`
-      : income.intervalHours < 1
-        ? `${income.intervalHours * 60}m`
-        : `${income.intervalHours}h`;
+    const hrs = parseFloat(income.intervalHours) || 24;
+    const interval = hrs >= 24
+      ? `${hrs / 24}d`
+      : hrs < 1
+        ? `${Math.round(hrs * 60)}m`
+        : `${hrs}h`;
 
     const locTag = income.location === 'bank'
       ? '<span class="tag t-blue">🏦 Bank</span>'
       : '<span class="tag t-green">💵 Wallet</span>';
 
+    const displayName = income.name
+      ? income.name
+      : `<span style="color:var(--muted);font-style:italic">Unnamed — click Edit</span>`;
+
     return `<tr>
       <td class="mono" style="font-size:11px;color:var(--muted)">${roleId}</td>
-      <td style="font-weight:600">${income.name}</td>
+      <td style="font-weight:600">${displayName}</td>
       <td class="mono" style="color:var(--gold)">$${(income.amount||0).toLocaleString()}</td>
       <td>${locTag}</td>
       <td class="mono">${interval}</td>
@@ -3436,8 +3441,8 @@ function openEditRole(roleId) {
   document.getElementById('role-modal-h').textContent = 'Edit Role Income';
   document.getElementById('rm-orig-id').value  = roleId;
   document.getElementById('rm-roleid').value   = roleId;
-  document.getElementById('rm-name').value     = income.name;
-  document.getElementById('rm-amount').value   = income.amount;
+  document.getElementById('rm-name').value     = income.name || '';
+  document.getElementById('rm-amount').value   = income.amount || '';
   document.getElementById('rm-location').value = income.location || 'wallet';
   document.getElementById('rm-interval').value = income.intervalHours || 24;
   document.getElementById('rm-roleid').disabled = true; // can't change role ID on edit

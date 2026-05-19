@@ -67,6 +67,14 @@ module.exports = {
       const bizType = BIZ_TYPES[type];
       if (!bizType) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Invalid business type.')], ephemeral:true });
 
+      const { getAccountAgeDays } = require('../../utils/lifePathDb');
+      const ageDays = getAccountAgeDays(userId);
+      if (ageDays !== null && ageDays < 2) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`Your account must be at least **2 days old** to start a business.\n\n📅 Current age: **${ageDays} day${ageDays !== 1 ? 's' : ''}**\n\nGrow your account first — use \`/daily\`, \`/work\`, and \`/rob\`.`)
+        ], ephemeral:true });
+      }
+
       const isCash = !!bizType.isCashBusiness;
 
       // ── LEGIT: max 1 normally, 2 for Illuminati ──
@@ -223,8 +231,11 @@ module.exports = {
       ], ephemeral:true });
       if (!BIZ_TYPES[biz.type]) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Invalid business type. Use `/business close` to clean it up.')], ephemeral:true });
 
-      const now    = Date.now();
-      const earned = Math.floor(calcIncome(biz)/60 * (now-biz.lastTick)/1000) + (biz.revenue||0);
+      const now  = Date.now();
+      const { getPathBonus } = require('../../utils/lifePathDb');
+      const bizPathBonus = getPathBonus(userId, 'bizRevenueBonus');
+      const baseEarned   = Math.floor(calcIncome(biz)/60 * (now-biz.lastTick)/1000) + (biz.revenue||0);
+      const earned       = Math.floor(baseEarned * (1 + bizPathBonus));
       if (earned < 1) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('No revenue to collect yet.')], ephemeral:true });
 
       const user = getOrCreateUser(userId);
@@ -241,10 +252,11 @@ module.exports = {
         } catch {}
       }
 
+      const bonusNote = bizPathBonus > 0 ? `\n📈 *Entrepreneur bonus: +${Math.round(bizPathBonus*100)}% ($${(earned-baseEarned).toLocaleString()} extra)*` : '';
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(COLORS.SUCCESS)
         .setTitle(`💼 Revenue Collected — ${biz.name}`)
-        .setDescription(`Collected **$${earned.toLocaleString()}** from **${biz.name}**!${(biz.employees||[]).length ? `\n\nEach employee got a 10% cut ($${Math.floor(earned*0.1).toLocaleString()}).` : ''}`)
+        .setDescription(`Collected **$${earned.toLocaleString()}** from **${biz.name}**!${bonusNote}${(biz.employees||[]).length ? `\n\nEach employee got a 10% cut ($${Math.floor(earned*0.1).toLocaleString()}).` : ''}`)
         .addFields({ name:'💵 Wallet', value:`$${user.wallet.toLocaleString()}`, inline:true })
       ]});
     }

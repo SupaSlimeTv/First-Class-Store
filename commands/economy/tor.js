@@ -32,9 +32,14 @@ module.exports = {
           { name:'📊 Financial Profile',          value:'financial'  },
         ))
       .addIntegerOption(o => o.setName('price').setDescription('Asking price in $').setRequired(true).setMinValue(500)))
-    .addSubcommand(s => s.setName('buy').setDescription('Purchase a listing')
-      .addStringOption(o => o.setName('listing_id').setDescription('Listing ID from /tor market').setRequired(true)))
+    .addSubcommand(s => s.setName('buy').setDescription('Purchase a listing from the marketplace')
+      .addStringOption(o => o.setName('listing').setDescription('Select a listing').setRequired(true).setAutocomplete(true)))
     .addSubcommand(s => s.setName('mylistings').setDescription('View your active listings')),
+
+  async autocomplete(interaction) {
+    const { torListingAutocomplete } = require('../../utils/autocomplete');
+    return torListingAutocomplete(interaction);
+  },
 
   async execute(interaction) {
     if (await noAccount(interaction)) return;
@@ -84,6 +89,14 @@ module.exports = {
 
     // ── MARKET ────────────────────────────────────────────────
     if (sub === 'market') {
+      const { getAccountAgeDays } = require('../../utils/lifePathDb');
+      const torAgeDays = getAccountAgeDays(userId);
+      if (torAgeDays !== null && torAgeDays < 2) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`🌐 TOR access requires an account at least **2 days old**.\n\n📅 Current age: **${torAgeDays} day${torAgeDays !== 1 ? 's' : ''}**\n\n*The dark web doesn't trust new faces.*`)
+        ], ephemeral:true });
+      }
+
       const user   = getOrCreateUser(userId);
       const store  = require('../../utils/db').getStore(guildId);
       const device = store.items.find(i =>
@@ -100,19 +113,21 @@ module.exports = {
         .setDescription('*The market is quiet...*\n\nBe the first to list stolen data with `/tor sell`.')
       ], ephemeral:true });
 
-      const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊' };
+      const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊', full_identity:'🆔' };
       const lines = listings.map((l,i) => {
         const leakBadge = l.isLeak ? ' 🔓 *data breach*' : '';
-        return `**${i+1}.** \`${l.id.slice(-6)}\` — ${typeEmoji[l.type]||'📦'} **${l.typeName}**${leakBadge}\n` +
-          `Price: **${fmtMoney(l.price)}** · Seller: \`${l.sellerHandle}\` · Quality: ${'⭐'.repeat(l.quality||1)}\n` +
+        const victimM   = interaction.guild.members.cache.get(l.victimId);
+        const victimTag = victimM ? ` · **${victimM.user.username}**` : '';
+        return `**${i+1}.** ${typeEmoji[l.type]||'📦'} **${l.typeName}**${leakBadge}${victimTag}\n` +
+          `Price: **${fmtMoney(l.price)}** · Quality: ${'⭐'.repeat(Math.min(l.quality||1,5))} · Seller: \`${l.sellerHandle}\`\n` +
           `*Expires <t:${Math.floor(l.expiresAt/1000)}:R>*`;
       }).join('\n\n');
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(TOR_COLOR)
-        .setTitle(`🌐 TOR Market — ${listings.length} Active Listings (Global)`)
-        .setDescription(lines || '*No listings right now.*')
-        .setFooter({ text:'Global marketplace — all servers · /tor buy listing_id:<6-char ID> to purchase' })
+        .setTitle(`🌐 TOR Market — ${listings.length} Active Listing${listings.length !== 1 ? 's' : ''} (Global)`)
+        .setDescription((lines || '*No listings right now.*') + '\n\n*Type `/tor buy` and select a listing from the dropdown.*')
+        .setFooter({ text:'Global marketplace · Buy → /identity stash to use what you purchase' })
       ], ephemeral:true });
     }
 
@@ -207,11 +222,19 @@ module.exports = {
 
     // ── BUY ───────────────────────────────────────────────────
     if (sub === 'buy') {
-      const listingId = interaction.options.getString('listing_id').toUpperCase();
-      const listing   = getListing(listingId) || getActiveListings().find(l => l.id.slice(-6) === listingId);
+      const { getAccountAgeDays: _buyAgeFn } = require('../../utils/lifePathDb');
+      const buyAgeDays = _buyAgeFn(userId);
+      if (buyAgeDays !== null && buyAgeDays < 2) {
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`🌐 TOR purchases require an account at least **2 days old**.\n\n📅 Current age: **${buyAgeDays} day${buyAgeDays !== 1 ? 's' : ''}**`)
+        ], ephemeral:true });
+      }
+
+      const rawId     = interaction.options.getString('listing').toUpperCase();
+      const listing   = getListing(rawId) || getActiveListings().find(l => l.id === rawId || l.id.slice(-6) === rawId);
 
       if (!listing) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription(`Listing \`${listingId}\` not found or expired.`)
+        .setDescription(`Listing \`${rawId}\` not found or expired. Use the dropdown in \`/tor buy\` to select a live listing.`)
       ], ephemeral:true });
       if (listing.sold) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('This listing has already been sold.')], ephemeral:true });
       if (listing.sellerId === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't buy your own listing.")], ephemeral:true });
@@ -289,11 +312,23 @@ module.exports = {
         ], ephemeral:true });
       }
 
-      const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊' };
+      const typeEmoji = { full_ssn:'🪪', card_data:'💳', routing:'🏢', financial:'📊', full_identity:'🆔' };
+      const victimMember = interaction.guild.members.cache.get(listing.victimId);
+      const victimName   = victimMember ? victimMember.user.username : 'Unknown';
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(TOR_COLOR)
         .setTitle(`${typeEmoji[listing.type]||'📦'} Purchase Complete`)
-        .setDescription(`**${listing.typeName}** acquired anonymously.\n\n🪪 SSN: \`${listing.data.ssn}\`\n📊 Score: **${listing.data.score}** (${getCreditTier(listing.data.score).label})\n\nData stored. Use \`/laptop run\` or \`/hack\` to exploit it.`)
+        .setDescription(
+          `**${listing.typeName}** acquired anonymously.\n\n` +
+          `🎯 Victim: **${victimName}**\n` +
+          `🪪 SSN: \`${listing.data.ssn}\`\n` +
+          `📊 Credit Score: **${listing.data.score}** (${getCreditTier(listing.data.score).label})\n\n` +
+          `SSN saved to your stash. **Next steps:**\n` +
+          `• \`/identity balance\` — check their wallet & bank\n` +
+          `• \`/identity fraud\` — open a card on their SSN\n` +
+          `• \`/identity drain\` — drain their existing card\n` +
+          `• \`/identity lookup\` — full profile & available actions`
+        )
       ], ephemeral:true });
     }
 

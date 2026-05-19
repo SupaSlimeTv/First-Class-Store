@@ -42,15 +42,18 @@ module.exports = {
     else if (user.dailyStreak >= 7)  { mult = 2;   bonus = '🔥 7-day streak — 2× bonus!'; }
     else if (user.dailyStreak >= 3)  { mult = 1.5; bonus = '✨ 3-day streak — 1.5× bonus!'; }
 
-    const earned    = Math.floor(DAILY_AMOUNT * mult);
+    const { getPathBonus } = require('../../utils/lifePathDb');
+    const dailyPathBonus = getPathBonus(interaction.user.id, 'dailyBonus');
+    const earned    = Math.floor(DAILY_AMOUNT * mult * (1 + dailyPathBonus));
     user.wallet    += earned;
     user.lastDaily  = now;
     saveUser(interaction.user.id, user);
 
+    const pathNote = dailyPathBonus > 0 ? `\n📈 *Life path bonus: +${Math.round(dailyPathBonus*100)}%*` : '';
     const embed = new EmbedBuilder()
       .setColor(0xf5c518)
       .setTitle('📅 Daily Reward Claimed!')
-      .setDescription(`You received **$${earned.toLocaleString()}**!${bonus ? `\n\n${bonus}` : ''}`)
+      .setDescription(`You received **$${earned.toLocaleString()}**!${bonus ? `\n\n${bonus}` : ''}${pathNote}`)
       .addFields(
         { name: '💵 Wallet',    value: `$${user.wallet.toLocaleString()}`, inline: true },
         { name: '🔥 Streak',    value: `${user.dailyStreak} day${user.dailyStreak !== 1 ? 's' : ''}`, inline: true },
