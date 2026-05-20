@@ -342,11 +342,13 @@ module.exports = {
           { name:'🏆 Match Fix — rigged winnings paid to Sports Syndicate members ($150k)', value:'match_fix' },
           { name:'👑 Bloodline Dividend — amplify bank interest for Old Blood members ($250k)', value:'bloodline_dividend' },
           { name:'🎭 Industry Blacklist — kill target\'s phone earnings for 7 days ($80k)', value:'blacklist' },
+          { name:'🏛️ Market Policy — Political Power: bull/bear all coins 1hr ($150k)', value:'political_market' },
+          { name:'💻 Volatility Hack — Tech Giants: 2x market chaos 1hr ($125k)', value:'tech_volatility' },
         ))
       .addUserOption(o => o.setName('target').setDescription('Target user (not needed for market manipulation)').setRequired(false))
       .addStringOption(o => o.setName('coin').setDescription('Coin ticker (market manipulation only — type to search)').setRequired(false).setAutocomplete(true))
-      .addStringOption(o => o.setName('direction').setDescription('Pump or dump? (market manipulation only)').setRequired(false)
-        .addChoices({ name:'📈 Pump', value:'pump' }, { name:'📉 Dump', value:'dump' })))
+      .addStringOption(o => o.setName('direction').setDescription('Direction (pump/dump for market_manip, bull/bear for political_market)').setRequired(false)
+        .addChoices({ name:'📈 Pump / Bull', value:'pump' }, { name:'📉 Dump / Bear', value:'dump' })))
     .addSubcommand(s => s.setName('expose').setDescription('Attempt to expose the Illuminati publicly'))
     .addSubcommand(s => s.setName('sellsoul').setDescription('🖤 Sell your soul — sacrifice freedom for power')),
 
@@ -1665,6 +1667,50 @@ module.exports = {
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
           .setTitle(`📊 Market ${direction === 'pump' ? 'Pumped' : 'Dumped'}`)
           .setDescription(`**${coin}** ${direction === 'pump' ? '📈 pumped' : '📉 dumped'} by **${Math.round(Math.abs(mult-1)*100)}%**.\n\n$${currentPrice < 1 ? currentPrice.toFixed(4) : Math.round(currentPrice).toLocaleString()} → $${newPrice < 1 ? newPrice.toFixed(4) : Math.round(newPrice).toLocaleString()}\n\nEffect lasts **30 minutes** then reverts automatically.`)
+        ], ephemeral:true });
+      }
+
+      // ── POLITICAL MARKET (Political Power faction) ───────────
+      if (op === 'political_market') {
+        const COST = 150000;
+        const member = getMember(guildId, userId);
+        if (member?.faction !== 'political_power') return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Only **Political Power** faction members can run this operation.')], ephemeral:true });
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Market Policy costs **${fmtMoney(COST)}**. Vault: **${fmtMoney(org.vault)}**.`)], ephemeral:true });
+        const direction = interaction.options.getString('direction');
+        if (!direction) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Choose **Pump / Bull** (upward trend) or **Dump / Bear** (downward trend).')], ephemeral:true });
+
+        const { setDriftBoost } = require('../../utils/marketOverride');
+        setDriftBoost(direction === 'pump' ? 1 : -1, 2.5, 60 * 60 * 1000);
+
+        org.vault -= COST;
+        org.operations.push({ type:'political_market', direction, by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        if (Math.random() > 0.4) await addEvidence(guildId, `op_${Date.now()}`);
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle(`🏛️ Market Policy Enacted`)
+          .setDescription(`The Political Power has issued a **${direction === 'pump' ? '📈 Bull' : '📉 Bear'}** market directive.\n\nAll coins will drift **${direction === 'pump' ? 'upward' : 'downward'}** for the next **1 hour**. Effect is subtle but consistent across every tick.`)
+        ], ephemeral:true });
+      }
+
+      // ── VOLATILITY HACK (Tech Giants faction) ────────────────
+      if (op === 'tech_volatility') {
+        const COST = 125000;
+        const member = getMember(guildId, userId);
+        if (member?.faction !== 'tech_giants') return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Only **Tech Giants** faction members can run this operation.')], ephemeral:true });
+        if (org.vault < COST) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Volatility Hack costs **${fmtMoney(COST)}**. Vault: **${fmtMoney(org.vault)}**.`)], ephemeral:true });
+
+        const { setVolBoost } = require('../../utils/marketOverride');
+        setVolBoost(2.0, 60 * 60 * 1000);
+
+        org.vault -= COST;
+        org.operations.push({ type:'tech_volatility', by:userId, at:Date.now() });
+        await saveIlluminati(guildId, org);
+        if (Math.random() > 0.4) await addEvidence(guildId, `op_${Date.now()}`);
+
+        return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
+          .setTitle(`💻 Volatility Algorithm Injected`)
+          .setDescription(`The Tech Giants have hijacked the trading algorithms.\n\n**All coins are now 2× more volatile** for the next **1 hour** — every swing (up or down) is amplified. Sharp traders can profit; the unprepared will bleed.`)
         ], ephemeral:true });
       }
 

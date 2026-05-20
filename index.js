@@ -1827,12 +1827,21 @@ function tickStockPrices() {
     const history = hdoc ? { ...hdoc } : {};
     delete history._id;
 
+    const { getMarketOverride } = require('./utils/marketOverride');
+    const mktOverride = getMarketOverride();
+
     Object.entries(COIN_PROFILES).forEach(([id, profile]) => {
       if (!stockMomentum[id]) stockMomentum[id] = 0;
       const current = prices[id] || (10 + Math.random() * 490);
       const crashRoll = Math.random();
       const moonRoll  = Math.random();
       let multiplier = 1;
+
+      // Apply Illuminati faction overrides
+      const effectiveVol   = profile.vol   * (mktOverride.volBoost?.multiplier   || 1);
+      const effectiveDrift = profile.drift + (mktOverride.driftBoost
+        ? mktOverride.driftBoost.direction * mktOverride.driftBoost.multiplier * 0.01
+        : 0);
 
       if (crashRoll < profile.crashChance) {
         const crashAmt = profile.crashMag * (0.5 + Math.random() * 0.5);
@@ -1843,9 +1852,9 @@ function tickStockPrices() {
         multiplier = 1 + moonAmt;
         stockMomentum[id] = 0.3;
       } else {
-        const noise    = (Math.random() - 0.5) * 2 * profile.vol;
+        const noise    = (Math.random() - 0.5) * 2 * effectiveVol;
         const momentum = stockMomentum[id] * 0.6;
-        multiplier = 1 + noise + profile.drift + momentum;
+        multiplier = 1 + noise + effectiveDrift + momentum;
         stockMomentum[id] *= 0.75;
         stockMomentum[id] += (Math.random() - 0.5) * 0.05;
         stockMomentum[id]  = Math.max(-0.5, Math.min(0.5, stockMomentum[id]));
