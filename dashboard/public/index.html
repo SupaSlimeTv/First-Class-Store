@@ -408,24 +408,16 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
 
         <!-- Settings -->
-        <div style="padding:0 16px 12px">
+        <div style="padding:0 16px 16px">
           <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚙️ Settings</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
             <div class="fg" style="margin:0">
               <label class="flabel">Ticket Price ($)</label>
               <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
             </div>
             <div class="fg" style="margin:0">
-              <label class="flabel">Draw Every</label>
+              <label class="flabel">Draw Every (hours)</label>
               <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Interval Unit</label>
-              <select class="fselect" id="lottery-unit">
-                <option value="hours">Hours</option>
-                <option value="minutes">Minutes</option>
-                <option value="seconds">Seconds</option>
-              </select>
             </div>
             <div class="fg" style="margin:0">
               <label class="flabel">Status</label>
@@ -435,32 +427,11 @@ tr:hover td{background:rgba(255,255,255,.015)}
               </select>
             </div>
           </div>
-
-          <!-- Bonus pot randomization -->
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🎲 Bonus Pot Randomization (added to ticket sales at draw time)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-            <div class="fg" style="margin:0">
-              <label class="flabel">Min Bonus ($)</label>
-              <input class="finput" id="lottery-min-bonus" type="number" min="0" placeholder="0" value="0">
-              <div class="hint">Minimum extra added to pot at draw. 0 = no bonus.</div>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Max Bonus ($)</label>
-              <input class="finput" id="lottery-max-bonus" type="number" min="0" placeholder="5000" value="0">
-              <div class="hint">Max extra added to pot at draw. Random amount between min and max.</div>
-            </div>
-            <div class="fg" style="margin:0">
-              <label class="flabel">Guaranteed Min Pot ($)</label>
-              <input class="finput" id="lottery-min-pot" type="number" min="0" placeholder="0" value="0">
-              <div class="hint">If ticket sales are below this, pot is topped up to this amount.</div>
-            </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="saveLotterySettings()">Save Settings</button>
+            <button class="btn btn-ghost" onclick="resetLottery()">🔄 Reset & Clear Tickets</button>
+            <button class="btn btn-gold btn-sm" onclick="forceDrawNow()">⚡ Force Draw Now</button>
           </div>
-        </div>
-
-        <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="saveLotterySettings()">Save Settings</button>
-          <button class="btn btn-ghost" onclick="resetLottery()">🔄 Reset & Clear Tickets</button>
-          <button class="btn btn-gold btn-sm" onclick="forceDrawNow()">⚡ Force Draw Now</button>
         </div>
       </div>
 
@@ -3286,39 +3257,17 @@ async function loadLottery() {
     const h = Math.floor(timeLeft/3600000), m = Math.floor((timeLeft%3600000)/60000), s = Math.floor((timeLeft%60000)/1000);
     document.getElementById('lottery-timer').textContent = timeLeft > 0 ? `${h}h ${m}m ${s}s` : 'Drawing...';
 
-    // Populate settings — convert intervalHours to best unit
-    const intervalH = c.intervalHours || 24;
-    const intervalS = intervalH * 3600;
-    if (intervalS < 60) {
-      document.getElementById('lottery-interval').value = intervalS;
-      document.getElementById('lottery-unit').value = 'seconds';
-    } else if (intervalS < 3600) {
-      document.getElementById('lottery-interval').value = intervalS / 60;
-      document.getElementById('lottery-unit').value = 'minutes';
-    } else {
-      document.getElementById('lottery-interval').value = intervalH;
-      document.getElementById('lottery-unit').value = 'hours';
-    }
-
-    document.getElementById('lottery-price').value     = c.ticketPrice    || 100;
-    document.getElementById('lottery-active').value    = (l.active !== false).toString();
-    document.getElementById('lottery-min-bonus').value = c.minBonus        || 0;
-    document.getElementById('lottery-max-bonus').value = c.maxBonus        || 0;
-    document.getElementById('lottery-min-pot').value   = c.minPot          || 0;
+    document.getElementById('lottery-price').value    = c.ticketPrice  || 100;
+    document.getElementById('lottery-interval').value = c.intervalHours || 24;
+    document.getElementById('lottery-active').value   = (l.active !== false).toString();
   } catch(e) { console.error('loadLottery error:', e); }
 }
 
 async function saveLotterySettings() {
-  const amount   = parseFloat(document.getElementById('lottery-interval').value) || 24;
-  const unit     = document.getElementById('lottery-unit').value;
-  let intervalHours = unit === 'seconds' ? amount / 3600 : unit === 'minutes' ? amount / 60 : amount;
   const r = await api('POST', `/api/${GUILD}/lottery/settings`, {
     active:        document.getElementById('lottery-active').value === 'true',
-    ticketPrice:   document.getElementById('lottery-price').value,
-    intervalHours,
-    minBonus:      parseInt(document.getElementById('lottery-min-bonus').value) || 0,
-    maxBonus:      parseInt(document.getElementById('lottery-max-bonus').value) || 0,
-    minPot:        parseInt(document.getElementById('lottery-min-pot').value)   || 0,
+    ticketPrice:   parseFloat(document.getElementById('lottery-price').value)    || 100,
+    intervalHours: parseFloat(document.getElementById('lottery-interval').value) || 24,
   });
   if (r.success) { toast('Lottery settings saved', 'ok'); await loadLottery(); }
   else toast(r.error||'Failed','err');
@@ -6083,7 +6032,7 @@ let _serverList = [];
 async function initServerSwitcher() {
   try {
     const data = await fetch('/api/my-guilds').then(r=>r.json()).catch(()=>({}));
-    _serverList = data.botPresent || [];
+    _serverList = data.botGuilds || [];
     const current = _serverList.find(g => g.id === GUILD);
     if (current) {
       document.getElementById('current-server-name').textContent = current.name;
