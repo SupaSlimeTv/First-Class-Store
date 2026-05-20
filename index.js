@@ -1763,12 +1763,12 @@ const stockMomentum = {};
 
 // Built-in default coins
 const DEFAULT_COIN_PROFILES = {
-  DOGE2:  { vol:0.18, drift:0.002,  crashChance:0.04, moonChance:0.05, crashMag:0.45, moonMag:1.80, floor:0.01,  name:'Doge 2.0',       emoji:'🐕', color:'#f5c518', desc:'Such wow. Much gains. Very moon.' },
-  PEPE:   { vol:0.30, drift:-0.001, crashChance:0.06, moonChance:0.04, crashMag:0.60, moonMag:2.50, floor:0.001, name:'PepeCoin',        emoji:'🐸', color:'#2ecc71', desc:"Feels good man. Until it doesn't." },
-  RUGPUL: { vol:0.45, drift:-0.008, crashChance:0.10, moonChance:0.03, crashMag:0.80, moonMag:3.00, floor:0.001, name:'RugPull Finance',  emoji:'🪤', color:'#ff3b3b', desc:'This is fine. Everything is fine.' },
-  MOON:   { vol:0.25, drift:0.005,  crashChance:0.03, moonChance:0.08, crashMag:0.40, moonMag:4.00, floor:0.01,  name:'MoonShot',        emoji:'🚀', color:'#00d2ff', desc:'To the moon. Or the floor.' },
-  BODEN:  { vol:0.12, drift:0.001,  crashChance:0.02, moonChance:0.02, crashMag:0.30, moonMag:1.40, floor:0.10,  name:'BodenBucks',      emoji:'🦅', color:'#9b59b6', desc:'Not financial advice. Literally ever.' },
-  CHAD:   { vol:0.35, drift:0.003,  crashChance:0.05, moonChance:0.07, crashMag:0.55, moonMag:3.50, floor:0.001, name:'ChadToken',       emoji:'💪', color:'#ff6b35', desc:'Alpha moves only.' },
+  DOGE2:  { vol:0.18, drift:0.002,  crashChance:0.04, moonChance:0.05, crashMag:0.45, moonMag:1.80, floor:0.01,  maxPrice:50000,  name:'Doge 2.0',       emoji:'🐕', color:'#f5c518', desc:'Such wow. Much gains. Very moon.' },
+  PEPE:   { vol:0.30, drift:-0.001, crashChance:0.06, moonChance:0.04, crashMag:0.60, moonMag:2.50, floor:0.001, maxPrice:10000,  name:'PepeCoin',        emoji:'🐸', color:'#2ecc71', desc:"Feels good man. Until it doesn't." },
+  RUGPUL: { vol:0.45, drift:-0.008, crashChance:0.10, moonChance:0.03, crashMag:0.80, moonMag:3.00, floor:0.001, maxPrice:5000,   name:'RugPull Finance',  emoji:'🪤', color:'#ff3b3b', desc:'This is fine. Everything is fine.' },
+  MOON:   { vol:0.25, drift:0.005,  crashChance:0.03, moonChance:0.08, crashMag:0.40, moonMag:4.00, floor:0.01,  maxPrice:100000, name:'MoonShot',        emoji:'🚀', color:'#00d2ff', desc:'To the moon. Or the floor.' },
+  BODEN:  { vol:0.12, drift:0.001,  crashChance:0.02, moonChance:0.02, crashMag:0.30, moonMag:1.40, floor:0.10,  maxPrice:25000,  name:'BodenBucks',      emoji:'🦅', color:'#9b59b6', desc:'Not financial advice. Literally ever.' },
+  CHAD:   { vol:0.35, drift:0.003,  crashChance:0.05, moonChance:0.07, crashMag:0.55, moonMag:3.50, floor:0.001, maxPrice:75000,  name:'ChadToken',       emoji:'💪', color:'#ff6b35', desc:'Alpha moves only.' },
 };
 
 let COIN_PROFILES = { ...DEFAULT_COIN_PROFILES };
@@ -1851,7 +1851,7 @@ function tickStockPrices() {
         stockMomentum[id]  = Math.max(-0.5, Math.min(0.5, stockMomentum[id]));
       }
 
-      prices[id] = Math.max(profile.floor, current * multiplier);
+      prices[id] = Math.max(profile.floor, Math.min(profile.maxPrice || 100000, current * multiplier));
       if (!history[id]) history[id] = [];
       history[id].push(Math.round(prices[id] * 10000) / 10000);
       if (history[id].length > 1440) history[id] = history[id].slice(-1440);

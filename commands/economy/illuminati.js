@@ -1664,7 +1664,7 @@ module.exports = {
 
         return interaction.reply({ embeds:[new EmbedBuilder().setColor(GOLD_COLOR)
           .setTitle(`📊 Market ${direction === 'pump' ? 'Pumped' : 'Dumped'}`)
-          .setDescription(`**${coin}** ${direction === 'pump' ? '📈 pumped' : '📉 dumped'} by **${Math.round(Math.abs(mult-1)*100)}%**.\n\n${currentPrice.toFixed(4)} → ${newPrice.toFixed(4)}\n\nEffect lasts **30 minutes** then reverts automatically.`)
+          .setDescription(`**${coin}** ${direction === 'pump' ? '📈 pumped' : '📉 dumped'} by **${Math.round(Math.abs(mult-1)*100)}%**.\n\n$${currentPrice < 1 ? currentPrice.toFixed(4) : Math.round(currentPrice).toLocaleString()} → $${newPrice < 1 ? newPrice.toFixed(4) : Math.round(newPrice).toLocaleString()}\n\nEffect lasts **30 minutes** then reverts automatically.`)
         ], ephemeral:true });
       }
 
