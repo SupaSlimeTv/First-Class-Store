@@ -46,20 +46,20 @@ module.exports = {
       return interaction.respond([{ name:'No apps installed — use /laptop appstore first', value:'__none__' }]).catch(()=>null);
     }
 
-    // What each app needs shown inline so user knows what to fill in
+    // Inline hints so user knows exactly what to fill in
     const NEEDS = {
-      ssn_scanner:    'needs: target:@user',
-      credit_cracker: 'needs: ssn:<paste-stolen-ssn> (from /tor buy)',
-      card_drainer:   'needs: ssn:<paste-stolen-ssn> (from /tor buy)',
-      biz_intrude:    'needs: routing:<number> + action:',
-      bank_mirror:    'needs: routing:<number>',
-      stalker_app:    'needs: target:@user',
-      dark_search:    'needs: target:@user  OR  routing:<number>',
-      home_hack:      'needs: target:@user',
-      keylogger:      'passive — no inputs needed',
-      vpn_shield:     'passive — no inputs needed',
-      launder_bot:    'passive — no inputs needed',
-      tor_browser:    'passive — no inputs needed',
+      ssn_scanner:    'target: @user  →  steals their SSN',
+      credit_cracker: 'target: @user  (scan them with SSN Scanner first)',
+      card_drainer:   'target: @user  (scan them with SSN Scanner first)',
+      biz_intrude:    'routing: <number>  +  action: check/withdraw/launder',
+      bank_mirror:    'routing: <number>  →  read-only bank view',
+      stalker_app:    'target: @user  →  full intel profile',
+      dark_search:    'routing: <number>  OR  target: @user',
+      home_hack:      'target: @user  →  disables their home security 30m',
+      keylogger:      '🔒 passive  —  +20% to all hack success rates',
+      vpn_shield:     '🔒 passive  —  reduces TOR trace risk',
+      launder_bot:    '🔒 passive  —  run to launder gang dirty money',
+      tor_browser:    '🔒 passive  —  run to check TOR protection status',
     };
 
     const choices = apps.map(a => {
@@ -294,31 +294,14 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
 
       // ── CREDIT CRACKER ────────────────────────────────────
       if (appId === 'credit_cracker') {
-        const ssnInput = interaction.options.getString('ssn');
-        let victimId = null;
-        // Path 1: ssn: field — look up who owns this SSN (from /tor buy)
-        if (ssnInput) {
-          try {
-            const { col: _mCol } = require('../../utils/mongo');
-            const _cc = await _mCol('credit');
-            const _doc = await _cc.findOne({ ssn: ssnInput.trim() });
-            if (_doc) victimId = _doc._id;
-          } catch {}
-          if (!victimId) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-            .setDescription('SSN `' + ssnInput + '` not found. Check you copied it correctly from /tor buy.')
-          ], components:[] });
-        // Path 2: target: field — use SSN already scanned from that user
-        } else if (target) {
-          const hc = await getOrCreateCredit(userId);
-          if (!hc.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-            .setDescription('No SSN on file for that user. Either scan them with SSN Scanner first, or paste their SSN from /tor buy into the ssn: field.')
-          ], components:[] });
-          victimId = target.id;
-        } else {
-          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-            .setDescription('Provide one of:\n**ssn:** — paste a stolen SSN you bought from /tor market\n**target:** — a user whose SSN you already scanned with SSN Scanner')
-          ], components:[] });
-        }
+        if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription('Specify a **target:** user.\n\nYou must scan them with **SSN Scanner** first — their SSN gets saved automatically.')
+        ], components:[] });
+        const hc = await getOrCreateCredit(userId);
+        if (!hc.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`No SSN on file for <@${target.id}>.\n\nRun **SSN Scanner** on them first to capture their SSN.`)
+        ], components:[] });
+        let victimId = target.id;
         const vc = await getOrCreateCredit(victimId);
         if (vc.frozen) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target has a credit freeze active.')], components:[] });
         const tier = getCreditTier(vc.score);
@@ -341,29 +324,14 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
 
       // ── CARD DRAINER ──────────────────────────────────────
       if (appId === 'card_drainer') {
-        const ssnInput2 = interaction.options.getString('ssn');
-        let victimId2 = null;
-        if (ssnInput2) {
-          try {
-            const { col: _mCol2 } = require('../../utils/mongo');
-            const _cc2 = await _mCol2('credit');
-            const _doc2 = await _cc2.findOne({ ssn: ssnInput2.trim() });
-            if (_doc2) victimId2 = _doc2._id;
-          } catch {}
-          if (!victimId2) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-            .setDescription('SSN `' + ssnInput2 + '` not found. Check you copied it correctly.')
-          ], components:[] });
-        } else if (target) {
-          const hc2 = await getOrCreateCredit(userId);
-          if (!hc2.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-            .setDescription('No SSN on file for that user. Paste the stolen SSN into the ssn: field instead.')
-          ], components:[] });
-          victimId2 = target.id;
-        } else {
-          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-            .setDescription('Provide **ssn:** (paste stolen SSN from /tor buy) or **target:** (user you already scanned).')
-          ], components:[] });
-        }
+        if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription('Specify a **target:** user.\n\nYou must scan them with **SSN Scanner** first to get their card info.')
+        ], components:[] });
+        const hc2 = await getOrCreateCredit(userId);
+        if (!hc2.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`No SSN on file for <@${target.id}>.\n\nRun **SSN Scanner** on them first.`)
+        ], components:[] });
+        let victimId2 = target.id;
         const vc2 = await getOrCreateCredit(victimId2);
         if (!vc2.card) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No card linked to that SSN. Use Credit Cracker to open one first.')], components:[] });
         if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('💻 Drain Failed').setDescription('Card drain blocked. (' + successRate + '% chance)')], components:[] });

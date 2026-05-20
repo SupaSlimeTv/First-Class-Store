@@ -416,8 +416,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <input class="finput" id="lottery-price" type="number" min="1" placeholder="100">
             </div>
             <div class="fg" style="margin:0">
-              <label class="flabel">Draw Every (hours)</label>
-              <input class="finput" id="lottery-interval" type="number" min="1" placeholder="24">
+              <label class="flabel">Draw Interval</label>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input class="finput" id="lottery-interval-h" type="number" min="0" placeholder="24" style="width:58px;text-align:center">
+                <span style="color:var(--muted);font-size:11px">h</span>
+                <input class="finput" id="lottery-interval-m" type="number" min="0" max="59" placeholder="0" style="width:52px;text-align:center">
+                <span style="color:var(--muted);font-size:11px">m</span>
+                <input class="finput" id="lottery-interval-s" type="number" min="0" max="59" placeholder="0" style="width:52px;text-align:center">
+                <span style="color:var(--muted);font-size:11px">s</span>
+              </div>
             </div>
             <div class="fg" style="margin:0">
               <label class="flabel">Status</label>
@@ -3270,17 +3277,24 @@ async function loadLottery() {
     const h = Math.floor(timeLeft/3600000), m = Math.floor((timeLeft%3600000)/60000), s = Math.floor((timeLeft%60000)/1000);
     document.getElementById('lottery-timer').textContent = timeLeft > 0 ? `${h}h ${m}m ${s}s` : 'Drawing...';
 
-    document.getElementById('lottery-price').value    = c.ticketPrice  || 100;
-    document.getElementById('lottery-interval').value = c.intervalHours || 24;
+    document.getElementById('lottery-price').value = c.ticketPrice || 100;
+    const _ih = c.intervalHours || 24;
+    document.getElementById('lottery-interval-h').value = Math.floor(_ih);
+    document.getElementById('lottery-interval-m').value = Math.floor((_ih % 1) * 60);
+    document.getElementById('lottery-interval-s').value = Math.round(((_ih % 1) * 60 % 1) * 60);
     document.getElementById('lottery-active').value   = (l.active !== false).toString();
   } catch(e) { console.error('loadLottery error:', e); }
 }
 
 async function saveLotterySettings() {
+  const _h = parseInt(document.getElementById('lottery-interval-h').value) || 0;
+  const _m = parseInt(document.getElementById('lottery-interval-m').value) || 0;
+  const _s = parseInt(document.getElementById('lottery-interval-s').value) || 0;
+  const _intervalHours = Math.max(0.0167, _h + _m / 60 + _s / 3600); // min 1 minute
   const r = await api('POST', `/api/${GUILD}/lottery/settings`, {
     active:        document.getElementById('lottery-active').value === 'true',
-    ticketPrice:   parseFloat(document.getElementById('lottery-price').value)    || 100,
-    intervalHours: parseFloat(document.getElementById('lottery-interval').value) || 24,
+    ticketPrice:   parseFloat(document.getElementById('lottery-price').value) || 100,
+    intervalHours: _intervalHours,
   });
   if (r.success) { toast('Lottery settings saved', 'ok'); await loadLottery(); }
   else toast(r.error||'Failed','err');

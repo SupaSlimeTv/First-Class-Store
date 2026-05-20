@@ -132,6 +132,27 @@ async function generateNewsFeed(client, guildId, config) {
       }
     } catch {}
 
+    // ── Story 4b: Featured business — moves its stock ─────
+    try {
+      const { getAllBusinesses, BIZ_TYPES } = require('./bizDb');
+      const { addBizSentiment } = require('./bizStockDb');
+      const allBiz = Object.values(getAllBusinesses());
+      if (allBiz.length) {
+        const featured = allBiz[Math.floor(Math.random() * allBiz.length)];
+        const isBull   = Math.random() > 0.45;
+        const strength = 0.3 + Math.random() * 0.5;
+        addBizSentiment(featured.id, isBull ? 'bull' : 'bear', strength, 4 * 60 * 60 * 1000);
+        const bizEmoji = BIZ_TYPES[featured.type]?.emoji || '🏢';
+        const BIZ_NEWS = [
+          (n,e,b) => `${e} **${n}** ${b?'Sees Record Foot Traffic':'Reports Slow Quarter'} — Analysts ${b?'Raise':'Cut'} Outlook.`,
+          (n,e,b) => `${e} **${n}** ${b?'Lands Major Contract':'Loses Key Client'} — Stock ${b?'Surges':'Slides'}.`,
+          (n,e,b) => `${e} **${n}** ${b?'Expands Operations':'Faces Scrutiny'} After ${b?'Breakout':'Difficult'} Month.`,
+        ];
+        const fn = pickRandom(BIZ_NEWS);
+        stories.push({ headline: fn(featured.name, bizEmoji, isBull), category:'BUSINESS' });
+      }
+    } catch {}
+
     // ── Story 5: Gang activity ─────────────────────────────
     try {
       const { getAllGangs } = require('./gangDb');
