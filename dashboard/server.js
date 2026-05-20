@@ -1374,7 +1374,12 @@ app.post('/api/:guildId/police/:userId/clear', requireGuildAuth, async (req, res
 app.get('/api/:guildId/businesses', requireGuildAuth, async (req, res) => {
   try {
     const bizDb = require('../utils/bizDb');
-    const all   = bizDb.getAllBusinesses();
+    let all = bizDb.getAllBusinesses();
+    // If cache is empty (e.g. server just started), reload from MongoDB
+    if (Object.keys(all).length === 0) {
+      await bizDb.preloadBizCache();
+      all = bizDb.getAllBusinesses();
+    }
     res.json(Object.values(all).map(biz => {
       const type = bizDb.BIZ_TYPES[biz.type] || {};
       return { ...biz, typeName:type.name||biz.type, typeEmoji:type.emoji||'🏢', income:bizDb.calcIncome(biz), maxLevel:type.maxLevel||10 };
@@ -1944,6 +1949,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     await require('../utils/gunDb').preloadGunCache();
     await require('../utils/gangDb').preloadGangCache();
     await require('../utils/bizDb').preloadBizCache();
+    await require('../utils/bizStockDb').preloadBizStockCache();
     await require('../utils/petDb').preloadPetCache();
     await require('../utils/phoneDb').preloadPhoneCache();
     await require('../utils/goonDb').preloadGoonCache();
