@@ -2938,7 +2938,7 @@ async function saveItem(){
 }
 
 async function delItem(id){
-  if(!confirm(`Delete "${id}"?`))return;
+  if(!await showConfirmModal('Delete Item', `Delete item <strong>${id}</strong>? This cannot be undone.`))return;
   const r=await api('DELETE',`/api/store/${id}`);
   r.success?( toast('Deleted','ok'),refresh()):toast(r.error||'Failed','err');
 }
@@ -3037,7 +3037,7 @@ async function setOfficerSalary(userId) {
 }
 
 async function fireOfficerDash(userId) {
-  if (!confirm('Fire this officer?')) return;
+  if (!await showConfirmModal('Fire Officer', 'Remove this officer from the force?')) return;
   const r = await api('DELETE', `/api/${GUILD}/police/officers/${userId}`);
   if (r.success) { toast('Officer fired','ok'); loadOfficers(); }
   else toast(r.error||'Failed','err');
@@ -3287,7 +3287,7 @@ async function saveLotterySettings() {
 }
 
 async function forceDrawNow() {
-  if (!confirm('Force a lottery draw right now? This will pick a winner immediately.')) return;
+  if (!await showConfirmModal('Force Draw', 'Force a lottery draw right now? This will pick a winner immediately.', 'Force Draw')) return;
   const r = await api('POST', `/api/${GUILD}/lottery/force-draw`);
   if (r.success) {
     if (r.winner) toast(`🎟️ Winner: ${r.winner} won $${r.prize.toLocaleString()}!`, 'ok');
@@ -3297,7 +3297,7 @@ async function forceDrawNow() {
 }
 
 async function resetLottery() {
-  if (!confirm('Reset lottery? This clears all tickets and resets the timer. The pot is NOT paid out.')) return;
+  if (!await showConfirmModal('Reset Lottery', 'Clear all tickets and reset the timer? The pot is <strong>not</strong> paid out.', 'Reset')) return;
   const r = await api('POST', `/api/${GUILD}/lottery/reset`);
   if (r.success) { toast('Lottery reset', 'ok'); await loadLottery(); }
   else toast(r.error||'Failed','err');
@@ -3483,7 +3483,7 @@ async function saveRoleIncome() {
 }
 
 async function deleteRoleIncome(roleId) {
-  if (!confirm(`Delete income for role ${roleId}?`)) return;
+  if (!await showConfirmModal('Delete Role Income', `Delete income rule for role <strong>${roleId}</strong>?`)) return;
   const r = await api('DELETE', `/api/${GUILD}/roleincome/${roleId}`);
   if (r.success) { toast('Deleted', 'ok'); await loadRoleIncome(); }
   else toast(r.error || 'Failed', 'err');
@@ -4076,7 +4076,7 @@ async function loadPets() {
 }
 
 async function deleteBusiness(ownerId) {
-  if (!confirm('Delete this business? The owner can start a new one after.')) return;
+  if (!await showConfirmModal('Delete Business', 'Delete this business? The owner can start a new one after.', 'Delete')) return;
   const r = await api('POST', `/api/${GUILD}/businesses/${ownerId}/delete`);
   if (r.success) { toast('Business deleted', 'ok'); loadBusinesses(); }
   else toast(r.error||'Failed', 'err');
@@ -4450,7 +4450,7 @@ async function saveDrug() {
 }
 
 async function deleteDrug(id) {
-  if (!confirm('Delete this drug from the market?')) return;
+  if (!await showConfirmModal('Delete Drug', 'Remove this drug from the market?')) return;
   const r = await api('DELETE', `/api/drugs/${id}?guildId=${GUILD}`);
   if (r.success) { toast('Drug removed','ok'); await loadDrugs(); }
   else toast(r.error||'Failed','err');
@@ -4842,7 +4842,7 @@ async function loadGangs() {
 }
 
 async function deleteGang(gangId, name) {
-  if (!confirm(`Delete gang "${name}"? This cannot be undone. The gang bank is lost.`)) return;
+  if (!await showConfirmModal('Delete Gang', `Delete gang <strong>${name}</strong>? This cannot be undone — the gang bank is lost.`)) return;
   const r = await api('POST', `/api/${GUILD}/gangs/${gangId}/delete`);
   if (r.success) { toast('Gang deleted','ok'); await loadGangs(); }
   else toast(r.error||'Failed','err');
@@ -4889,7 +4889,7 @@ async function releasePlayer(userId) {
 }
 
 async function clearHeat(userId) {
-  if (!confirm('Clear this player\'s entire police record?')) return;
+  if (!await showConfirmModal('Clear Record', "Clear this player's entire police record?", 'Clear')) return;
   const r = await api('POST', `/api/${GUILD}/police/${userId}/clear`);
   if (r.success) { toast('Record cleared','ok'); await loadPolice(); }
   else toast(r.error||'Failed','err');
@@ -5020,7 +5020,7 @@ function renderArchetypeCards() {
 }
 
 async function deleteAIEntity(id) {
-  if (!confirm('Delete this AI entity permanently?')) return;
+  if (!await showConfirmModal('Delete AI Entity', 'Delete this AI entity permanently?')) return;
   const r = await api('DELETE', `/api/${GUILD}/ai-entities/${id}`);
   if (r.success) { toast('Entity deleted', 'ok'); await loadAIEntities(); }
   else toast(r.error||'Failed', 'err');
@@ -5112,14 +5112,14 @@ async function toggleGun(gunId, currentlyEnabled) {
 }
 
 async function deleteGun(gunId) {
-  if (!confirm(`Delete weapon "${gunId}"? Users who own it keep it but can't buy more.`)) return;
+  if (!await showConfirmModal('Delete Weapon', `Delete <strong>${gunId}</strong>? Users who own it keep it but can't buy more.`)) return;
   const r = await api('DELETE', `/api/${GUILD}/guns/shop/${gunId}`);
   if (r.success) { toast('Weapon removed','ok'); await loadGunShop(); }
   else toast(r.error||'Failed','err');
 }
 
 async function revivePlayer(userId) {
-  if (!confirm(`Revive this player to full health?`)) return;
+  if (!await showConfirmModal('Revive Player', 'Restore this player to full health?', 'Revive')) return;
   const r = await api('POST', `/api/${GUILD}/guns/health/${userId}/revive`);
   if (r.success) { toast('Player revived','ok'); await loadGunShop(); }
   else toast(r.error||'Failed','err');
@@ -5376,7 +5376,7 @@ async function loadCustomCoins() {
 }
 
 async function deleteCoin(id, name) {
-  if (!confirm('Delete coin ' + name + ' (' + id + ')? All existing investments will be worth $0.')) return;
+  if (!await showConfirmModal('Delete Coin', `Delete <strong>${name} (${id})</strong>? All existing investments will be worth $0.`)) return;
   const r = await api('DELETE', `/api/${GUILD}/coins/${id}`);
   if (r.success) { toast(name + ' deleted','ok'); await loadCustomCoins(); }
   else toast(r.error||'Failed','err');
@@ -5633,6 +5633,7 @@ async function manualRefresh() {
 
 safeRefresh();
 setInterval(safeRefresh, 15000);
+initServerSwitcher();
 </script>
 <!-- CONFIRM MODAL — replaces browser confirm() dialogs -->
 <div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center">
@@ -5713,7 +5714,7 @@ async function loadIlluminati() {
 }
 
 async function illumExcommunicate(userId) {
-  if (!confirm('Remove this member from the Illuminati?')) return;
+  if (!await showConfirmModal('Excommunicate Member', 'Remove this member from the Illuminati? This cannot be undone.', 'Remove')) return;
   const r = await api('POST', `/api/${GUILD}/illuminati/excommunicate`, { userId });
   if (r.success) { toast('Member removed', 'ok'); loadIlluminati(); }
   else toast(r.error || 'Failed', 'err');

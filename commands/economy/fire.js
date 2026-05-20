@@ -32,7 +32,7 @@ module.exports = {
       .setColor(0x888888)
       .setTitle(`📋 ${target.username} Fired`)
       .setDescription(`**${target.username}** (${emp.role}) has been let go from **${biz.name}**.`)
-      .addFields({ name: '👥 Staff', value: `${biz.employees.length} / 5`, inline: true })
+      .addFields({ name: '👥 Staff', value: `${biz.employees.length} / 10`, inline: true })
     ]});
   },
 };

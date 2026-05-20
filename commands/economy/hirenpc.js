@@ -26,8 +26,12 @@ module.exports = {
     const npcEmployees = (biz.employees || []).filter(e => e.isNPC);
     const available    = getAvailableNPCs(biz.employees || []);
 
-    if (npcEmployees.length >= 6) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-      .setDescription(`**${biz.name}** already has 6 NPC employees — the maximum per business.${allBiz.length > 1 ? '\n\nYou can hire NPCs for your other businesses separately.' : '\nFire one with `/firenpc` to make room.'}`)
+    const totalStaff = (biz.employees || []).length;
+    if (npcEmployees.length >= 5) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+      .setDescription(`**${biz.name}** already has 5 NPC employees — the max. Fire one with \`/firenpc\` to make room.`)
+    ], ephemeral:true });
+    if (totalStaff >= 10) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+      .setDescription(`**${biz.name}** is at the 10-employee cap (5 real + 5 NPC). Fire someone first.`)
     ], ephemeral:true });
 
     if (!available.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("No NPC employees available right now. Fire existing ones to see new candidates.")], ephemeral: true });
@@ -48,7 +52,7 @@ module.exports = {
         .setColor(0x5865f2)
         .setTitle(`🧑‍💼 NPC Employees Available (${p+1}/${pages})`)
         .setDescription(lines || 'No employees on this page.')
-        .setFooter({ text: `You have ${npcEmployees.length}/6 NPC slots filled · Slots used also count toward 5-human cap separately` });
+        .setFooter({ text: `NPCs: ${npcEmployees.length}/5 · Total staff: ${totalStaff}/10 (max 5 real + 5 NPC)` });
     };
 
     const buildSelect = (p) => {
@@ -89,7 +93,8 @@ module.exports = {
         const _allBiz = _gbs(userId);
         const freshBiz = _allBiz.find(b => b.id === biz.id) || _allBiz[0];
         const npcCount = (freshBiz.employees || []).filter(e => e.isNPC).length;
-        if (npcCount >= 6) return i.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`**${freshBiz.name}** NPC slots full (6/6).`)], components:[] });
+        if (npcCount >= 5) return i.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`**${freshBiz.name}** NPC slots full (5/5).`)], components:[] });
+        if ((freshBiz.employees || []).length >= 10) return i.update({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`**${freshBiz.name}** is at the 10-employee cap.`)], components:[] });
 
         const user = getOrCreateUser(userId);
         if (user.wallet < npc.salary * 3) return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`You need **$${(npc.salary*3).toLocaleString()}** upfront (3 weeks salary) to hire ${npc.name}. You have **$${user.wallet.toLocaleString()}**.`)], components: [] });

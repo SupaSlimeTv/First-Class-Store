@@ -27,7 +27,10 @@ module.exports = {
     const biz = getBusiness(userId);
     if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You don't own a business! Start one with `/business start`.")], ephemeral: true });
 
-    if (biz.employees.length >= 5) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You already have 5 employees — the maximum. Upgrade your business to increase capacity in future updates.")], ephemeral: true });
+    const realStaff = (biz.employees || []).filter(e => !e.isNPC);
+    const totalStaff = (biz.employees || []).length;
+    if (realStaff.length >= 5) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You already have **5 real employees** — the max. You can still hire up to 5 NPCs with `/hirenpc`.")], ephemeral: true });
+    if (totalStaff >= 10) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Your business is at the **10-employee cap** (5 real + 5 NPC). Fire someone first.")], ephemeral: true });
 
     if (biz.employees.some(e => e.userId === target.id)) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`**${target.username}** already works for you.`)], ephemeral: true });
 
@@ -50,7 +53,7 @@ module.exports = {
       .setColor(COLORS.SUCCESS)
       .setTitle(`👔 ${target.username} Hired!`)
       .setDescription(`**${target.username}** is now your **${role}** at **${biz.name}**.\n\nThey'll earn 10% of every revenue collection automatically.`)
-      .addFields({ name: '👥 Staff', value: `${biz.employees.length} / 5`, inline: true })
+      .addFields({ name: '👥 Staff', value: `${biz.employees.length} / 10 (${realStaff.length + 1}/5 real)`, inline: true })
     ]});
   },
 };
