@@ -64,7 +64,7 @@ module.exports = {
         .setDescription(`${gangWarning}${drugs.map(d =>
           `${d.emoji||'💊'} **${d.name}** — **$${d.price.toLocaleString()}/unit**\n*${d.description||'No description'}*`
         ).join('\n\n')}`)
-        .setFooter({ text: 'Use /drugmarket traffic to order cross-border · /drugmarket deal to distribute to gang members' })
+        .setFooter({ text: 'Gang members: /drugmarket traffic to bulk order · /drugmarket deal to sell to anyone' })
       ], ephemeral:true });
     }
 
@@ -108,7 +108,7 @@ module.exports = {
         .setColor(0x2c3e50)
         .setTitle('📦 Shipment In Transit')
         .setDescription(`**${qty}× ${drug.emoji||'💊'} ${drug.name}** ordered cross-border.\n\n🚚 Delivery in **${deliveryMin} minutes**\n💵 Cost: **$${totalCost.toLocaleString()}** deducted\n\n⚠️ 15% chance your package gets seized at the border.`)
-        .setFooter({ text:'Gang member only — deal to crew with /drugmarket deal' })
+        .setFooter({ text:'Use /drugmarket deal to sell to any user once it arrives' })
       ], ephemeral:true });
 
       setTimeout(async () => {
@@ -157,12 +157,7 @@ module.exports = {
       const qty    = interaction.options.getInteger('quantity');
 
       if (target.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You can't deal to yourself.")], ephemeral:true });
-
-      // Target must be in the same gang
-      const targetGang = getGangByMember(target.id);
-      if (!targetGang || targetGang.id !== gang.id) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription(`<@${target.id}> is not in your gang. Deals are gang-members-only.`)
-      ], ephemeral:true });
+      if (target.bot) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't deal to a bot.")], ephemeral:true });
 
       const drug = getDrug(drugId);
       if (!drug || !drug.available) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('That drug is unavailable.')], ephemeral:true });
