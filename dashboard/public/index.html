@@ -5633,7 +5633,6 @@ async function manualRefresh() {
 
 safeRefresh();
 setInterval(safeRefresh, 15000);
-initServerSwitcher();
 </script>
 <!-- CONFIRM MODAL — replaces browser confirm() dialogs -->
 <div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center">
@@ -6111,6 +6110,7 @@ document.addEventListener('click', e => {
 });
 
 // Initialize on nav
+initServerSwitcher();
 </script>
 </body>
 </html>
