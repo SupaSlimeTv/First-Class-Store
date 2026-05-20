@@ -2200,7 +2200,17 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isButton() || interaction.customId !== 'moneydrop_claim') return;
   const drop = activeDrops.get(interaction.channelId);
   if (!drop || drop.messageId !== interaction.message.id) {
-    return interaction.reply({ content:'This drop already expired or was claimed.', ephemeral:true });
+    // Stale button (bot restarted or already claimed) — remove it
+    const { EmbedBuilder: EB2 } = require('discord.js');
+    return interaction.update({
+      embeds: [new EB2().setColor(0x888888)
+        .setTitle('💸 Drop Expired')
+        .setDescription('This drop has already been claimed or expired.')
+      ],
+      components: [],
+    }).catch(() =>
+      interaction.reply({ content:'This drop already expired or was claimed.', ephemeral:true }).catch(()=>{})
+    );
   }
 
   // Claimed — remove immediately to prevent double-claims

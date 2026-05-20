@@ -56,7 +56,7 @@ function calcBusinessRoutingPrice(userId) {
     const bizValue = (biz.revenue||0) + ((biz.level||1) * 10000);
     const ownerBank= (u?.bank||0) * 0.01;
     return Math.max(1000, Math.min(500000, Math.floor(bizValue * 0.5 + ownerBank)));
-  } catch { return 5000; }
+  } catch { return 0; }
 }
 
 // Create a random data leak listing — includes SSN + routing number if available
@@ -81,7 +81,7 @@ async function createDataLeak(userId, victimData) {
     if (biz) bizName = biz.name;
   } catch {}
 
-  const hasBusinessData = !!(routingNumber || bizName);
+  const hasBusinessData = !!bizName;
   const typeName = hasBusinessData
     ? 'Full Identity + Business Routing (Data Breach)'
     : 'Full SSN + Credit Profile (Data Breach)';
