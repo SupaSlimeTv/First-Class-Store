@@ -477,6 +477,19 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <strong>How it works:</strong> Each coin has a hype score that drives its price. Every 10 seconds prices shift randomly. Users can invest any amount from their wallet and cash out at any time.<br><br>
         <strong>Commands:</strong> <code>/invest &lt;coin&gt; &lt;amount&gt;</code> · <code>/cashout &lt;coin&gt;</code> · <code>/portfolio</code>
       </div>
+
+      <!-- BUSINESS STOCKS -->
+      <div class="tbl-wrap" style="margin-top:24px">
+        <div class="tbl-head">
+          <h3>🏢 Business Stock Exchange</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadBizStocks()">⟳ Refresh</button>
+        </div>
+        <p style="padding:0 16px 4px;font-size:12px;color:var(--muted);margin:0">Trade shares in real user-created businesses. Prices drift based on business level, revenue, and market noise — updated every 5 minutes. Use <code>/bizstock buy</code> &amp; <code>/bizstock sell</code> in Discord.</p>
+        <table>
+          <thead><tr><th>Business</th><th>Type</th><th>Level</th><th>Price</th><th>Fair Value</th><th>vs Fair</th><th>24h Change</th></tr></thead>
+          <tbody id="bizstock-tbody"><tr><td colspan="7" class="empty-cell">Loading...</td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ENTREPRENEUR -->
@@ -5496,9 +5509,38 @@ function renderStocks() {
 }
 
 setInterval(tickStocks, 10000);
+
+// ── BUSINESS STOCKS ──────────────────────────────────────
+async function loadBizStocks() {
+  const tbody = document.getElementById('bizstock-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">Loading...</td></tr>';
+  try {
+    const stocks = await fetch('/api/bizstocks').then(r => r.json());
+    if (!stocks.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No businesses exist yet.</td></tr>'; return; }
+    const fmtP = p => p >= 1000 ? '$' + Math.round(p).toLocaleString() : p >= 1 ? '$' + p.toFixed(2) : '$' + p.toFixed(4);
+    tbody.innerHTML = stocks
+      .sort((a, b) => b.price - a.price)
+      .map(s => {
+        const vsFund   = ((s.price / s.fundPrice - 1) * 100).toFixed(1);
+        const vsCls    = s.price >= s.fundPrice ? 'c-green' : 'c-red';
+        const chgCls   = s.change >= 0 ? 'c-green' : 'c-red';
+        const chgStr   = (s.change >= 0 ? '+' : '') + s.change.toFixed(2) + '%';
+        return `<tr>
+          <td><strong>${s.emoji} ${s.name}</strong></td>
+          <td>${s.typeName}</td>
+          <td>Lv${s.level}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-weight:700">${fmtP(s.price)}</td>
+          <td style="color:var(--muted)">${fmtP(s.fundPrice)}</td>
+          <td class="${vsCls}">${vsFund >= 0 ? '+' : ''}${vsFund}%</td>
+          <td class="${chgCls}">${chgStr}</td>
+        </tr>`;
+      }).join('');
+  } catch(e) { tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">Failed to load.</td></tr>'; }
+}
 renderStocks();
-// Load custom coins into grid on startup
 loadCustomCoinsIntoGrid();
+loadBizStocks();
 
 function toggleEmojiPicker() {
   const picker = document.getElementById('emoji-picker');

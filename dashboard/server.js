@@ -1504,6 +1504,36 @@ app.get('/api/:guildId/stock-prices', requireGuildAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Business stock prices for dashboard
+app.get('/api/bizstocks', requireAuth, async (req, res) => {
+  try {
+    const { getAllBusinesses, BIZ_TYPES, calcIncome } = require('../utils/bizDb');
+    const { getAllBizStockPrices, getAllBizStockHistory, calcFundamentalPrice } = require('../utils/bizStockDb');
+    const allBiz     = getAllBusinesses();
+    const prices     = getAllBizStockPrices();
+    const history    = getAllBizStockHistory();
+    const result = Object.values(allBiz).map(biz => {
+      const price = prices[biz.id] || calcFundamentalPrice(biz);
+      const fund  = calcFundamentalPrice(biz);
+      const hist  = (history[biz.id] || [price]).slice(-50);
+      const prev  = hist.length > 1 ? hist[hist.length - 2] : price;
+      return {
+        id:       biz.id,
+        name:     biz.name,
+        type:     biz.type,
+        emoji:    BIZ_TYPES[biz.type]?.emoji || '🏢',
+        typeName: BIZ_TYPES[biz.type]?.name  || biz.type,
+        level:    biz.level || 1,
+        price,
+        fundPrice: fund,
+        change:   prev > 0 ? ((price - prev) / prev) * 100 : 0,
+        history:  hist,
+      };
+    });
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── CUSTOM COINS ─────────────────────────────────────────
 
 app.get('/api/:guildId/coins', requireGuildAuth, async (req, res) => {

@@ -102,6 +102,9 @@ client.once('ready', async () => {
   const { preloadIlluminatiCache } = require('./utils/illuminatiDb');
   await preloadIlluminatiCache();
 
+  const { preloadBizStockCache } = require('./utils/bizStockDb');
+  await preloadBizStockCache();
+
   const { preloadFamilyCache } = require('./utils/familyDb');
   await preloadFamilyCache();
 
@@ -1938,6 +1941,25 @@ async function tickLottery() {
 }
 
 setInterval(tickLottery, 60_000);
+
+// ---- BUSINESS STOCK TICK ENGINE ----
+const bizStockMomentum = {};
+
+async function tickBizStocks() {
+  try {
+    const { getAllBusinesses } = require('./utils/bizDb');
+    const { tickBizPrice, saveBizStockState } = require('./utils/bizStockDb');
+    const allBiz = getAllBusinesses();
+    for (const [bizId, biz] of Object.entries(allBiz)) {
+      if (!bizStockMomentum[bizId]) bizStockMomentum[bizId] = 0;
+      const { newMomentum } = tickBizPrice(bizId, biz, bizStockMomentum[bizId]);
+      bizStockMomentum[bizId] = newMomentum;
+    }
+    await saveBizStockState();
+  } catch(e) { console.error('tickBizStocks error:', e); }
+}
+
+setInterval(tickBizStocks, 5 * 60 * 1000);
 
 // ---- BUSINESS REVENUE TICK ENGINE ----
 setInterval(() => {
