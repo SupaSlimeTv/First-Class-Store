@@ -6,7 +6,7 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 const { getOrCreateUser, saveUser, getBusiness: _gb } = require('../../utils/db');
 const { getLabel, saveLabel, getContract, saveContract, deleteContract, calcArtistRevenue, NPC_ARTISTS, isSignedArtist } = require('../../utils/labelDb');
 const { getPhone, getArtistTier } = require('../../utils/phoneDb');
-const { getBusiness } = require('../../utils/bizDb');
+const { getBusiness, getBusinesses } = require('../../utils/bizDb');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
 
