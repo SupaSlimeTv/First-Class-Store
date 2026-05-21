@@ -1145,6 +1145,87 @@ app.post('/api/:guildId/users/:id/laptop-app', requireGuildAuth, async (req, res
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
+// ── VOODOO GIVE/TAKE ──────────────────────────────────────────
+app.post('/api/:guildId/users/:id/voodoo-energy', requireGuildAuth, async (req, res) => {
+  try {
+    const delta = parseInt(req.body.delta)||0;
+    if (!delta) return res.status(400).json({ error:'delta required' });
+    const user = db.getOrCreateUser(req.params.id);
+    if (!user.voodoo?.initiated) return res.status(400).json({ error:'User is not initiated into voodoo.' });
+    user.voodoo.energy = Math.max(0, (user.voodoo.energy||0) + delta);
+    await db.saveUser(req.params.id, user);
+    await writeAudit(req.guildId, req.session.user?.id, 'voodoo_energy', { delta, target:`<@${req.params.id}>` });
+    res.json({ success:true, energy: user.voodoo.energy });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/voodoo-rituals', requireGuildAuth, async (req, res) => {
+  try {
+    const count = parseInt(req.body.count);
+    if (isNaN(count)||count<0) return res.status(400).json({ error:'count required (>= 0)' });
+    const user = db.getOrCreateUser(req.params.id);
+    if (!user.voodoo?.initiated) return res.status(400).json({ error:'User is not initiated into voodoo.' });
+    user.voodoo.ritualCount = count;
+    await db.saveUser(req.params.id, user);
+    await writeAudit(req.guildId, req.session.user?.id, 'voodoo_rituals', { count, target:`<@${req.params.id}>` });
+    res.json({ success:true, ritualCount: count });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+app.post('/api/:guildId/users/:id/voodoo-initiate', requireGuildAuth, async (req, res) => {
+  try {
+    const { action } = req.body;
+    const user = db.getOrCreateUser(req.params.id);
+    if (action === 'initiate') {
+      user.voodoo = { initiated:true, initiatedAt:Date.now(), energy:10, ritualCount:0, lastRituals:{}, adminGranted:true };
+    } else if (action === 'revoke') {
+      user.voodoo = null;
+    } else {
+      return res.status(400).json({ error:'action must be initiate or revoke' });
+    }
+    await db.saveUser(req.params.id, user);
+    await writeAudit(req.guildId, req.session.user?.id, `voodoo_${action}`, { target:`<@${req.params.id}>` });
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── LABEL REVENUE GIVE ────────────────────────────────────────
+app.post('/api/:guildId/users/:id/label-revenue', requireGuildAuth, async (req, res) => {
+  try {
+    const amount = parseInt(req.body.amount)||0;
+    if (amount < 1) return res.status(400).json({ error:'amount required' });
+    const { getAllContracts, saveContract } = require('../utils/labelDb');
+    const contracts = getAllContracts();
+    // Find all contracts owned by this label owner
+    const owned = Object.entries(contracts).filter(([, c]) => c.ownerId === req.params.id);
+    if (!owned.length) return res.status(404).json({ error:'User has no label contracts.' });
+    const share = Math.floor(amount / owned.length);
+    for (const [artistId, contract] of owned) {
+      contract.pendingRevenue = (contract.pendingRevenue||0) + share;
+      await saveContract(artistId, contract);
+    }
+    await writeAudit(req.guildId, req.session.user?.id, 'label_revenue', { amount, contracts:owned.length, target:`<@${req.params.id}>` });
+    res.json({ success:true, distributed:owned.length });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
+// ── LIFE PATH SET ─────────────────────────────────────────────
+app.post('/api/:guildId/users/:id/lifepath', requireGuildAuth, async (req, res) => {
+  try {
+    const { path } = req.body;
+    const VALID = ['street_hustler','entrepreneur','entertainer','politician'];
+    if (!VALID.includes(path)) return res.status(400).json({ error:'Invalid path. Must be one of: '+VALID.join(', ') });
+    const { getLifePath, saveLifePath } = require('../utils/lifePathDb');
+    const lp = getLifePath(req.params.id) || { userId:req.params.id };
+    lp.path     = path;
+    lp.chosenAt = Date.now();
+    if (!lp.bornAt) lp.bornAt = Date.now();
+    saveLifePath(req.params.id, lp);
+    await writeAudit(req.guildId, req.session.user?.id, 'lifepath_set', { path, target:`<@${req.params.id}>` });
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ error:e.message }); }
+});
+
 // ── HEAT GIVE/TAKE ────────────────────────────────────────────
 app.post('/api/:guildId/users/:id/heat', requireGuildAuth, async (req, res) => {
   try {

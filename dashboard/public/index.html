@@ -1379,6 +1379,11 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <option value="heat">🔥 Heat Level (adjust)</option>
           <option value="wallet">💰 Wallet (set exact amount)</option>
           <option value="bank">🏦 Bank (set exact amount)</option>
+          <option value="voodoo-energy">🕯️ Voodoo Energy (adjust)</option>
+          <option value="voodoo-rituals">🔮 Voodoo Ritual Count (set mastery)</option>
+          <option value="voodoo-initiate">✨ Voodoo — Force Initiate</option>
+          <option value="label-revenue">🎵 Label — Add Artist Revenue</option>
+          <option value="lifepath">🛤️ Life Path (set/change)</option>
         </select>
       </div>
       <!-- Store item -->
@@ -1525,6 +1530,44 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <label class="flabel">Set Bank to ($)</label>
         <input class="finput" id="give-bank-amount" type="number" min="0" placeholder="100000">
         <div class="hint">Sets bank balance to this exact amount. Use with care.</div>
+      </div>
+      <!-- Voodoo Energy -->
+      <div id="give-voodoo-energy-section" class="fg" style="display:none">
+        <label class="flabel">Energy Adjustment</label>
+        <input class="finput" id="give-voodoo-energy-amount" type="number" placeholder="e.g. 10 or -10">
+        <div class="hint">Adds or removes voodoo energy. Negative reduces. User must be initiated.</div>
+      </div>
+      <!-- Voodoo Ritual Count -->
+      <div id="give-voodoo-rituals-section" class="fg" style="display:none">
+        <label class="flabel">Set Ritual Count To</label>
+        <input class="finput" id="give-voodoo-rituals-amount" type="number" min="0" placeholder="e.g. 50 for Voodoo Master">
+        <div class="hint">Sets total rituals performed. 50 = Voodoo Master (free rituals, 98% success). User must be initiated.</div>
+      </div>
+      <!-- Voodoo Initiate -->
+      <div id="give-voodoo-initiate-section" class="fg" style="display:none">
+        <label class="flabel">Voodoo Status</label>
+        <select class="fselect" id="give-voodoo-initiate-select">
+          <option value="initiate">✨ Force Initiate (bypass $50k cost)</option>
+          <option value="revoke">❌ Revoke Initiation (reset voodoo data)</option>
+        </select>
+        <div class="hint">Force-initiate a user into voodoo at no cost, or wipe their voodoo data.</div>
+      </div>
+      <!-- Label Revenue -->
+      <div id="give-label-revenue-section" class="fg" style="display:none">
+        <label class="flabel">Pending Revenue to Add ($)</label>
+        <input class="finput" id="give-label-revenue-amount" type="number" min="1" placeholder="10000">
+        <div class="hint">Adds pending revenue to all of this user's label contracts. User collects it with /label collect.</div>
+      </div>
+      <!-- Life Path -->
+      <div id="give-lifepath-section" class="fg" style="display:none">
+        <label class="flabel">Set Life Path</label>
+        <select class="fselect" id="give-lifepath-select">
+          <option value="street_hustler">🔥 Street Hustler — +12% rob, +15% crime income, +10% drug profit</option>
+          <option value="entrepreneur">💼 Entrepreneur — +20% biz revenue, +10% invest, +15% daily</option>
+          <option value="entertainer">🎤 Entertainer — +25% label earnings, +20% sponsor deals, +10% daily</option>
+          <option value="politician">🏛️ Politician — +25% heat decay, +20% bribe, +5% rob success</option>
+        </select>
+        <div class="hint">Sets or overrides the user's life path. Bonuses apply immediately. This is normally permanent.</div>
       </div>
       <div class="hint" id="give-modal-hint" style="margin-top:8px"></div>
     </div>
@@ -3672,7 +3715,7 @@ let giveTakeUserId = '';
 function onGiveCategoryChange() {
   const cat  = document.getElementById('give-category').value;
   const take = giveTakeMode === 'take';
-  ['item','money','tokens','petlevel','gun','gang','business','phonestatus','phonefollowers','phonehype','phonedeals','phoneshoutout','creditscore','illuminatirank','artistfame','artisttier','laptopapp','heat','wallet','bank'].forEach(s => {
+  ['item','money','tokens','petlevel','gun','gang','business','phonestatus','phonefollowers','phonehype','phonedeals','phoneshoutout','creditscore','illuminatirank','artistfame','artisttier','laptopapp','heat','wallet','bank','voodoo-energy','voodoo-rituals','voodoo-initiate','label-revenue','lifepath'].forEach(s => {
     const el = document.getElementById(`give-${s}-section`);
     if (el) el.style.display = cat===s?'block':'none';
   });
@@ -3966,6 +4009,34 @@ async function confirmGiveTake() {
     if (isNaN(amount)||amount<0) return toast('Enter a valid bank amount','err');
     const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/money`, { setBank: amount });
     if (r.success) { toast(`Bank set to $${amount.toLocaleString()}!`,'ok'); closeGiveTakeModal(); refresh(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'voodoo-energy') {
+    const delta = parseInt(document.getElementById('give-voodoo-energy-amount').value)||0;
+    if (!delta) return toast('Enter an energy adjustment (e.g. 10 or -10)','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/voodoo-energy`, { delta });
+    if (r.success) { toast(`Voodoo energy ${delta>0?'+':''}${delta}!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'voodoo-rituals') {
+    const count = parseInt(document.getElementById('give-voodoo-rituals-amount').value);
+    if (isNaN(count)||count<0) return toast('Enter a valid ritual count','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/voodoo-rituals`, { count });
+    if (r.success) { toast(`Ritual count set to ${count}${count>=50?' — Voodoo Master unlocked!':''}`, 'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'voodoo-initiate') {
+    const action = document.getElementById('give-voodoo-initiate-select').value;
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/voodoo-initiate`, { action });
+    if (r.success) { toast(action==='initiate'?'User initiated into voodoo!':'Voodoo data wiped.','ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'label-revenue') {
+    const amount = parseInt(document.getElementById('give-label-revenue-amount').value)||0;
+    if (amount < 1) return toast('Enter a valid amount','err');
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/label-revenue`, { amount });
+    if (r.success) { toast(`$${amount.toLocaleString()} added to label revenue!`,'ok'); closeGiveTakeModal(); }
+    else toast(r.error||'Failed','err');
+  } else if (cat === 'lifepath') {
+    const path = document.getElementById('give-lifepath-select').value;
+    const r = await api('POST', `/api/${GUILD}/users/${giveTakeUserId}/lifepath`, { path });
+    if (r.success) { toast(`Life path set to ${path}!`,'ok'); closeGiveTakeModal(); }
     else toast(r.error||'Failed','err');
   }
 }
