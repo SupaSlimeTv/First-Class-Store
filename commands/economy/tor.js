@@ -89,14 +89,6 @@ module.exports = {
 
     // ── MARKET ────────────────────────────────────────────────
     if (sub === 'market') {
-      const { getAccountAgeDays } = require('../../utils/lifePathDb');
-      const torAgeDays = getAccountAgeDays(userId);
-      if (torAgeDays !== null && torAgeDays < 2) {
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription(`🌐 TOR access requires an account at least **2 days old**.\n\n📅 Current age: **${torAgeDays} day${torAgeDays !== 1 ? 's' : ''}**\n\n*The dark web doesn't trust new faces.*`)
-        ], ephemeral:true });
-      }
-
       const user   = getOrCreateUser(userId);
       const store  = require('../../utils/db').getStore(guildId);
       const device = store.items.find(i =>
@@ -222,14 +214,6 @@ module.exports = {
 
     // ── BUY ───────────────────────────────────────────────────
     if (sub === 'buy') {
-      const { getAccountAgeDays: _buyAgeFn } = require('../../utils/lifePathDb');
-      const buyAgeDays = _buyAgeFn(userId);
-      if (buyAgeDays !== null && buyAgeDays < 2) {
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription(`🌐 TOR purchases require an account at least **2 days old**.\n\n📅 Current age: **${buyAgeDays} day${buyAgeDays !== 1 ? 's' : ''}**`)
-        ], ephemeral:true });
-      }
-
       const rawId     = interaction.options.getString('listing').toUpperCase();
       const listing   = getListing(rawId) || getActiveListings().find(l => l.id === rawId || l.id.slice(-6) === rawId);
 

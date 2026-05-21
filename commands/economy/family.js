@@ -37,14 +37,6 @@ module.exports = {
         .setDescription('You already have a family. Use `/family status` to check on them.')
       ], ephemeral:true });
 
-      const { getAccountAgeDays } = require('../../utils/lifePathDb');
-      const ageDays = getAccountAgeDays(userId);
-      if (ageDays !== null && ageDays < 1) {
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(FAMILY_COLOR)
-          .setDescription(`Your account must be at least **1 day old** to start a family.\n\n📅 Your account was just created — settle in first, then come back tomorrow.`)
-        ], ephemeral:true });
-      }
-
       const partnerName = interaction.options.getString('partner');
       const family = createFamily(userId, partnerName);
       await saveFamily(userId, family);

@@ -8,7 +8,7 @@ const {
 } = require('discord.js');
 const { getOrCreateUser, hasAccount, saveUser } = require('../../utils/db');
 const {
-  getLifePath, createLifePath, setBornAt, getAgeString, getPathBonus, LIFE_PATHS,
+  getLifePath, createLifePath, setBornAt, getPathBonus, LIFE_PATHS,
 } = require('../../utils/lifePathDb');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
@@ -89,8 +89,6 @@ module.exports = {
       }
 
       const pathDef  = lp.path ? LIFE_PATHS[lp.path] : null;
-      const ageStr   = getAgeString(lp.bornAt);
-      const bornTs   = lp.bornAt ? `<t:${Math.floor(lp.bornAt / 1000)}:D>` : 'Unknown';
 
       const bonusLines = pathDef
         ? pathDef.bonusText.map(b => `• ${b}`).join('\n')
@@ -102,11 +100,8 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(pathDef?.color || 0x888888)
-        .setTitle(`${pathDef?.emoji || '🌱'} ${interaction.user.username}'s Life`)
+        .setTitle(`${pathDef?.emoji || '🌱'} ${interaction.user.username}'s Life Path`)
         .addFields(
-          { name: '🎂 Born',       value: bornTs,                                  inline: true },
-          { name: '📅 Age',        value: ageStr,                                  inline: true },
-          { name: '​',             value: '​',                                     inline: true },
           { name: '🛤️ Life Path', value: pathDef ? `**${pathDef.name}**\n*${pathDef.flavor}*` : '*Not chosen*', inline: false },
           { name: '⚡ Bonuses',    value: bonusLines,                              inline: false },
           { name: '🔺 Illuminati Eligible Factions', value: eligibleFactions,      inline: false },

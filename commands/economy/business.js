@@ -67,14 +67,6 @@ module.exports = {
       const bizType = BIZ_TYPES[type];
       if (!bizType) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Invalid business type.')], ephemeral:true });
 
-      const { getAccountAgeDays } = require('../../utils/lifePathDb');
-      const ageDays = getAccountAgeDays(userId);
-      if (ageDays !== null && ageDays < 2) {
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription(`Your account must be at least **2 days old** to start a business.\n\n📅 Current age: **${ageDays} day${ageDays !== 1 ? 's' : ''}**\n\nGrow your account first — use \`/daily\`, \`/work\`, and \`/rob\`.`)
-        ], ephemeral:true });
-      }
-
       const isCash = !!bizType.isCashBusiness;
 
       // ── LEGIT: max 1 normally, 2 for Illuminati ──

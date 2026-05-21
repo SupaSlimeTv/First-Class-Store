@@ -395,15 +395,14 @@ module.exports = {
       }
 
       const myMember = getMember(guildId, userId);
-      const { getAgeString, getLifePath } = require('../../utils/lifePathDb');
+      const { getLifePath } = require('../../utils/lifePathDb');
       const myLp = getLifePath(userId);
-      const myAgeStr = myLp?.bornAt ? getAgeString(myLp.bornAt) : null;
       const myPathInfo = myLp?.path ? `${myLp.path.replace(/_/g,' ')}` : null;
 
       const soulDesc = myMember?.soulSold
         ? `Your rank: **${RANKS[myMember.rank]?.label}**\n\n🖤 **Your soul is owned.** The Illuminati has complete control over you.`
         : myMember
-          ? `Your rank: **${RANKS[myMember.rank]?.label}**${myAgeStr ? ` · 📅 ${myAgeStr}` : ''}${myPathInfo ? ` · ${myPathInfo}` : ''}`
+          ? `Your rank: **${RANKS[myMember.rank]?.label}**${myPathInfo ? ` · ${myPathInfo}` : ''}`
           : isPuppetUser
             ? `**⛓️ Puppet** — soul-sold outsider\n\nYou serve below the order. No rank, no voice, no protection.\nThe Illuminati can drain you at any time via Soul Harvest.`
             : null;
@@ -995,14 +994,6 @@ module.exports = {
 
       const target = interaction.options.getUser('user');
       if (isMember(guildId, target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Already a member.')], ephemeral:true });
-
-      const { getAccountAgeDays } = require('../../utils/lifePathDb');
-      const targetAge = getAccountAgeDays(target.id);
-      if (targetAge !== null && targetAge < 3) {
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription(`🔺 <@${target.id}> is too new — the Illuminati only considers accounts at least **3 days old**.\n\n📅 Their account age: **${targetAge} day${targetAge !== 1 ? 's' : ''}**`)
-        ], ephemeral:true });
-      }
 
       // Direct invites skip all eligibility requirements — Elder/Grandmaster vouches for them
       // Send invite via DM

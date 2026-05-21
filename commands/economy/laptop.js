@@ -25,16 +25,16 @@ module.exports = {
     .addSubcommand(s => s.setName('open').setDescription('Open your laptop — view device and installed apps'))
     .addSubcommand(s => s.setName('appstore').setDescription('Browse and install apps from your item inventory'))
     .addSubcommand(s => s.setName('run').setDescription('Run an installed app')
-      .addStringOption(o => o.setName('app').setDescription('App to run').setRequired(true).setAutocomplete(true))
-      .addUserOption(o => o.setName('target').setDescription('Target user (SSN Scanner, Card Drainer, Stalker, HomeHack, Voter Suppress, Blacksite Op)').setRequired(false))
-      .addStringOption(o => o.setName('routing').setDescription('Routing# (Biz Intruder/Bank Mirror) OR SSN number (Credit Cracker — get from Keylogger)').setRequired(false))
-      .addStringOption(o => o.setName('action').setDescription('⚡ Biz Intruder only — what to do once inside').setRequired(false)
+      .addStringOption(o => o.setName('app').setDescription('App to run — autocomplete shows exactly what each app needs').setRequired(true).setAutocomplete(true))
+      .addUserOption(o => o.setName('target').setDescription('👤 INTEL/FRAUD/BREAK-IN apps — Stalker, SSN Scanner, Card Drainer, HomeHack, Voter Suppress, Blacksite').setRequired(false))
+      .addStringOption(o => o.setName('routing').setDescription('🔢 BIZ/CRACK apps ONLY — routing# for Biz Intruder/Bank Mirror · SSN# for Credit Cracker/Dark Search').setRequired(false))
+      .addStringOption(o => o.setName('action').setDescription('⚡ Biz Intruder ONLY — what to do once inside (ignore for all other apps)').setRequired(false)
         .addChoices(
           { name:'📊 Check Balances — see revenue & dirty money', value:'check' },
           { name:'💵 Withdraw Revenue — steal clean revenue', value:'withdraw' },
           { name:'🧺 Launder Dirty Money — clean their dirty cash', value:'launder' },
         ))
-      .addIntegerOption(o => o.setName('amount').setDescription('💰 Biz Intruder only — amount to withdraw or launder').setRequired(false).setMinValue(1))),
+      .addIntegerOption(o => o.setName('amount').setDescription('💰 Biz Intruder/LaunderBot ONLY — amount to process (ignore for all other apps)').setRequired(false).setMinValue(1))),
 
   async autocomplete(interaction) {
     const focused  = interaction.options.getFocused().toLowerCase();
