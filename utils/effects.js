@@ -1026,6 +1026,12 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
       };
     }
 
+    case 'laptop':
+      return { success: true, title: '💻 Laptop — Built-In', description: 'Your laptop is always available — no item needed.\n\nUse `/laptop open` to access it or `/laptop appstore` to browse and install apps.' };
+
+    case 'laptop_app':
+      return { success: false, title: '💻 Install via /laptop', description: 'App items are installed through your laptop.\n\nUse `/laptop appstore` to install it from your inventory.' };
+
     default:
       return { success: false, title: 'Unknown Effect', description: `Effect type "${effect.type}" is not recognized.` };
   }

@@ -84,19 +84,8 @@ module.exports = {
     const sub    = interaction.options.getSubcommand();
     const userId = interaction.user.id;
 
-    // ── Must own a laptop device item ─────────────────────────
     const user   = getOrCreateUser(userId);
-    const store  = getStore(interaction.guildId);
-    const device = store.items.find(i =>
-      (i.effect?.type === 'laptop' || (i.id||'').toLowerCase().includes('laptop') || (i.name||'').toLowerCase().includes('laptop')) &&
-      (user.inventory||[]).includes(i.id)
-    );
-    if (!device) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-      .setTitle('💻 No Laptop')
-      .setDescription('You need a **laptop** from the shop first.\n\nBuy one with `/shop` or check the item store.')
-    ], ephemeral:true });
-
-    let laptop = getLaptop(userId) || { deviceId:device.id, deviceName:device.name, apps:[], installedAt:Date.now() };
+    let laptop = getLaptop(userId) || { deviceId:'builtin', deviceName:'Laptop', apps:[], installedAt:Date.now() };
 
     // ── OPEN ──────────────────────────────────────────────────
     if (sub === 'open') {
@@ -112,7 +101,7 @@ module.exports = {
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0x00d2ff)
-        .setTitle(`💻 ${device.name}`)
+        .setTitle(`💻 ${laptop.deviceName}`)
         .setDescription(`**${apps.length}** apps installed\nCapabilities: ${categories.length ? categories.join(', ') : 'none yet'}`)
         .addFields({ name:'📱 Installed Apps', value:appLines })
         .setFooter({ text:'Use /laptop appstore to install apps · /laptop run <app> to execute' })
@@ -121,6 +110,7 @@ module.exports = {
 
     // ── APP STORE ─────────────────────────────────────────────
     if (sub === 'appstore') {
+      const store      = getStore(interaction.guildId);
       const storeApps  = store.items.filter(i => i.effect?.type === 'laptop_app');
       const invAppItems = store.items.filter(i =>
         i.effect?.type === 'laptop_app' && (user.inventory||[]).includes(i.id)
