@@ -85,26 +85,29 @@ module.exports = {
     const userId = interaction.user.id;
 
     const user   = getOrCreateUser(userId);
-    let laptop = getLaptop(userId) || { deviceId:'builtin', deviceName:'Laptop', apps:[], installedAt:Date.now() };
+    const _raw   = getLaptop(userId);
+    const laptop = _raw
+      ? { deviceId: _raw.deviceId || 'builtin', deviceName: _raw.deviceName || 'Laptop', apps: Array.isArray(_raw.apps) ? _raw.apps.filter(a => a && typeof a === 'object' && a.id) : [], installedAt: _raw.installedAt || Date.now() }
+      : { deviceId: 'builtin', deviceName: 'Laptop', apps: [], installedAt: Date.now() };
 
     // ── OPEN ──────────────────────────────────────────────────
     if (sub === 'open') {
-      const apps   = laptop.apps || [];
+      const apps     = laptop.apps;
       const appLines = apps.length
         ? apps.map(a => {
             const def = BUILTIN_APPS[a.id] || {};
-            return `${def.emoji||'📦'} **${def.name||a.id}** — Quality Tier ${a.quality||1} · *${def.desc||a.desc||''}*`;
+            return `${def.emoji||'📦'} **${def.name||a.id}** — Quality Tier ${a.quality||1} · *${(def.desc||a.desc||'').slice(0,80)}*`;
           }).join('\n')
-        : '*No apps installed. Use `/laptop appstore` to browse.*';
+        : '*No apps installed. Use `/laptop appstore` to browse and install apps.*';
 
-      const categories = [...new Set(apps.map(a => BUILTIN_APPS[a.id]?.category||'other'))];
+      const categories = [...new Set(apps.map(a => BUILTIN_APPS[a.id]?.category || 'other'))];
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0x00d2ff)
         .setTitle(`💻 ${laptop.deviceName}`)
-        .setDescription(`**${apps.length}** apps installed\nCapabilities: ${categories.length ? categories.join(', ') : 'none yet'}`)
-        .addFields({ name:'📱 Installed Apps', value:appLines })
-        .setFooter({ text:'Use /laptop appstore to install apps · /laptop run <app> to execute' })
+        .setDescription(`**${apps.length}** app${apps.length !== 1 ? 's' : ''} installed · Capabilities: ${categories.length ? categories.join(', ') : 'none yet'}`)
+        .addFields({ name:'📱 Installed Apps', value:appLines.slice(0, 1020) || '—' })
+        .setFooter({ text:'/laptop appstore — install apps · /laptop run <app> — execute' })
       ], ephemeral:true });
     }
 
