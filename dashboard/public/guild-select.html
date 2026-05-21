@@ -187,14 +187,27 @@ async function load() {
 
 function addBot(guildId, name) {
   var cid = window._clientId;
-  if (!cid) { 
+  if (!cid) {
     console.error('Client ID not loaded');
-    alert('Client ID not loaded. Refresh and try again.'); 
-    return; 
+    alert('Client ID not loaded. Refresh and try again.');
+    return;
   }
-  console.log('Adding bot to guild:', name, guildId);
-  var url = 'https://discord.com/oauth2/authorize?client_id=' + cid + '&permissions=8&scope=bot%20applications.commands&guild_id=' + guildId + '&disable_guild_select=true';
-  window.open(url, '_blank', 'width=500,height=700');
+  var url = 'https://discord.com/oauth2/authorize?client_id=' + cid + '&permissions=8&scope=bot%20applications.commands&guild_id=' + guildId;
+  var popup = window.open(url, '_blank', 'width=500,height=700,noopener=0');
+  if (!popup) {
+    // Popup was blocked — fall back to same-tab redirect
+    location.href = url;
+    return;
+  }
+  // When the user closes the popup (after authorizing), refresh the guild list
+  var poll = setInterval(function() {
+    try {
+      if (popup.closed) {
+        clearInterval(poll);
+        load();
+      }
+    } catch(e) { clearInterval(poll); }
+  }, 800);
 }
 
 async function removeBot(guildId, name, event) {
