@@ -1,24 +1,58 @@
 // ============================================================
 // utils/labelDb.js — Record Label System
-// Signing artists (NPC + real), music revenue, contracts
 // ============================================================
 const { col } = require('./mongo');
 
-let _labels    = {}; // ownerId -> label data
-let _contracts = {}; // artistId -> contract data
+let _labels    = {};
+let _contracts = {};
 
-// NPC Artist archetypes
+const CONTRACT_TYPES = {
+  standard: {
+    name: 'Standard Deal', emoji: '📄',
+    desc: 'Clean deal. Artist earns their cut after advance is recouped.',
+    defaultCut: 30,
+  },
+  development: {
+    name: 'Development Deal', emoji: '🛠️',
+    desc: 'Label invests heavily in the artist. Team hire costs are 25% cheaper.',
+    defaultCut: 30, teamDiscount: true,
+  },
+  deal360: {
+    name: '360 Deal', emoji: '🔄',
+    desc: 'Label taps all income streams. Total revenue is boosted 20% in exchange.',
+    defaultCut: 40, revBonus: 1.20,
+  },
+};
+
+const TEAM_ROLES = {
+  manager: {
+    name: 'Manager', emoji: '👔',
+    desc: '+15% revenue every tick.',
+    weeklyCost: 5000, revBonus: 0.15,
+  },
+  publicist: {
+    name: 'Publicist', emoji: '📰',
+    desc: '+20 hype/week, 5% chance to chart each tick (5× revenue that tick).',
+    weeklyCost: 3000, unlocksCharting: true,
+  },
+  producer: {
+    name: 'In-House Producer', emoji: '🎹',
+    desc: '+20% effective talent multiplier on revenue.',
+    weeklyCost: 8000, talentBonus: 0.20,
+  },
+};
+
 const NPC_ARTISTS = [
-  { id:'rising_star',   name:'Rising Star',      talent:45, hype:60, fanbase:12000,  image:'clean',         weeklyRate:800,   emoji:'⭐' },
-  { id:'trap_god',      name:'Trap God',          talent:70, hype:85, fanbase:85000,  image:'controversial', weeklyRate:3200,  emoji:'🎤' },
-  { id:'pop_princess',  name:'Pop Princess',      talent:65, hype:90, fanbase:220000, image:'clean',         weeklyRate:8500,  emoji:'👑' },
-  { id:'rock_legend',   name:'Rock Legend',       talent:88, hype:55, fanbase:150000, image:'iconic',        weeklyRate:6000,  emoji:'🎸' },
-  { id:'underground',   name:'Underground Rapper',talent:80, hype:40, fanbase:28000,  image:'controversial', weeklyRate:1200,  emoji:'🎧' },
-  { id:'rnb_queen',     name:'R&B Queen',         talent:75, hype:78, fanbase:175000, image:'iconic',        weeklyRate:7200,  emoji:'🎶' },
-  { id:'drill_artist',  name:'Drill Artist',      talent:68, hype:72, fanbase:65000,  image:'controversial', weeklyRate:2800,  emoji:'🔥' },
-  { id:'indie_darling', name:'Indie Darling',     talent:82, hype:35, fanbase:18000,  image:'clean',         weeklyRate:900,   emoji:'🎻' },
-  { id:'hypeman',       name:'Hypeman',           talent:55, hype:95, fanbase:310000, image:'iconic',        weeklyRate:11000, emoji:'💫' },
-  { id:'producer',      name:'Ghost Producer',    talent:92, hype:20, fanbase:8000,   image:'clean',         weeklyRate:4500,  emoji:'🎹' },
+  { id:'rising_star',   name:'Rising Star',       talent:45, hype:60, fanbase:12000,  image:'clean',         weeklyRate:800,   emoji:'⭐' },
+  { id:'trap_god',      name:'Trap God',           talent:70, hype:85, fanbase:85000,  image:'controversial', weeklyRate:3200,  emoji:'🎤' },
+  { id:'pop_princess',  name:'Pop Princess',       talent:65, hype:90, fanbase:220000, image:'clean',         weeklyRate:8500,  emoji:'👑' },
+  { id:'rock_legend',   name:'Rock Legend',        talent:88, hype:55, fanbase:150000, image:'iconic',        weeklyRate:6000,  emoji:'🎸' },
+  { id:'underground',   name:'Underground Rapper', talent:80, hype:40, fanbase:28000,  image:'controversial', weeklyRate:1200,  emoji:'🎧' },
+  { id:'rnb_queen',     name:'R&B Queen',          talent:75, hype:78, fanbase:175000, image:'iconic',        weeklyRate:7200,  emoji:'🎶' },
+  { id:'drill_artist',  name:'Drill Artist',       talent:68, hype:72, fanbase:65000,  image:'controversial', weeklyRate:2800,  emoji:'🔥' },
+  { id:'indie_darling', name:'Indie Darling',      talent:82, hype:35, fanbase:18000,  image:'clean',         weeklyRate:900,   emoji:'🎻' },
+  { id:'hypeman',       name:'Hypeman',            talent:55, hype:95, fanbase:310000, image:'iconic',        weeklyRate:11000, emoji:'💫' },
+  { id:'producer',      name:'Ghost Producer',     talent:92, hype:20, fanbase:8000,   image:'clean',         weeklyRate:4500,  emoji:'🎹' },
 ];
 
 async function preloadLabelCache() {
@@ -54,35 +88,38 @@ async function deleteContract(artistId) {
   catch(e) { console.error('deleteContract error:', e.message); }
 }
 
-// Calculate revenue per 15min tick for a signed artist
 function calcArtistRevenue(contract) {
-  const artist    = contract.npcData || { talent:50, hype:50, fanbase:10000 };
-  const talent    = artist.talent || 50;
-  const hype      = artist.hype   || 50;
-  const fanbase   = artist.fanbase|| 10000;
-  const imageMult = { clean:1.0, controversial:1.2, iconic:1.5 }[artist.image||'clean'] || 1;
-  const base      = Math.floor((talent * 0.4 + hype * 0.3) * (fanbase / 50000) * imageMult * 100);
-  const illumMult  = contract.illuminatiControlled ? 2.0 : 1.0;
-  const forcedMult = contract.forced ? 1.3 : 1.0;
-  const plantMult  = contract.isPlant ? 2.5 : 1.0;
-  // Artist tier bonus — higher tier = more revenue
-  const { getArtistTier } = require('./phoneDb');
-  const { getPhone } = require('./phoneDb');
+  const artist  = contract.npcData || { talent:50, hype:50, fanbase:10000 };
+  const team    = contract.team || [];
+
+  const effectiveTalent = (artist.talent||50) * (team.includes('producer') ? 1.20 : 1.0);
+  const hype            = artist.hype    || 50;
+  const fanbase         = artist.fanbase || 10000;
+  const imageMult       = { clean:1.0, controversial:1.2, iconic:1.5 }[artist.image||'clean'] || 1;
+
+  const base        = Math.floor((effectiveTalent * 0.4 + hype * 0.3) * (fanbase / 50000) * imageMult * 100);
+  const managerMult = team.includes('manager') ? 1.15 : 1.0;
+  const illumMult   = contract.illuminatiControlled ? 2.0 : 1.0;
+  const forcedMult  = contract.forced  ? 1.3  : 1.0;
+  const plantMult   = contract.isPlant ? 2.5  : 1.0;
+  const albumMult   = (contract.albumBoostUntil && Date.now() < contract.albumBoostUntil) ? 3.0 : 1.0;
+  const chartMult   = contract.charting ? 5.0 : 1.0;
+  const deal360Mult = contract.type === 'deal360' ? 1.20 : 1.0;
+
   let tierMult = 1.0;
   try {
     if (!contract.isNPC) {
+      const { getArtistTier, getPhone } = require('./phoneDb');
       const phone = getPhone(contract.artistId);
-      if (phone?.artistCareer) {
-        const at = getArtistTier(phone.artistCareer.fame||0);
-        tierMult = at.revMult || 1.0;
-      }
+      if (phone?.artistCareer) tierMult = getArtistTier(phone.artistCareer.fame||0).revMult || 1.0;
     }
   } catch {}
-  return Math.max(10, Math.floor(base * illumMult * forcedMult * plantMult * tierMult));
+
+  return Math.max(10, Math.floor(base * managerMult * illumMult * forcedMult * plantMult * albumMult * chartMult * deal360Mult * tierMult));
 }
 
 module.exports = {
   preloadLabelCache, getLabel, getAllLabels, getContract, getAllContracts: () => ({..._contracts}),
   isSignedArtist, saveLabel, saveContract, deleteContract,
-  calcArtistRevenue, NPC_ARTISTS,
+  calcArtistRevenue, NPC_ARTISTS, CONTRACT_TYPES, TEAM_ROLES,
 };

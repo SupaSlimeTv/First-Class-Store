@@ -1,24 +1,50 @@
 // ============================================================
-// commands/entrepreneur/label.js — /label
+// commands/economy/label.js — /label
 // Record label management — sign artists, collect revenue
 // ============================================================
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
-const { getOrCreateUser, saveUser, getBusiness: _gb } = require('../../utils/db');
-const { getLabel, saveLabel, getContract, saveContract, deleteContract, calcArtistRevenue, NPC_ARTISTS, isSignedArtist } = require('../../utils/labelDb');
-const { getPhone, getArtistTier } = require('../../utils/phoneDb');
-const { getBusiness, getBusinesses } = require('../../utils/bizDb');
+const {
+  SlashCommandBuilder, EmbedBuilder, ActionRowBuilder,
+  ButtonBuilder, ButtonStyle,
+  StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
+} = require('discord.js');
+const { getOrCreateUser, saveUser } = require('../../utils/db');
+const {
+  getLabel, saveLabel, getContract, saveContract, deleteContract,
+  calcArtistRevenue, NPC_ARTISTS, isSignedArtist, CONTRACT_TYPES, TEAM_ROLES,
+} = require('../../utils/labelDb');
+const { getPhone, getArtistTier, getStatusTier, STATUS_TIERS } = require('../../utils/phoneDb');
+const { getBusinesses } = require('../../utils/bizDb');
 const { noAccount } = require('../../utils/accountCheck');
 const { COLORS } = require('../../utils/embeds');
 
 const fmtMoney = n => '$' + Math.round(n).toLocaleString();
 
-// Pending contract offers: artistId -> { labelOwnerId, terms, expiresAt }
+// In-memory pending contract offers: artistId -> { labelOwnerId, labelName, cut, type, advance, expiresAt }
 const _pendingContracts = {};
 
-function requireLabel(userId) {
-  const biz = getBusiness(userId);
-  if (!biz || biz.type !== 'record_label') return null;
-  return getLabel(userId) || { artists:[], totalRevenue:0, lastTick:Date.now() };
+function getNPCAdvance(npc) {
+  if (npc.weeklyRate >= 8000) return 100000;
+  if (npc.weeklyRate >= 4000) return 50000;
+  if (npc.weeklyRate >= 1500) return 20000;
+  return 5000;
+}
+
+function getAlbumCost(contract) {
+  const fanbase = contract.npcData?.fanbase || 10000;
+  if (fanbase >= 250000) return 100000;
+  if (fanbase >= 100000) return 50000;
+  if (fanbase >= 25000)  return 25000;
+  return 10000;
+}
+
+function buildNewContract(overrides) {
+  return {
+    type: 'standard', artistCut: 30, advance: 0, recouped: 0,
+    team: [], lastAlbum: null, albumBoostUntil: null,
+    charting: false, chartingUntil: null,
+    signedAt: Date.now(), illuminatiControlled: false, forced: false, isPlant: false,
+    ...overrides,
+  };
 }
 
 module.exports = {
@@ -27,291 +53,493 @@ module.exports = {
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused(true);
     if (focused.name === 'artist_id') {
-      const { getLabel } = require('../../utils/labelDb');
-      const label = getLabel(interaction.user.id);
-      const typed = focused.value.toLowerCase();
-      const choices = (label?.artists||[]).map(a => ({
-        name: a.isNPC ? (a.npcData?.name||a.artistId) : `@User ${a.artistId}`,
+      const label  = getLabel(interaction.user.id);
+      const typed  = focused.value.toLowerCase();
+      const choices = (label?.artists || []).map(a => ({
+        name:  a.isNPC ? `${a.npcData?.emoji || '🎤'} ${a.npcData?.name || a.artistId}` : `User ${a.artistId}`,
         value: a.artistId,
-      })).filter(c => c.name.toLowerCase().includes(typed)).slice(0,25);
-      return interaction.respond(choices.length ? choices : [{ name:'No artists on roster', value:'__none__' }]);
+      })).filter(c => c.name.toLowerCase().includes(typed)).slice(0, 25);
+      return interaction.respond(choices.length ? choices : [{ name: 'No artists on roster', value: '__none__' }]);
     }
   },
 
   data: new SlashCommandBuilder()
     .setName('label')
-    .setDescription('🎵 Manage your record label — sign artists, collect revenue.')
+    .setDescription('🎵 Manage your record label — sign artists, drop albums, collect revenue.')
     .addSubcommand(s => s.setName('roster').setDescription('View your signed artists and label stats'))
     .addSubcommand(s => s.setName('sign').setDescription('Offer a real user a recording contract')
       .addUserOption(o => o.setName('artist').setDescription('User to sign').setRequired(true))
-      .addIntegerOption(o => o.setName('cut').setDescription('Artist cut % (10-50, default 30)').setRequired(false).setMinValue(10).setMaxValue(50)))
-    .addSubcommand(s => s.setName('signnpc').setDescription('Browse and sign NPC artists'))
+      .addStringOption(o => o.setName('type').setDescription('Contract type').setRequired(false)
+        .addChoices(
+          { name: '📄 Standard — clean deal, optional advance',           value: 'standard'    },
+          { name: '🛠️ Development — label invests, 25% team discount',    value: 'development' },
+          { name: '🔄 360 Deal — all income streams, +20% revenue bonus', value: 'deal360'     },
+        ))
+      .addIntegerOption(o => o.setName('cut').setDescription('Artist cut % (10–50, default 30)').setRequired(false).setMinValue(10).setMaxValue(50))
+      .addIntegerOption(o => o.setName('advance').setDescription('Upfront advance paid to artist from your wallet').setRequired(false).setMinValue(0)))
+    .addSubcommand(s => s.setName('signnpc').setDescription('Browse and sign NPC artists to your label'))
     .addSubcommand(s => s.setName('release').setDescription('Drop an artist from your label')
-      .addStringOption(o => o.setName('artist_id').setDescription('Artist ID').setRequired(true).setAutocomplete(true)))
+      .addStringOption(o => o.setName('artist_id').setDescription('Artist to release').setRequired(true).setAutocomplete(true)))
     .addSubcommand(s => s.setName('promote').setDescription('Promote an artist — boosts fanbase and revenue')
-      .addStringOption(o => o.setName('artist_id').setDescription('Artist ID').setRequired(true).setAutocomplete(true))
-      .addIntegerOption(o => o.setName('budget').setDescription('Promo budget from your wallet').setRequired(true).setMinValue(1000))),
+      .addStringOption(o => o.setName('artist_id').setDescription('Artist to promote').setRequired(true).setAutocomplete(true))
+      .addIntegerOption(o => o.setName('budget').setDescription('Promo budget from your wallet').setRequired(true).setMinValue(1000)))
+    .addSubcommand(s => s.setName('team').setDescription('Hire or fire team members for a signed artist')
+      .addStringOption(o => o.setName('artist_id').setDescription('Artist on your roster').setRequired(true).setAutocomplete(true)))
+    .addSubcommand(s => s.setName('album').setDescription('Drop an album — big hype spike and 24h revenue boost')
+      .addStringOption(o => o.setName('artist_id').setDescription('Artist on your roster').setRequired(true).setAutocomplete(true)))
+    .addSubcommand(s => s.setName('collect').setDescription('Collect all accumulated label revenue'))
+    .addSubcommand(s => s.setName('contract').setDescription('View the full contract details for an artist')
+      .addStringOption(o => o.setName('artist_id').setDescription('Artist on your roster').setRequired(true).setAutocomplete(true))),
 
   async execute(interaction) {
     if (await noAccount(interaction)) return;
     const sub    = interaction.options.getSubcommand();
     const userId = interaction.user.id;
 
-    // Must own a Record Label business — find it specifically
     const allBiz = getBusinesses(userId);
     const biz    = allBiz.find(b => b.type === 'recordlabel' || b.type === 'record_label');
-    if (!biz) {
-      return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription('You need to own a **🎵 Record Label** business. Start one with `/business start type:recordlabel`.')
-      ], ephemeral:true });
-    }
+    if (!biz) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+      .setDescription('You need a **🎵 Record Label** business. Start one with `/business start type:recordlabel`.')
+    ], ephemeral: true });
 
-    let label = getLabel(userId) || { artists:[], totalRevenue:0, lastTick:Date.now() };
+    let label = getLabel(userId) || { artists: [], totalRevenue: 0, pendingRevenue: 0, lastTick: Date.now() };
+    if (!label.pendingRevenue) label.pendingRevenue = 0;
 
-
-    // ── INVEST IN ARTIST ─────────────────────────────────────
-    if (sub === 'invest') {
-      const artistId = interaction.options.getString('artist_id');
-      const action   = interaction.options.getString('action');
-
-      const artistEntry = label.artists.find(a => a.artistId === artistId);
-      if (!artistEntry) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster. Use `/label roster` to view signed artists.')], ephemeral:true });
-
-      const isNPC  = artistEntry.isNPC;
-      const npc    = artistEntry.npcData;
-      const name   = isNPC ? `${npc?.emoji||'🎤'} ${npc?.name||artistId}` : `<@${artistId}>`;
-
-      const INVESTMENTS = {
-        show:      { cost:2000,  desc:'Booked a live show',        fanboost:0.08, hypeboost:500,   fameBoost:300,  revenueBoost:0     },
-        interview: { cost:5000,  desc:'TV interview aired',         fanboost:0.05, hypeboost:1200,  fameBoost:800,  revenueBoost:0.05  },
-        deal:      { cost:8000,  desc:'Brand deal secured',         fanboost:0.03, hypeboost:400,   fameBoost:200,  revenueBoost:0.15  },
-        drop:      { cost:3000,  desc:'New record dropped',         fanboost:0.15, hypeboost:2000,  fameBoost:600,  revenueBoost:0     },
-        shoutout:  { cost:6000,  desc:'Influencer shoutout went viral', fanboost:0.20, hypeboost:5000, fameBoost:1500, revenueBoost:0   },
-        tour:      { cost:20000, desc:'World tour wrapped',          fanboost:0.40, hypeboost:15000, fameBoost:5000, revenueBoost:0.20 },
-        merch:     { cost:4000,  desc:'Merch line launched',         fanboost:0.02, hypeboost:200,   fameBoost:100,  revenueBoost:0.10 },
-        podcast:   { cost:1500,  desc:'Podcast appearance dropped',  fanboost:0.03, hypeboost:300,   fameBoost:150,  revenueBoost:0     },
-      };
-
-      const inv = INVESTMENTS[action];
-      if (!inv) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Unknown investment type.')], ephemeral:true });
-
-      const user2 = getOrCreateUser(userId);
-      if (user2.wallet < inv.cost) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-        .setDescription(`**${inv.desc}** costs **${fmtMoney(inv.cost)}**. You have **${fmtMoney(user2.wallet)}**.`)
-      ], ephemeral:true });
-
-      user2.wallet -= inv.cost;
-      saveUser(userId, user2);
-
-      // Apply boosts to NPC artist data
-      if (isNPC && npc) {
-        const oldFanbase = npc.fanbase || 10000;
-        npc.fanbase    = Math.floor(oldFanbase * (1 + inv.fanboost));
-        npc.hype       = Math.min(100, (npc.hype||50) + Math.floor(inv.hypeboost / 1000));
-        // Revenue boost for deal/tour/merch
-        if (inv.revenueBoost > 0) {
-          npc.weeklyRate = Math.floor((npc.weeklyRate||500) * (1 + inv.revenueBoost));
-        }
-        artistEntry.npcData = npc;
-
-        // Update contract
-        const contract2 = getContract(artistId);
-        if (contract2) {
-          contract2.npcData = npc;
-          await saveContract(artistId, contract2);
-        }
-        await saveLabel(userId, label);
-
-        // If user artist (not NPC), boost their phone career
-      } else if (!isNPC) {
-        try {
-          const { getPhone, savePhone: sp2, getArtistTier } = require('../../utils/phoneDb');
-          const p2 = getPhone(artistId);
-          if (p2) {
-            if (!p2.artistCareer) p2.artistCareer = { fame:0, tier:'unsigned' };
-            p2.artistCareer.fame = (p2.artistCareer.fame||0) + inv.fameBoost;
-            p2.hype              = (p2.hype||0) + inv.hypeboost;
-            p2.followers         = Math.floor((p2.followers||0) * (1 + inv.fanboost));
-            p2.artistCareer.tier = getArtistTier(p2.artistCareer.fame).id;
-            await sp2(artistId, p2);
-            // DM the artist
-            interaction.client.users.fetch(artistId).then(u2 => u2.send({ embeds:[new EmbedBuilder()
-              .setColor(0xf5c518)
-              .setTitle(`🎤 ${action === 'tour' ? '🌍 World Tour' : action === 'shoutout' ? '📣 Shoutout' : inv.desc}!`)
-              .setDescription(`Your label invested **${fmtMoney(inv.cost)}** in your career!
-
-+${inv.fameBoost.toLocaleString()} fame · +${inv.hypeboost.toLocaleString()} hype · +${Math.round(inv.fanboost*100)}% followers`)
-            ]}).catch(()=>null)).catch(()=>null);
-          }
-        } catch {}
-      }
-
-      const newFanbase = isNPC ? (npc?.fanbase||0) : 0;
-      const fanDiff    = isNPC ? Math.floor((npc?.fanbase||0) - (npc?.fanbase||0)/(1+inv.fanboost)) : 0;
-
-      return interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(0xf5c518)
-        .setTitle(`✅ ${inv.desc}!`)
-        .setDescription(`Invested **${fmtMoney(inv.cost)}** into **${name}**'s career.`)
-        .addFields(
-          { name:'👥 Fanbase Boost', value:`+${Math.round(inv.fanboost*100)}%${isNPC ? ` → ${(newFanbase/1000).toFixed(0)}K` : ''}`, inline:true },
-          { name:'✨ Hype Boost',    value:`+${inv.hypeboost.toLocaleString()}`,              inline:true },
-          { name:'🎵 Fame Boost',    value:`+${inv.fameBoost.toLocaleString()}`,              inline:true },
-          ...(inv.revenueBoost > 0 ? [{ name:'💰 Revenue Boost', value:`+${Math.round(inv.revenueBoost*100)}% weekly rate`, inline:true }] : []),
-          { name:'💵 Your Wallet',  value:fmtMoney(user2.wallet), inline:true },
-        )
-        .setFooter({ text:'Revenue from this investment pays out next label tick · 15 min' })
-      ]});
-    }
-
-        // ── ROSTER ────────────────────────────────────────────────
+    // ── ROSTER ────────────────────────────────────────────────
     if (sub === 'roster') {
-      if (!label.artists.length) return interaction.reply({ embeds:[new EmbedBuilder()
+      if (!label.artists.length) return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0x5865f2)
         .setTitle(`🎵 ${biz.name} — Roster`)
-        .setDescription('No artists signed yet.\n\nUse `/label sign @user` or `/label signnpc` to build your roster.')
+        .setDescription('No artists signed yet.\n\nUse `/label signnpc` or `/label sign @user` to build your roster.\nUse `/label collect` to cash out your pending revenue.')
       ]});
 
       const fields = label.artists.map(a => {
-        const contract = getContract(a.artistId);
-        const rev      = contract ? calcArtistRevenue(contract) : 0;
-        const name     = a.isNPC ? `${a.npcData?.emoji||'🎤'} ${a.npcData?.name||a.artistId}` : `<@${a.artistId}>`;
-        // Artist tier
+        const contract  = getContract(a.artistId);
+        const rev       = contract ? calcArtistRevenue(contract) : 0;
+        const advance   = contract?.advance  || 0;
+        const recouped  = contract?.recouped || 0;
+        const isRecoup  = advance > recouped;
+        const labelRev  = isRecoup ? rev : Math.floor(rev * (1 - (contract?.artistCut || 30) / 100));
+        const name      = a.isNPC ? `${a.npcData?.emoji || '🎤'} ${a.npcData?.name || a.artistId}` : `<@${a.artistId}>`;
+        const ct        = CONTRACT_TYPES[contract?.type || 'standard'];
+
         let tierLabel = '🎙️ Unsigned';
         if (!a.isNPC) {
           const phone = getPhone(a.artistId);
-          if (phone?.artistCareer) tierLabel = getArtistTier(phone.artistCareer.fame||0).label;
+          if (phone?.artistCareer) tierLabel = getArtistTier(phone.artistCareer.fame || 0).label;
         } else if (a.npcData) {
-          const fakeFame = (a.npcData.fanbase||0) / 50;
-          tierLabel = getArtistTier(fakeFame).label;
+          tierLabel = getArtistTier((a.npcData.fanbase || 0) / 50).label;
         }
+
+        const teamIcons = (contract?.team || []).map(r => TEAM_ROLES[r]?.emoji || '').join('');
         const badges = [
-          contract?.isPlant              ? '🌱 Plant' : '',
-          contract?.illuminatiControlled ? '🔺 Controlled' : '',
-          contract?.forced               ? '⚠️ Forced' : '',
-        ].filter(Boolean).join(' ') || '✅ Signed';
+          contract?.charting                                                      ? '📊 **Charting!**'    : '',
+          contract?.albumBoostUntil && Date.now() < contract.albumBoostUntil      ? '🎵 **Album Out!**'   : '',
+          isRecoup                                                                ? `⏳ Recoup: $${recouped.toLocaleString()}/$${advance.toLocaleString()}` : advance > 0 ? '✅ Recouped' : '',
+          contract?.illuminatiControlled                                          ? '🔺 Controlled'       : '',
+        ].filter(Boolean).join(' · ');
+
         return {
-          name: `${name} — ${tierLabel}`,
-          value:`Rev: **${fmtMoney(rev)}/tick** · Cut: **${a.artistCut||30}%** · ${badges}`,
+          name:  `${name} — ${tierLabel}`,
+          value: [
+            `${ct?.emoji} ${ct?.name} · **${contract?.artistCut || 30}%** artist cut`,
+            `Label earns: **${fmtMoney(labelRev)}/tick**${teamIcons ? ` · ${teamIcons}` : ''}`,
+            badges,
+          ].filter(Boolean).join('\n'),
           inline: false,
         };
       });
 
-      const totalPerTick = label.artists.reduce((s,a) => {
+      const totalPerTick = label.artists.reduce((s, a) => {
         const c = getContract(a.artistId);
-        return s + (c ? Math.floor(calcArtistRevenue(c) * (1-(a.artistCut||30)/100)) : 0);
+        if (!c) return s;
+        const rev = calcArtistRevenue(c);
+        const isRecouping = (c.advance || 0) > (c.recouped || 0);
+        return s + (isRecouping ? rev : Math.floor(rev * (1 - (c.artistCut || 30) / 100)));
       }, 0);
 
-      return interaction.reply({ embeds:[new EmbedBuilder()
+      return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0xf5c518)
-        .setTitle(`🎵 ${biz.name} — Roster (${label.artists.length} artists)`)
-        .setDescription(`Label revenue: **${fmtMoney(totalPerTick)}/tick** · Total earned: **${fmtMoney(label.totalRevenue||0)}**`)
-        .addFields(...fields.slice(0,10))
-        .setFooter({ text:'Revenue pays every 15 minutes · Use /label promote to boost an artist' })
+        .setTitle(`🎵 ${biz.name} — Roster (${label.artists.length} artist${label.artists.length !== 1 ? 's' : ''})`)
+        .setDescription(`💰 **Pending:** ${fmtMoney(label.pendingRevenue || 0)} · Total earned: ${fmtMoney(label.totalRevenue || 0)}`)
+        .addFields(
+          ...fields.slice(0, 10),
+          { name: '📊 Label Revenue', value: `**${fmtMoney(totalPerTick)}/tick** (every 15 min) · Use \`/label collect\` to cash out`, inline: false },
+        )
+      ]});
+    }
+
+    // ── COLLECT ───────────────────────────────────────────────
+    if (sub === 'collect') {
+      const pending = Math.floor(label.pendingRevenue || 0);
+      if (pending < 1) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription('No pending revenue yet. Revenue accumulates every 15 minutes — come back after your artists earn.')
+      ], ephemeral: true });
+
+      const user    = getOrCreateUser(userId);
+      user.wallet  += pending;
+      saveUser(userId, user);
+      label.pendingRevenue = 0;
+      await saveLabel(userId, label);
+
+      return interaction.reply({ embeds: [new EmbedBuilder()
+        .setColor(COLORS.SUCCESS)
+        .setTitle('💰 Revenue Collected!')
+        .setDescription(`Collected **${fmtMoney(pending)}** from **${biz.name}**.`)
+        .addFields(
+          { name: '💵 Wallet',      value: fmtMoney(user.wallet),            inline: true },
+          { name: '🎤 Artists',     value: `${label.artists.length}`,         inline: true },
+          { name: '📊 Total Earned',value: fmtMoney(label.totalRevenue || 0), inline: true },
+        )
+        .setFooter({ text: 'Revenue ticks every 15 min · /label collect to cash out anytime' })
       ]});
     }
 
     // ── SIGN (real user) ──────────────────────────────────────
     if (sub === 'sign') {
-      const target = interaction.options.getUser('artist');
-      const cut    = interaction.options.getInteger('cut') || 30;
+      const target  = interaction.options.getUser('artist');
+      const cut     = interaction.options.getInteger('cut') || 30;
+      const type    = interaction.options.getString('type') || 'standard';
+      const advance = interaction.options.getInteger('advance') || 0;
 
-      if (target.id === userId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't sign yourself.")], ephemeral:true });
-      if (isSignedArtist(target.id)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${target.id}> is already signed to a label.`)], ephemeral:true });
+      if (target.id === userId)          return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("You can't sign yourself.")], ephemeral: true });
+      if (isSignedArtist(target.id))     return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`<@${target.id}> is already signed to a label.`)], ephemeral: true });
+      if (label.artists.length >= 12)    return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Roster is full (12 artists max).')], ephemeral: true });
 
-      // Must have Celebrity+ status
-      const { getPhone, STATUS_TIERS, getStatusTier } = require('../../utils/phoneDb');
-      const phone = getPhone(target.id);
-      const tier  = getStatusTier(phone?.status||0);
-      if ((tier?.level||0) < 3) { // level 3 = Influencer+
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription(`<@${target.id}> needs at least **🔥 Influencer** status to sign with a label. They are currently: **${tier?.label||'Newcomer'}**`)
-        ], ephemeral:true });
+      const phone      = getPhone(target.id);
+      const statusTier = getStatusTier(phone?.status || 0);
+      const tierIdx    = STATUS_TIERS.findIndex(t => t.id === statusTier?.id);
+      if (tierIdx < 3) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`<@${target.id}> needs at least **🔥 Influencer** status to sign. They're currently: **${statusTier?.label || 'Newcomer'}**`)
+      ], ephemeral: true });
+
+      if (advance > 0) {
+        const owner = getOrCreateUser(userId);
+        if (owner.wallet < advance) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`You need **${fmtMoney(advance)}** to pay this advance. You have **${fmtMoney(owner.wallet)}**.`)
+        ], ephemeral: true });
+        owner.wallet -= advance;
+        saveUser(userId, owner);
+        const artistUser    = getOrCreateUser(target.id);
+        artistUser.wallet  += advance;
+        saveUser(target.id, artistUser);
       }
 
-      _pendingContracts[target.id] = { labelOwnerId:userId, labelName:biz.name, cut, expiresAt:Date.now()+10*60*1000 };
+      const ct = CONTRACT_TYPES[type] || CONTRACT_TYPES.standard;
+      _pendingContracts[target.id] = { labelOwnerId: userId, labelName: biz.name, cut, type, advance, expiresAt: Date.now() + 10 * 60 * 1000 };
+      setTimeout(() => { delete _pendingContracts[target.id]; }, 10 * 60 * 1000);
 
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`label_sign_accept_${userId}`).setLabel(`✅ Sign with ${biz.name} (${cut}% cut)`).setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`label_sign_accept_${userId}`).setLabel(`✅ Sign with ${biz.name}`).setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`label_sign_decline_${userId}`).setLabel('❌ Decline').setStyle(ButtonStyle.Secondary),
       );
 
       try {
-        await target.send({ embeds:[new EmbedBuilder()
+        await target.send({ embeds: [new EmbedBuilder()
           .setColor(0xf5c518)
           .setTitle('🎵 Recording Contract Offer')
-          .setDescription(`**${biz.name}** wants to sign you!\n\n**Your cut:** ${cut}% of all music revenue you generate\n**Label gets:** ${100-cut}%\n\n⏱️ Expires in 10 minutes.`)
-        ], components:[row] });
+          .setDescription(
+            `**${biz.name}** wants to sign you!\n\n` +
+            `**${ct.emoji} ${ct.name}**\n${ct.desc}\n\n` +
+            `**Your cut:** ${cut}% of music revenue you generate\n` +
+            `**Label keeps:** ${100 - cut}%\n` +
+            (advance > 0 ? `**Advance paid to you:** ${fmtMoney(advance)} *(must be recouped before your cut kicks in)*\n` : '') +
+            `\n⏱️ Expires in 10 minutes.`
+          )
+        ], components: [row] });
       } catch {
+        if (advance > 0) {
+          const owner = getOrCreateUser(userId);
+          owner.wallet += advance;
+          saveUser(userId, owner);
+          const artistUser    = getOrCreateUser(target.id);
+          artistUser.wallet   = Math.max(0, artistUser.wallet - advance);
+          saveUser(target.id, artistUser);
+        }
         delete _pendingContracts[target.id];
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't DM that user.")], ephemeral:true });
+        return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription("Can't DM that user. They may have DMs disabled.")], ephemeral: true });
       }
 
-      setTimeout(() => { delete _pendingContracts[target.id]; }, 10*60*1000);
-      return interaction.reply({ embeds:[new EmbedBuilder().setColor(0xf5c518)
-        .setDescription(`📨 Contract offer sent to <@${target.id}> — ${cut}% artist cut.`)
-      ], ephemeral:true });
+      return interaction.reply({ embeds: [new EmbedBuilder()
+        .setColor(0xf5c518)
+        .setTitle('📨 Contract Offer Sent')
+        .setDescription(
+          `Offer sent to <@${target.id}>.\n\n` +
+          `${ct.emoji} **${ct.name}** · ${cut}% artist cut` +
+          (advance > 0 ? ` · ${fmtMoney(advance)} advance paid` : '')
+        )
+      ], ephemeral: true });
     }
 
     // ── SIGN NPC ──────────────────────────────────────────────
     if (sub === 'signnpc') {
-      const available = NPC_ARTISTS.filter(a => {
-        // Check not already signed to this label
-        return !label.artists.some(la => la.artistId === a.id);
-      });
+      if (label.artists.length >= 12) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Roster is full (12 artists max). Release someone first.')], ephemeral: true });
 
-      if (!available.length) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('All NPC artists are already on your roster.')], ephemeral:true });
+      const available = NPC_ARTISTS.filter(a => !label.artists.some(la => la.artistId === a.id));
+      if (!available.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('All NPC artists are already on your roster.')], ephemeral: true });
 
       const menu = new StringSelectMenuBuilder()
         .setCustomId('label_npc_select')
-        .setPlaceholder('Browse and sign an NPC artist...')
-        .addOptions(available.map(a => new StringSelectMenuOptionBuilder()
-          .setLabel(`${a.emoji} ${a.name}`)
-          .setDescription(`Talent: ${a.talent} · Hype: ${a.hype} · Fanbase: ${(a.fanbase/1000).toFixed(0)}K · ~${fmtMoney(a.weeklyRate)}/week`)
-          .setValue(a.id)
-        ));
+        .setPlaceholder('Select an artist to sign...')
+        .addOptions(available.map(a => {
+          const adv = getNPCAdvance(a);
+          return new StringSelectMenuOptionBuilder()
+            .setLabel(`${a.emoji} ${a.name}`)
+            .setDescription(`Advance: ${fmtMoney(adv)} · Talent: ${a.talent} · ${(a.fanbase / 1000).toFixed(0)}K fans · ~${fmtMoney(a.weeklyRate)}/wk`)
+            .setValue(a.id);
+        }));
 
-      const lines = available.map(a =>
-        `${a.emoji} **${a.name}** — Talent: ${a.talent} · Hype: ${a.hype} · Fanbase: ${(a.fanbase/1000).toFixed(0)}K · *${a.image}* image\nEst. revenue: **${fmtMoney(a.weeklyRate)}/week**`
-      ).join('\n\n');
+      const lines = available.map(a => {
+        const adv      = getNPCAdvance(a);
+        const tierLabel = getArtistTier(a.fanbase / 50).label;
+        const imageTag  = { clean: '✅ Clean', controversial: '🔥 Controversial', iconic: '👑 Iconic' }[a.image] || a.image;
+        return `${a.emoji} **${a.name}** — ${tierLabel}\nTalent: **${a.talent}** · Hype: **${a.hype}** · Fans: **${(a.fanbase / 1000).toFixed(0)}K** · ${imageTag}\nEst. **${fmtMoney(a.weeklyRate)}/week** · Advance required: **${fmtMoney(adv)}**`;
+      }).join('\n\n');
 
-      await interaction.reply({ embeds:[new EmbedBuilder()
+      await interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle('🎤 NPC Artist Roster')
+        .setTitle('🎤 Sign an NPC Artist')
         .setDescription(lines)
-        .setFooter({ text:'Select an artist to sign them immediately (no signing fee)' })
-      ], components:[new ActionRowBuilder().addComponents(menu)] });
+        .setFooter({ text: 'Advance deducted from your wallet · Artist cut: 20% after recoupment' })
+      ], components: [new ActionRowBuilder().addComponents(menu)] });
 
       const msg  = await interaction.fetchReply();
-      const coll = msg.createMessageComponentCollector({ filter:i=>i.user.id===userId, time:60_000, max:1 });
+      const coll = msg.createMessageComponentCollector({ filter: i => i.user.id === userId, time: 60_000, max: 1 });
 
       coll.on('collect', async si => {
-        const npcId  = si.values[0];
-        const npc    = NPC_ARTISTS.find(a=>a.id===npcId);
-        if (!npc) return si.update({ content:'Not found.', components:[] });
+        const npcId = si.values[0];
+        const npc   = NPC_ARTISTS.find(a => a.id === npcId);
+        if (!npc) return si.update({ content: 'NPC not found.', components: [] });
 
-        const contract = { labelOwnerId:userId, artistId:npcId, isNPC:true, npcData:npc, artistCut:20, signedAt:Date.now(), illuminatiControlled:false, forced:false };
+        const adv   = getNPCAdvance(npc);
+        const owner = getOrCreateUser(userId);
+        if (owner.wallet < adv) return si.update({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`You need **${fmtMoney(adv)}** to sign **${npc.name}**. You have **${fmtMoney(owner.wallet)}**.`)
+        ], components: [] });
+
+        owner.wallet -= adv;
+        saveUser(userId, owner);
+
+        const contract = buildNewContract({
+          labelOwnerId: userId, artistId: npcId, isNPC: true, npcData: { ...npc },
+          advance: adv, artistCut: 20,
+        });
         await saveContract(npcId, contract);
 
-        const fresh = getLabel(userId) || { artists:[], totalRevenue:0, lastTick:Date.now() };
-        fresh.artists.push({ artistId:npcId, isNPC:true, npcData:npc, artistCut:20 });
+        const fresh = getLabel(userId) || { artists: [], totalRevenue: 0, pendingRevenue: 0 };
+        fresh.artists.push({ artistId: npcId, isNPC: true, npcData: { ...npc }, artistCut: 20 });
         await saveLabel(userId, fresh);
 
-        await si.update({ embeds:[new EmbedBuilder()
-          .setColor(0x2ecc71)
+        await si.update({ embeds: [new EmbedBuilder()
+          .setColor(COLORS.SUCCESS)
           .setTitle(`${npc.emoji} ${npc.name} Signed!`)
-          .setDescription(`**${npc.name}** is now on your roster.\n\nTalent: ${npc.talent} · Hype: ${npc.hype} · Fanbase: ${(npc.fanbase/1000).toFixed(0)}K\n\nRevenue starts flowing next tick. Use \`/label promote\` to grow their fanbase.`)
-        ], components:[] });
+          .setDescription(
+            `**${npc.name}** is now on your roster.\n\n` +
+            `Talent: **${npc.talent}** · Hype: **${npc.hype}** · Fans: **${(npc.fanbase / 1000).toFixed(0)}K**\n\n` +
+            `💰 Advance paid: **${fmtMoney(adv)}** — you earn 100% until recouped, then **20%** goes to artist\n\n` +
+            `Next steps:\n• \`/label team\` — hire a Manager, Publicist, or Producer\n• \`/label album\` — drop a project for a 3× revenue spike\n• \`/label promote\` — spend to grow their fanbase`
+          )
+        ], components: [] });
       });
-
       return;
+    }
+
+    // ── TEAM ──────────────────────────────────────────────────
+    if (sub === 'team') {
+      const artistId = interaction.options.getString('artist_id');
+      if (artistId === '__none__') return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No artists on your roster.')], ephemeral: true });
+
+      const contract = getContract(artistId);
+      if (!contract || contract.labelOwnerId !== userId) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster.')], ephemeral: true });
+
+      const isDev    = contract.type === 'development';
+      const roleIds  = Object.keys(TEAM_ROLES);
+
+      const makeTeamEmbed = (con, footer = '') => {
+        const aName = con.isNPC ? `${con.npcData?.emoji || '🎤'} ${con.npcData?.name || artistId}` : `<@${artistId}>`;
+        const lines = roleIds.map(rid => {
+          const role  = TEAM_ROLES[rid];
+          const hired = (con.team || []).includes(rid);
+          const wkCost = isDev ? Math.floor(role.weeklyCost * 0.75) : role.weeklyCost;
+          return `${role.emoji} **${role.name}** ${hired ? '✅' : '❌'}\n${role.desc}\nWeekly cost: **${fmtMoney(wkCost)}** · Hire fee: **${fmtMoney(wkCost * 4)}** (4 wks upfront)`;
+        }).join('\n\n');
+        return new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle(`👥 ${aName} — Team`)
+          .setDescription(lines + (isDev ? '\n\n*🛠️ Development Deal: 25% team discount applied*' : ''))
+          .setFooter({ text: footer || 'Team costs auto-deducted from revenue each tick' });
+      };
+
+      const makeButtons = (team) => {
+        const rows  = [];
+        const hired = roleIds.filter(r =>  team.includes(r));
+        const free  = roleIds.filter(r => !team.includes(r));
+        if (free.length)  rows.push(new ActionRowBuilder().addComponents(free.map(r => new ButtonBuilder().setCustomId(`label_team_hire_${artistId}_${r}`).setLabel(`Hire ${TEAM_ROLES[r].name}`).setStyle(ButtonStyle.Success))));
+        if (hired.length) rows.push(new ActionRowBuilder().addComponents(hired.map(r => new ButtonBuilder().setCustomId(`label_team_fire_${artistId}_${r}`).setLabel(`Fire ${TEAM_ROLES[r].name}`).setStyle(ButtonStyle.Danger))));
+        return rows;
+      };
+
+      await interaction.reply({ embeds: [makeTeamEmbed(contract)], components: makeButtons(contract.team || []) });
+
+      const msg       = await interaction.fetchReply();
+      const collector = msg.createMessageComponentCollector({ filter: i => i.user.id === userId, time: 60_000 });
+
+      collector.on('collect', async i => {
+        const parts  = i.customId.split('_');
+        const action = parts[2];
+        const roleId = parts[parts.length - 1];
+        const role   = TEAM_ROLES[roleId];
+        if (!role) return i.reply({ content: 'Unknown role.', ephemeral: true });
+
+        const fresh = getContract(artistId);
+        if (!fresh) return i.reply({ content: 'Contract not found.', ephemeral: true });
+        fresh.team = fresh.team || [];
+
+        if (action === 'hire') {
+          if (fresh.team.includes(roleId)) return i.reply({ content: 'Already hired.', ephemeral: true });
+          const isDevelopment = fresh.type === 'development';
+          const wkCost   = isDevelopment ? Math.floor(role.weeklyCost * 0.75) : role.weeklyCost;
+          const upfront  = wkCost * 4;
+          const owner    = getOrCreateUser(userId);
+          if (owner.wallet < upfront) return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+            .setDescription(`Need **${fmtMoney(upfront)}** (4 weeks upfront) to hire ${role.name}. You have **${fmtMoney(owner.wallet)}**.`)
+          ], components: makeButtons(fresh.team) });
+          owner.wallet -= upfront;
+          saveUser(userId, owner);
+          fresh.team.push(roleId);
+        } else {
+          fresh.team = fresh.team.filter(r => r !== roleId);
+        }
+
+        await saveContract(artistId, fresh);
+        const footerMsg = action === 'hire' ? `${role.emoji} ${role.name} hired!` : `${role.emoji} ${role.name} fired.`;
+        await i.update({ embeds: [makeTeamEmbed(fresh, footerMsg)], components: makeButtons(fresh.team) });
+      });
+      return;
+    }
+
+    // ── ALBUM ──────────────────────────────────────────────────
+    if (sub === 'album') {
+      const artistId = interaction.options.getString('artist_id');
+      if (artistId === '__none__') return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No artists on your roster.')], ephemeral: true });
+
+      const contract = getContract(artistId);
+      if (!contract || contract.labelOwnerId !== userId) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster.')], ephemeral: true });
+
+      if (contract.albumBoostUntil && Date.now() < contract.albumBoostUntil) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`Album boost still active — expires <t:${Math.floor(contract.albumBoostUntil / 1000)}:R>.`)
+      ], ephemeral: true });
+
+      if (contract.lastAlbum && Date.now() - contract.lastAlbum < 30 * 24 * 60 * 60 * 1000) {
+        const next = Math.floor((contract.lastAlbum + 30 * 24 * 60 * 60 * 1000) / 1000);
+        return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+          .setDescription(`Next album available <t:${next}:R>. Artists need time between drops.`)
+        ], ephemeral: true });
+      }
+
+      const cost  = getAlbumCost(contract);
+      const aName = contract.isNPC ? `${contract.npcData?.emoji || '🎤'} ${contract.npcData?.name || artistId}` : `<@${artistId}>`;
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('label_album_confirm').setLabel(`🎵 Drop Album (${fmtMoney(cost)})`).setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('label_album_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+      );
+
+      await interaction.reply({ embeds: [new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle(`🎵 Drop an Album — ${aName}`)
+        .setDescription(
+          `**Production Cost:** ${fmtMoney(cost)}\n` +
+          `**Revenue Boost:** 3× for 24 hours\n` +
+          `**Hype Spike:** +20 hype\n` +
+          `**Cooldown:** 30 days\n\n` +
+          `Ready to drop?`
+        )
+      ], components: [row] });
+
+      const msg = await interaction.fetchReply();
+      const i   = await msg.awaitMessageComponent({ filter: i => i.user.id === userId, time: 30_000 }).catch(() => null);
+      if (!i)                               return interaction.editReply({ components: [] });
+      if (i.customId === 'label_album_cancel') return i.update({ embeds: [new EmbedBuilder().setColor(0x888888).setDescription('Album drop cancelled.')], components: [] });
+
+      const owner = getOrCreateUser(userId);
+      if (owner.wallet < cost) return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR)
+        .setDescription(`Need **${fmtMoney(cost)}** to produce this album. You have **${fmtMoney(owner.wallet)}**.`)
+      ], components: [] });
+
+      owner.wallet -= cost;
+      saveUser(userId, owner);
+
+      const fresh = getContract(artistId);
+      fresh.lastAlbum      = Date.now();
+      fresh.albumBoostUntil = Date.now() + 24 * 60 * 60 * 1000;
+      if (fresh.npcData) fresh.npcData.hype = Math.min(100, (fresh.npcData.hype || 50) + 20);
+      await saveContract(artistId, fresh);
+
+      return i.update({ embeds: [new EmbedBuilder()
+        .setColor(0xf5c518)
+        .setTitle(`🎵 Album Dropped — ${aName}`)
+        .setDescription(
+          `A new project just hit the streets!\n\n` +
+          `🔥 **3× revenue boost** active for **24 hours**\n` +
+          `📈 Artist hype: **+20**\n` +
+          `💸 Production cost: **${fmtMoney(cost)}**\n\n` +
+          `Use \`/label promote\` to amplify the rollout!`
+        )
+        .setFooter({ text: 'Next album available in 30 days · /label collect to grab earnings' })
+      ], components: [] });
+    }
+
+    // ── CONTRACT VIEW ─────────────────────────────────────────
+    if (sub === 'contract') {
+      const artistId = interaction.options.getString('artist_id');
+      if (artistId === '__none__') return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('No artists on your roster.')], ephemeral: true });
+
+      const contract = getContract(artistId);
+      if (!contract || contract.labelOwnerId !== userId) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster.')], ephemeral: true });
+
+      const ct       = CONTRACT_TYPES[contract.type || 'standard'];
+      const aName    = contract.isNPC ? `${contract.npcData?.emoji || '🎤'} ${contract.npcData?.name || artistId}` : `<@${artistId}>`;
+      const advance  = contract.advance  || 0;
+      const recouped = contract.recouped || 0;
+      const isRecoup = advance > recouped;
+      const rev      = calcArtistRevenue(contract);
+      const labelRev = isRecoup ? rev : Math.floor(rev * (1 - (contract.artistCut || 30) / 100));
+      const team     = (contract.team || []).map(r => `${TEAM_ROLES[r]?.emoji} ${TEAM_ROLES[r]?.name}`).join(', ') || 'None';
+
+      const albumStatus = contract.albumBoostUntil && Date.now() < contract.albumBoostUntil
+        ? `🔥 3× boost expires <t:${Math.floor(contract.albumBoostUntil / 1000)}:R>`
+        : contract.lastAlbum
+          ? `Last drop: <t:${Math.floor(contract.lastAlbum / 1000)}:D>`
+          : 'No album dropped yet';
+
+      return interaction.reply({ embeds: [new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle(`📋 Contract — ${aName}`)
+        .addFields(
+          { name: '📄 Contract Type', value: `${ct?.emoji} ${ct?.name || 'Standard'}`, inline: true },
+          { name: '🎤 Artist Cut',    value: `${contract.artistCut || 30}%`,            inline: true },
+          { name: '📅 Signed',        value: `<t:${Math.floor(contract.signedAt / 1000)}:D>`, inline: true },
+          { name: '💰 Advance',       value: advance > 0 ? fmtMoney(advance) : 'None', inline: true },
+          { name: '⏳ Recouped',      value: advance > 0
+            ? `${fmtMoney(recouped)} / ${fmtMoney(advance)} (${Math.round(recouped / advance * 100)}%)`
+            : 'N/A', inline: true },
+          { name: '📊 Label Rev/Tick',value: `${fmtMoney(labelRev)}${isRecoup ? ' *(recouping)*' : ''}`, inline: true },
+          { name: '👥 Team',          value: team, inline: false },
+          { name: '🎵 Album Status',  value: albumStatus, inline: false },
+        )
+        .setFooter({ text: isRecoup
+          ? 'Label earns 100% until advance is fully recouped'
+          : 'Advance recouped — normal split is active'
+        })
+      ], ephemeral: true });
     }
 
     // ── RELEASE ───────────────────────────────────────────────
     if (sub === 'release') {
-      const artistId = interaction.options.getString('artist_id').replace(/[<@!>]/g,'');
+      const artistId = interaction.options.getString('artist_id').replace(/[<@!>]/g, '');
       const idx      = label.artists.findIndex(a => a.artistId === artistId);
-      if (idx === -1) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster.')], ephemeral:true });
+      if (idx === -1) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster.')], ephemeral: true });
 
       const artist = label.artists[idx];
       label.artists.splice(idx, 1);
@@ -319,8 +547,8 @@ module.exports = {
       await saveLabel(userId, label);
 
       const name = artist.isNPC ? artist.npcData?.name : `<@${artistId}>`;
-      return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888)
-        .setDescription(`🎤 **${name}** has been released from ${biz.name}.`)
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888)
+        .setDescription(`🎤 **${name}** has been released from **${biz.name}**.`)
       ]});
     }
 
@@ -329,29 +557,30 @@ module.exports = {
       const artistId = interaction.options.getString('artist_id');
       const budget   = interaction.options.getInteger('budget');
       const artist   = label.artists.find(a => a.artistId === artistId);
-      if (!artist) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster.')], ephemeral:true });
+      if (!artist) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Artist not on your roster.')], ephemeral: true });
 
       const user = getOrCreateUser(userId);
-      if (user.wallet < budget) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Need ${fmtMoney(budget)} in wallet.`)], ephemeral:true });
+      if (user.wallet < budget) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`Need **${fmtMoney(budget)}** in wallet.`)], ephemeral: true });
 
       user.wallet -= budget;
       saveUser(userId, user);
 
-      // Promo boosts fanbase and hype
       const contract = getContract(artistId);
       if (contract?.npcData) {
-        const boostFanbase = Math.floor(budget * 0.5);
-        const boostHype    = Math.floor(budget / 10000);
-        contract.npcData.fanbase += boostFanbase;
-        contract.npcData.hype    = Math.min(100, (contract.npcData.hype||50) + boostHype);
+        contract.npcData.fanbase = Math.floor((contract.npcData.fanbase || 10000) + budget * 0.5);
+        contract.npcData.hype    = Math.min(100, (contract.npcData.hype || 50) + Math.floor(budget / 10000));
         await saveContract(artistId, contract);
       }
 
       const name = artist.isNPC ? artist.npcData?.name : `<@${artistId}>`;
-      return interaction.reply({ embeds:[new EmbedBuilder()
+      return interaction.reply({ embeds: [new EmbedBuilder()
         .setColor(0x2ecc71)
-        .setTitle('📣 Promotion Campaign Launched')
-        .setDescription(`**${name}** promoted with **${fmtMoney(budget)}**.\n\n+${Math.floor(budget*0.5).toLocaleString()} fanbase · Hype boosted.\n\nRevenue increase will reflect next tick.`)
+        .setTitle('📣 Promotion Campaign')
+        .setDescription(
+          `**${name}** was promoted with **${fmtMoney(budget)}**.\n\n` +
+          `+${Math.floor(budget * 0.5).toLocaleString()} fanbase · Hype boosted\n\n` +
+          `Revenue increase reflects next tick.`
+        )
       ]});
     }
   },
