@@ -2093,6 +2093,7 @@ Vault: **${fmtMoney(org.vault)}**`)
 
       const phone     = getPhone(userId);
       const user2     = _gou(userId);
+      const puppetCost = Math.max(5000, Math.floor(user2.wallet * 0.30));
       const biz       = getBusiness(userId);
       const home      = getHome(userId);
       const wealth    = (user2.wallet||0) + (user2.bank||0);
@@ -2114,9 +2115,6 @@ Vault: **${fmtMoney(org.vault)}**`)
         followers >= 1000000 ||
         status >= 25000
       );
-
-      const user2 = getOrCreateUser(userId);
-      const puppetCost = Math.max(5000, Math.floor(user2.wallet * 0.30));
 
       if (!meetsFullReqs && !meetsFamePath) {
         // Not worthy of membership — offer the puppet path

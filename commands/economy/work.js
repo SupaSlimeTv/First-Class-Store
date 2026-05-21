@@ -44,6 +44,11 @@ module.exports = {
       return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.ERROR).setTitle('⏰ Still Working').setDescription(`You're still tired from your last shift.\nCome back in **${m} minute(s)**.`)], ephemeral: true });
     }
 
+    if (user.suppressedUntil && now < user.suppressedUntil) {
+      const expiresAt = Math.floor(user.suppressedUntil / 1000);
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🗳️ Income Suppressed').setDescription(`A covert operation has blocked your income.\n\nExpires: <t:${expiresAt}:R>\n\n*Someone doesn't want you earning today.*`)], ephemeral: true });
+    }
+
     const job    = JOBS[Math.floor(Math.random() * JOBS.length)];
     let   earned = Math.floor(50 + Math.random() * 200);
 

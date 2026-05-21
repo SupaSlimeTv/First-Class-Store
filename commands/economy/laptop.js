@@ -11,7 +11,7 @@ const { getBusiness, saveBusiness, BIZ_TYPES }   = require('../../utils/bizDb');
 const { getGangGoons, saveGangGoons }             = require('../../utils/goonDb');
 const { getGangByMember }                         = require('../../utils/gangDb');
 const { getUserByRouting }                        = require('../../utils/routingDb');
-const { getLaptop, saveLaptop, hasApp, BUILTIN_APPS, getEffectiveSuccess } = require('../../utils/laptopDb');
+const { getLaptop, saveLaptop, hasApp, BUILTIN_APPS, DEVICE_TIERS, DEVICE_ORDER, getEffectiveSuccess } = require('../../utils/laptopDb');
 const { getOrCreateCredit, saveCredit, getCreditTier, adjustScore } = require('../../utils/creditDb');
 const { noAccount }  = require('../../utils/accountCheck');
 const { COLORS }     = require('../../utils/embeds');
@@ -26,8 +26,8 @@ module.exports = {
     .addSubcommand(s => s.setName('appstore').setDescription('Browse and install apps from your item inventory'))
     .addSubcommand(s => s.setName('run').setDescription('Run an installed app')
       .addStringOption(o => o.setName('app').setDescription('App to run').setRequired(true).setAutocomplete(true))
-      .addUserOption(o => o.setName('target').setDescription('🎯 Required for: SSN Scanner, Credit Cracker, Card Drainer, Stalker App, HomeHack, DarkSearch').setRequired(false))
-      .addStringOption(o => o.setName('routing').setDescription('🏦 Required for: Biz Intruder, Bank Mirror — enter routing number here').setRequired(false))
+      .addUserOption(o => o.setName('target').setDescription('🎯 Required for: SSN Scanner, Card Drainer, Stalker App, HomeHack, DarkSearch, Voter Suppress, Blacksite Op').setRequired(false))
+      .addStringOption(o => o.setName('routing').setDescription('🏦 Biz Intruder/Bank Mirror: routing# · Credit Cracker: enter the actual SSN number here (from Keylogger)').setRequired(false))
       .addStringOption(o => o.setName('action').setDescription('⚡ Biz Intruder only — what to do once inside').setRequired(false)
         .addChoices(
           { name:'📊 Check Balances — see revenue & dirty money', value:'check' },
@@ -37,41 +37,46 @@ module.exports = {
       .addIntegerOption(o => o.setName('amount').setDescription('💰 Biz Intruder only — amount to withdraw or launder').setRequired(false).setMinValue(1))),
 
   async autocomplete(interaction) {
-    const focused = interaction.options.getFocused().toLowerCase();
-    const userId  = interaction.user.id;
-    const laptop  = getLaptop(userId);
-    const apps    = laptop?.apps || [];
+    const focused  = interaction.options.getFocused().toLowerCase();
+    const userId   = interaction.user.id;
+    const laptop   = getLaptop(userId);
+    const apps     = laptop?.apps || [];
+    const deviceId = laptop?.deviceId || 'builtin';
 
     if (!apps.length) {
       return interaction.respond([{ name:'No apps installed — use /laptop appstore first', value:'__none__' }]).catch(()=>null);
     }
 
-    // Clear workflow hints for each app
     const NEEDS = {
-      // ─── CREDIT FRAUD (do in order) ───────────────────────────
-      ssn_scanner:    '① CREDIT FRAUD step 1 — target:@user → steals their SSN & saves it',
-      credit_cracker: '② CREDIT FRAUD step 2 — target:@user → needs SSN on file (Scanner OR TOR buy)',
-      card_drainer:   '③ CREDIT FRAUD step 3 — target:@user → drains the card opened in step 2',
-      // ─── INTEL / SCOUTING ─────────────────────────────────────
-      stalker_app:    'INTEL — target:@user → full profile: wallet/bank/home/gang/credit/routing#',
-      keylogger:      'INTEL — NO inputs → shows your full stolen-SSN list (from Scanner + TOR buys)',
-      dark_search:    'INTEL — routing:<SSN or routing#> → search active TOR market listings',
-      // ─── BUSINESS HACKING ─────────────────────────────────────
-      biz_intrude:    'BIZ HACK — routing:<number> action:check/withdraw/launder',
-      bank_mirror:    'BIZ HACK — routing:<number> → read-only view of wallet/bank/biz balance',
-      home_hack:      'BREAK-IN PREP — target:@user → kills home security 30min, then use break-in-kit',
-      // ─── PASSIVE / UTILITY ────────────────────────────────────
-      vpn_shield:     'PASSIVE — NO inputs → shows your current TOR trace risk %',
-      launder_bot:    'PASSIVE — NO inputs → launders your gang dirty money at improved rate',
-      tor_browser:    'PASSIVE — NO inputs → TOR usage guide + trace risk',
+      ssn_scanner:      '① FRAUD step 1 — target:@user → steals SSN (DM\'d to you privately)',
+      credit_cracker:   '② FRAUD step 2 — routing:<SSN number from Keylogger> → opens fraud card',
+      card_drainer:     '③ FRAUD step 3 — target:@user → drains the card opened in step 2',
+      stalker_app:      'INTEL — target:@user → full profile: wallet/bank/home/gang/credit/routing#',
+      keylogger:        'INTEL — NO inputs → shows your stolen-SSN vault with actual SSN numbers',
+      dark_search:      'INTEL — routing:<SSN or routing#> → search TOR market listings',
+      biz_intrude:      'BIZ HACK — routing:<number> action:check/withdraw/launder',
+      bank_mirror:      'BIZ HACK — routing:<number> → read-only view of balances',
+      home_hack:        'BREAK-IN — target:@user → disable security 30min, then use break-in-kit',
+      vpn_shield:       'PASSIVE — reduces TOR trace risk',
+      launder_bot:      'PASSIVE — better launder rate for gang dirty money',
+      tor_browser:      'PASSIVE — TOR guide + trace risk reduction',
+      policy_intel:     'POLITICAL — NO inputs → classified server economy overview',
+      voter_suppress:   'POLITICAL — target:@user → block daily/work income 24h (no trace)',
+      blacksite_op:     'POLITICAL — target:@user → steal 12% wallet, zero evidence',
+      classified_brief: 'POLITICAL — target:@user → full intel + effects + Illuminati standing',
     };
 
+    const deviceLevel = DEVICE_ORDER.indexOf(deviceId);
     const choices = apps.map(a => {
-      const def   = BUILTIN_APPS[a.id] || {};
-      const pct   = a.successOverride || (def.baseSuccess != null ? Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5) : null);
-      const needs = NEEDS[a.id] || (pct != null ? `${pct}% success` : 'passive');
+      const def      = BUILTIN_APPS[a.id] || {};
+      const required = def.requiresDevice;
+      const reqLevel = required ? DEVICE_ORDER.indexOf(required) : 0;
+      const locked   = reqLevel > deviceLevel;
+      const pct      = a.successOverride || (def.baseSuccess != null ? Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5) : null);
+      const needs    = NEEDS[a.id] || (pct != null ? `${pct}% success` : 'passive');
+      const lockTag  = locked ? ` 🔒 needs ${DEVICE_TIERS[required]?.name}` : '';
       return {
-        name: `${def.emoji||'💻'} ${def.name||a.id} (T${a.quality||1}) — ${needs}`,
+        name: `${def.emoji||'💻'} ${def.name||a.id} (T${a.quality||1}) — ${needs}${lockTag}`.slice(0, 100),
         value: a.id,
       };
     })
@@ -88,41 +93,55 @@ module.exports = {
     const sub    = interaction.options.getSubcommand();
     const userId = interaction.user.id;
 
-    const user   = getOrCreateUser(userId);
-    const _raw   = getLaptop(userId);
-    const laptop = _raw
-      ? { deviceId: _raw.deviceId || 'builtin', deviceName: _raw.deviceName || 'Laptop', apps: Array.isArray(_raw.apps) ? _raw.apps.filter(a => a && typeof a === 'object' && a.id) : [], installedAt: _raw.installedAt || Date.now() }
-      : { deviceId: 'builtin', deviceName: 'Laptop', apps: [], installedAt: Date.now() };
+    const user     = getOrCreateUser(userId);
+    const _raw     = getLaptop(userId);
+    const laptop   = _raw
+      ? { deviceId: _raw.deviceId || 'builtin', deviceName: _raw.deviceName || 'Built-in Laptop', apps: Array.isArray(_raw.apps) ? _raw.apps.filter(a => a && typeof a === 'object' && a.id) : [], installedAt: _raw.installedAt || Date.now() }
+      : { deviceId: 'builtin', deviceName: 'Built-in Laptop', apps: [], installedAt: Date.now() };
+    const deviceId    = laptop.deviceId || 'builtin';
+    const deviceTier  = DEVICE_TIERS[deviceId] || DEVICE_TIERS.builtin;
+    const deviceLevel = DEVICE_ORDER.indexOf(deviceId);
 
     // ── OPEN ──────────────────────────────────────────────────
     if (sub === 'open') {
       const apps     = laptop.apps;
       const appLines = apps.length
         ? apps.map(a => {
-            const def = BUILTIN_APPS[a.id] || {};
-            const pct = def.baseSuccess != null ? `${Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5)}% success` : 'passive';
-            return `${def.emoji||'📦'} **${def.name||a.id}** (T${a.quality||1}) · ${pct}`;
+            const def     = BUILTIN_APPS[a.id] || {};
+            const pct     = def.baseSuccess != null ? `${Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5)}% success` : 'passive';
+            const reqDev  = def.requiresDevice;
+            const locked  = reqDev && DEVICE_ORDER.indexOf(reqDev) > deviceLevel;
+            const lockTag = locked ? ` 🔒 needs ${DEVICE_TIERS[reqDev]?.name}` : '';
+            return `${def.emoji||'📦'} **${def.name||a.id}** (T${a.quality||1}) · ${pct}${lockTag}`;
           }).join('\n')
         : '*None — use `/laptop appstore` to install apps.*';
 
+      const DEVICE_UPGRADE_HINT = deviceId === 'builtin'
+        ? '\n\n⬆️ **Upgrade to Hacking Laptop** to unlock: SSN Scanner, Credit Cracker, Card Drainer, Biz Intruder, HomeHack'
+        : deviceId === 'hack_laptop'
+          ? '\n\n⬆️ **Upgrade to Political Laptop** (Illuminati Political Power) to unlock: Policy Intel, Voter Suppress, Blacksite Op, Classified Brief'
+          : '';
+
       return interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(0x00d2ff)
-        .setTitle('💻 Laptop')
+        .setColor(deviceId === 'political_laptop' ? 0xf5c518 : deviceId === 'hack_laptop' ? 0x00d2ff : 0x888888)
+        .setTitle(`${deviceTier.emoji} ${deviceTier.name}`)
+        .setDescription(`*${deviceTier.desc}*${DEVICE_UPGRADE_HINT}`)
         .addFields(
-          { name: '📋 How to Use — Credit Fraud', value:
-            '**①** `/laptop run` → **SSN Scanner** `target:@user` — steals their SSN\n' +
-            '**②** `/laptop run` → **Credit Cracker** `target:@user` — opens fraud card on SSN\n' +
-            '**③** `/laptop run` → **Card Drainer** `target:@user` — drains the opened card\n' +
-            '> *TOR buy counts as step ①. Run* **Keylogger** *to see who you bought SSNs on.*',
+          { name: '📋 Credit Fraud Workflow', value:
+            '**①** Run **SSN Scanner** `target:@user` — steals & DMs you their SSN\n' +
+            '**②** Run **Keylogger** — see your vault with the actual SSN number\n' +
+            '**③** Run **Credit Cracker** `routing:<the SSN number>` — opens fraud card\n' +
+            '**④** Run **Card Drainer** `target:@user` — maxes out their card\n' +
+            '> *TOR-bought SSNs also appear in Keylogger vault.*',
             inline: false },
-          { name: '📋 How to Use — Business Hack', value:
-            '**①** Get a routing number from `/myrouting`, Stalker App, or Bank Mirror\n' +
-            '**②** `/laptop run` → **Biz Intruder** `routing:<number> action:check` — scout it\n' +
+          { name: '📋 Business Hack Workflow', value:
+            '**①** Get a routing# via `/myrouting`, Stalker App, or Bank Mirror\n' +
+            '**②** Run **Biz Intruder** `routing:<number> action:check` — scout it\n' +
             '**③** Same command with `action:withdraw` or `action:launder`',
             inline: false },
           { name: '📱 Installed Apps', value: appLines.slice(0, 1020) || '—', inline: false },
         )
-        .setFooter({ text:'/laptop appstore — browse & install apps · /laptop run — execute an app' })
+        .setFooter({ text:'/laptop appstore — install apps · /laptop run — execute an app' })
       ], ephemeral:true });
     }
 
@@ -266,6 +285,21 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         .setDescription(`${def.emoji} **${def.name}** not installed.\n\nGet it from the item store and install via \`/laptop appstore\`.`)
       ], ephemeral:true });
 
+      // ── DEVICE TIER GATE ─────────────────────────────────
+      if (def.requiresDevice) {
+        const reqLevel = DEVICE_ORDER.indexOf(def.requiresDevice);
+        if (deviceLevel < reqLevel) {
+          const reqTier = DEVICE_TIERS[def.requiresDevice];
+          return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setTitle(`🔒 ${reqTier.name} Required`)
+            .setDescription(
+              `**${def.name}** requires a **${reqTier.name}**.\n\nYour current device: **${deviceTier.name}**\n\n${reqTier.desc}\n\n` +
+              `Purchase a **${reqTier.name}** from the server store, then use \`/use <item>\` to upgrade.`
+            )
+          ], ephemeral:true });
+        }
+      }
+
       const successRate = getEffectiveSuccess(userId, appId);
       const success     = Math.random() * 100 < successRate;
 
@@ -302,15 +336,32 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
 
       // ── CREDIT CRACKER ────────────────────────────────────
       if (appId === 'credit_cracker') {
-        if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription('Specify a **target:** user.\n\nYou must scan them with **SSN Scanner** first — their SSN gets saved automatically.')
+        const ssnInput = interaction.options.getString('routing')?.trim();
+        if (!ssnInput) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setTitle('💳 SSN Required')
+          .setDescription(
+            'Credit Cracker requires the **actual SSN number** — not just a user tag.\n\n' +
+            '**Step-by-step:**\n' +
+            '① Run **SSN Scanner** on a target (or buy their SSN on `/tor market`)\n' +
+            '② Run **Keylogger** — it shows your vault with the full SSN numbers\n' +
+            '③ Come back here and enter the SSN in the `routing:` field\n\n' +
+            '*Example: `/laptop run app:Credit Cracker routing:512-34-7890`*'
+          )
         ], components:[] });
+
         const hc = await getOrCreateCredit(userId);
-        if (!hc.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setTitle('❌ No SSN on File')
-          .setDescription(`No SSN on file for <@${target.id}>.\n\n**How to get their SSN:**\n• Run \`/laptop run SSN Scanner target:@${target.username}\` first\n• OR buy their SSN from \`/tor market\`\n\nAfter either method, run \`/laptop run Keylogger\` to see your full SSN vault with who you can target.`)
+        const vault = hc.ssnStolen || {};
+        // Find which victim this SSN belongs to
+        const victimId = Object.keys(vault).find(uid => vault[uid]?.ssn === ssnInput);
+        if (!victimId) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+          .setTitle('❌ SSN Not in Vault')
+          .setDescription(
+            `\`${ssnInput}\` is not in your stolen SSN vault.\n\n` +
+            '**Run Keylogger** to see every SSN you\'ve collected and their exact numbers.\n\n' +
+            'SSNs are added by:\n• **SSN Scanner** → scan a target\n• **TOR market** → buy stolen data'
+          )
         ], components:[] });
-        let victimId = target.id;
+
         const vc = await getOrCreateCredit(victimId);
         if (vc.frozen) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target has a credit freeze active.')], components:[] });
         const tier = getCreditTier(vc.score);
@@ -552,7 +603,7 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
 
         return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2c2c2c)
           .setTitle('⌨️ Stolen SSN Vault')
-          .setDescription(`${lines}\n\n**Next step:** \`/laptop run Credit Cracker target:@user\` using any of the above users.`)
+          .setDescription(`${lines}\n\n**Next step:** Copy an SSN number above, then run:\n\`/laptop run app:Credit Cracker routing:<SSN number>\``)
         ], components:[] });
       }
 
@@ -621,6 +672,121 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
             '*Higher quality TOR Browser reduces trace risk further.*'
           )
         ], components:[] });
+      }
+
+      // ── POLITICAL APPS (requires political_laptop + Political Power faction) ───
+      const POLITICAL_APP_IDS = ['policy_intel', 'voter_suppress', 'blacksite_op', 'classified_brief'];
+      if (POLITICAL_APP_IDS.includes(appId)) {
+        const { getMember } = require('../../utils/illuminatiDb');
+        const mem = getMember(interaction.guildId, userId);
+        if (mem?.faction !== 'political_power') {
+          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
+            .setTitle('🏛️ Political Power Faction Required')
+            .setDescription('Political laptop apps require Illuminati **Political Power** faction membership.\n\nJoin the Illuminati and align with the Political Power faction to unlock these operations.')
+          ], components:[] });
+        }
+
+        // ── POLICY INTEL ──────────────────────────────────────
+        if (appId === 'policy_intel') {
+          const { getAllUsers } = require('../../utils/db');
+          const allUsers  = getAllUsers();
+          const ranked    = Object.entries(allUsers)
+            .map(([uid, u]) => ({ uid, total: (u.wallet||0) + (u.bank||0) }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 10);
+
+          const lines = ranked.map((r, i) =>
+            `**${i+1}.** <@${r.uid}> — ${fmtMoney(r.total)}`
+          ).join('\n');
+
+          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xf5c518)
+            .setTitle('🏛️ Policy Intel — Classified Economy Report')
+            .setDescription('*Clearance level: POLITICAL POWER*')
+            .addFields(
+              { name:'💰 Top 10 Wealthiest Users (Wallet + Bank)', value:lines || 'No data', inline:false },
+              { name:'📊 Server Summary', value:`Active users: **${Object.keys(allUsers).length}**`, inline:false },
+            )
+          ], components:[] });
+        }
+
+        // ── VOTER SUPPRESS ────────────────────────────────────
+        if (appId === 'voter_suppress') {
+          if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target with `target:@user`.')], components:[] });
+          if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('🗳️ Suppression Failed').setDescription(`Target evaded the suppression. (${successRate}% chance)`)], components:[] });
+
+          const tv = getOrCreateUser(target.id);
+          tv.suppressedUntil = Date.now() + 24 * 3600 * 1000;
+          saveUser(target.id, tv);
+
+          target.send({ embeds:[new EmbedBuilder().setColor(0x888888)
+            .setTitle('🗳️ Income Suppressed')
+            .setDescription('A covert operation has restricted your daily and work income for **24 hours**.\n\n*Someone doesn\'t want you to earn today.*')
+          ]}).catch(() => null);
+
+          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xf5c518)
+            .setTitle(`🗳️ ${interaction.user.username} suppressed <@${target.id}>`)
+            .setDescription(`<@${target.id}>'s daily and work income is blocked for **24 hours**.\n\nZero trace. Zero evidence.\n\n*Political Power is the cleanest power.*`)
+          ], components:[] });
+        }
+
+        // ── BLACKSITE OP ──────────────────────────────────────
+        if (appId === 'blacksite_op') {
+          if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target with `target:@user`.')], components:[] });
+          if (!success) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setTitle('🕵️ Op Burned').setDescription(`The operation was compromised. (${successRate}% chance)`)], components:[] });
+
+          const tv2   = getOrCreateUser(target.id);
+          const take  = Math.floor((tv2.wallet||0) * 0.12);
+          if (take < 100) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Target has less than $1000 — not worth the op.')], components:[] });
+
+          tv2.wallet  -= take;
+          user.wallet += take;
+          saveUser(target.id, tv2);
+          saveUser(userId, user);
+
+          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x1a1a2e)
+            .setTitle(`🕵️ ${interaction.user.username} ran a Blacksite Op on <@${target.id}>`)
+            .setDescription(`**${fmtMoney(take)}** extracted.\n\nNo evidence. No heat. No trace.\n\n*This operation does not exist.*`)
+          ], components:[] });
+        }
+
+        // ── CLASSIFIED BRIEF ──────────────────────────────────
+        if (appId === 'classified_brief') {
+          if (!target) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Specify a target with `target:@user`.')], components:[] });
+
+          const { getHome: _gh } = require('../../utils/homeDb');
+          const { getPhone: _gp, getStatusTier } = require('../../utils/phoneDb');
+          const { getBusiness: _gb } = require('../../utils/bizDb');
+          const { isMember: _im, getMember: _gm } = require('../../utils/illuminatiDb');
+          const { getCredit: _gc } = require('../../utils/creditDb');
+
+          const tv3   = getOrCreateUser(target.id);
+          const home3 = _gh(target.id);
+          const ph3   = _gp(target.id);
+          const biz3  = _gb(target.id);
+          const cred3 = _gc(target.id);
+          const illMem = _im(interaction.guildId, target.id);
+          const isPup  = (require('../../utils/illuminatiDb').getIlluminati(interaction.guildId)?.puppets||[]).some(p => p.userId === target.id);
+          const voodoo = tv3.voodoo;
+
+          const illuStatus = illMem
+            ? `🔺 Member (${_gm(interaction.guildId, target.id)?.rank})`
+            : isPup ? '⛓️ Puppet' : 'Not involved';
+
+          return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0xf5c518)
+            .setTitle(`📋 Classified Brief — <@${target.id}>`)
+            .setDescription('*CLASSIFIED — Political Power clearance required*')
+            .addFields(
+              { name:'💵 Wallet',     value:fmtMoney(tv3.wallet||0),             inline:true },
+              { name:'🏦 Bank',       value:fmtMoney(tv3.bank||0),               inline:true },
+              { name:'🏠 Home',       value:home3?.tier||'None',                  inline:true },
+              { name:'🏢 Business',   value:biz3?`${biz3.name} Lv${biz3.level||1}`:'None', inline:true },
+              { name:'📊 Credit',     value:cred3?`Score ${cred3.score}${cred3.frozen?' ❄️':''}`:'None', inline:true },
+              { name:'🔺 Illuminati', value:illuStatus,                           inline:true },
+              { name:'🕯️ Voodoo',    value:voodoo?.initiated ? `⚡ ${voodoo.energy||0} energy · ${voodoo.ritualCount||0} rituals` : 'Not initiated', inline:true },
+              { name:'📱 Status',     value:getStatusTier(ph3?.status||0)?.label||'None', inline:true },
+            )
+          ], components:[] });
+        }
       }
 
       return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Unknown app.')], components:[] });

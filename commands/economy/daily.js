@@ -17,6 +17,11 @@ module.exports = {
     const user = getOrCreateUser(interaction.user.id);
     const now  = Date.now();
 
+    if (user.suppressedUntil && now < user.suppressedUntil) {
+      const expiresAt = Math.floor(user.suppressedUntil / 1000);
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x888888).setTitle('🗳️ Daily Suppressed').setDescription(`A covert operation has blocked your daily reward.\n\nExpires: <t:${expiresAt}:R>`)], ephemeral: true });
+    }
+
     if (user.lastDaily) {
       const since = now - user.lastDaily;
       if (since < COOLDOWN_MS) {

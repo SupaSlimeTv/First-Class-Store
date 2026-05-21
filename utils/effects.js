@@ -1026,8 +1026,22 @@ async function executeEffect(item, userId, targetId, targetMember = null) {
       };
     }
 
-    case 'laptop':
-      return { success: true, title: '💻 Laptop — Built-In', description: 'Your laptop is always available — no item needed.\n\nUse `/laptop open` to access it or `/laptop appstore` to browse and install apps.' };
+    case 'laptop': {
+      const { getLaptop, saveLaptop, DEVICE_TIERS, DEVICE_ORDER } = require('./laptopDb');
+      const newDeviceId = effect.deviceId || 'hack_laptop';
+      const lap = getLaptop(userId) || { apps: [], installedAt: Date.now() };
+      const currentLevel = DEVICE_ORDER.indexOf(lap.deviceId || 'builtin');
+      const newLevel     = DEVICE_ORDER.indexOf(newDeviceId);
+      if (newLevel <= currentLevel && lap.deviceId && lap.deviceId !== 'builtin') {
+        const curTier = DEVICE_TIERS[lap.deviceId];
+        return { success: false, title: '💻 Already Equipped', description: `You already have a **${curTier?.name || lap.deviceId}** or better.\n\nUse \`/laptop open\` to see your current device.` };
+      }
+      const tier = DEVICE_TIERS[newDeviceId];
+      lap.deviceId   = newDeviceId;
+      lap.deviceName = tier?.name || newDeviceId;
+      await saveLaptop(userId, lap);
+      return { success: true, title: `${tier?.emoji || '💻'} ${tier?.name || newDeviceId} Activated`, description: `Your laptop has been upgraded to **${tier?.name}**.\n\n${tier?.desc || ''}\n\nUse \`/laptop open\` to see your full capabilities.` };
+    }
 
     case 'laptop_app':
       return { success: false, title: '💻 Install via /laptop', description: 'App items are installed through your laptop.\n\nUse `/laptop appstore` to install it from your inventory.' };
