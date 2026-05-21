@@ -593,16 +593,18 @@ client.on('messageCreate', async (message) => {
       .setTitle('📖 Commands')
       .setDescription(`New? Type \`${p}open account\` to get started!`)
       .addFields(
-        { name:'💰 Economy',      value:[`${p}bal`,`${p}dep <amt>`,`${p}with <amt>`,`${p}daily`,`${p}rob @user`,`${p}shop`,`${p}inv`,`${p}collect`,`${p}work`,`${p}beg`,`${p}lb`].join(' · '), inline:false },
-        { name:'🎮 Games',        value:[`${p}slots <bet>`,`${p}duel @user <amt>`,`${p}cf <bet>`,`${p}roll`,`${p}8ball <q>`,`${p}rps <choice>`,`/blackjack`,`/roulette`].join(' · '), inline:false },
-        { name:'🎟️ Lottery',     value:[`${p}lottery`,`${p}lottery buy <n>`].join(' · '), inline:false },
-        { name:'📈 Market',       value:[`${p}market`,`${p}invest <coin> <amt>`,`${p}cashout <coin>`,`${p}portfolio`].join(' · '), inline:false },
-        { name:'🏢 Entrepreneur', value:[`${p}biz`,`${p}bizcollect`,`${p}bizupgrade`,`${p}hire @user`,`${p}fire @user`,`${p}myjobs`,`${p}businesses`].join(' · '), inline:false },
-        { name:'🏴 Gangs',        value:[`${p}gang`,`${p}ganginfo`,`${p}gangs`,`${p}gangwar`,`${p}crime`,`${p}gu`,`${p}wl`].join(' · '), inline:false },
-        { name:'🐾 Pets',         value:[`${p}petshop`,`${p}pet`,`${p}petfeed`,`${p}petplay`,`${p}petheal <amt>`,`${p}pa @user`,`${p}pets`].join(' · '), inline:false },
-        { name:'🤖 AI',           value:[`${p}myai`,`${p}talk`].join(' · '), inline:false },
-        { name:'📊 Status',       value:[`${p}status`,`${p}wl`].join(' · '), inline:false },
-        { name:'🔫 Guns (Gang Only)', value:[`${p}gunshop`,`${p}gunbuy <id>`,`${p}guns`,`${p}shoot @user`,`${p}health`,`${p}medkit <amt>`].join(' · '), inline:false },
+        { name:'💰 Economy',         value:[`${p}bal`,`${p}dep <amt>`,`${p}with <amt>`,`${p}daily`,`${p}pay @user <amt>`,`${p}wire @user <amt>`,`${p}rob @user`,`${p}shop`,`${p}inv`,`${p}collect`,`${p}work`,`${p}beg`,`${p}lb`].join(' · '), inline:false },
+        { name:'🎮 Games',           value:[`${p}slots <bet>`,`${p}duel @user <amt>`,`${p}cf <bet>`,`${p}roll`,`${p}8ball <q>`,`${p}rps`,`/blackjack`,`/roulette`].join(' · '), inline:false },
+        { name:'🎟️ Lottery',        value:[`${p}lottery`,`${p}lottery buy <n>`].join(' · '), inline:false },
+        { name:'📈 Stocks & Crypto', value:[`${p}market`,`${p}invest <coin> <amt>`,`${p}cashout <coin>`,`${p}portfolio`,`${p}bizstocks`,`${p}bizport`,`${p}btc`].join(' · '), inline:false },
+        { name:'🏢 Entrepreneur',    value:[`${p}biz`,`${p}bizcollect`,`${p}bizupgrade`,`${p}hire @user`,`${p}fire @user`,`${p}myjobs`,`${p}businesses`,`${p}label`].join(' · '), inline:false },
+        { name:'🏠 Lifestyle',       value:[`${p}home`,`${p}family`,`${p}phone`,`${p}credit`,`${p}debit`,`${p}identity`].join(' · '), inline:false },
+        { name:'💊 Underground',     value:[`${p}drugs`,`${p}btc`,`/drugmarket traffic`,`/drugmarket deal`,`/laptop`,`/hack`,`/tor`].join(' · '), inline:false },
+        { name:'🏴 Gangs',           value:[`${p}gang`,`${p}ganginfo`,`${p}gangs`,`${p}gangwar`,`${p}crime`,`${p}gu`,`${p}wl`,`${p}heat`].join(' · '), inline:false },
+        { name:'🐾 Pets',            value:[`${p}petshop`,`${p}pet`,`${p}petfeed`,`${p}petplay`,`${p}petheal <amt>`,`${p}pa @user`,`${p}pets`].join(' · '), inline:false },
+        { name:'🤖 AI',              value:[`${p}myai`,`${p}talk`].join(' · '), inline:false },
+        { name:'📊 Status',          value:[`${p}status`,`${p}wl`,`${p}heat`,`${p}health`,`${p}routing`].join(' · '), inline:false },
+        { name:'🔫 Guns (Gang Only)',  value:[`${p}gunshop`,`${p}gunbuy <id>`,`${p}guns`,`${p}shoot @user`,`${p}health`,`${p}medkit <amt>`].join(' · '), inline:false },
       )
     ] });
   }
@@ -1423,67 +1425,278 @@ client.on('messageCreate', async (message) => {
     return message.reply('Use `/sponsordeal` slash command — requires subcommand and user selection.');
   }
 
-  // ---- drugmarket ----
+  // ---- drugmarket / drugs — browse available drugs ----
   if (['drugmarket','drugs','drugshop','dmarket'].includes(commandName)) {
-    return message.reply('Use `/drugmarket` slash command — subcommand selection required.');
+    const { getDrugs } = require('./utils/drugDb');
+    const drugs = getDrugs().filter(d => d.available);
+    if (!drugs.length) return message.reply('No drugs on the market right now.');
+    const { getGangByMember: _gg } = require('./utils/gangDb');
+    const inGang = !!_gg(message.author.id);
+    const warning = inGang ? '' : '⚠️ **You need to be in a gang to traffic or deal drugs.**\n\n';
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x2c3e50).setTitle('💊 Drug Market')
+      .setDescription(warning + drugs.map(d => `${d.emoji||'💊'} **${d.name}** — **$${d.price.toLocaleString()}/unit**\n*${d.description||'No description'}*`).join('\n\n'))
+      .setFooter({ text:'Gang members: /drugmarket traffic to bulk order · /drugmarket deal to sell' })] });
   }
 
-  // ---- bitcoin / btc ----
+  // ---- bitcoin / btc — wallet view ----
   if (commandName === 'bitcoin' || commandName === 'btc' || commandName === 'btcwallet') {
-    return message.reply('Use `/bitcoin` slash command — subcommand selection required.');
-  }
-
-  // ---- phish ----
-  if (commandName === 'phish') {
-    return message.reply('Use `/phish` slash command — requires user mention selection.');
-  }
-
-  // ---- blacktea ----
-  if (commandName === 'blacktea' || commandName === 'bt' || commandName === 'wordgame') {
-    return message.reply('Use `/blacktea` slash command to start a game — options like lives and wager require slash command selection.');
-  }
-
-  // ---- myrouting / laptop ----
-  if (commandName === 'myrouting' || commandName === 'routing' || commandName === 'myrn') {
     if (needsAccount()) return;
-    const { routing } = require('./commands/economy/laptop.js');
-    return routing.execute({ user:message.author, guild:message.guild, reply:(o)=>message.reply(o), options:{ getString:()=>null } });
-  }
-  if (commandName === 'laptop') {
-    return message.reply(`Use \`/laptop\` slash command — routing number and action require dropdown selection.`);
+    const { getBtcWallet } = require('./utils/bitcoinDb');
+    const btc = getBtcWallet(message.author.id);
+    const queueTotal = (btc.mixQueue||[]).reduce((s,m)=>s+m.amount,0);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0xf7931a).setTitle('₿ Bitcoin Wallet')
+      .addFields(
+        { name:'🔥 Hot Funds',   value:`$${(btc.hotFunds||0).toLocaleString()}`,   inline:true },
+        { name:'✅ Clean Funds', value:`$${(btc.cleanFunds||0).toLocaleString()}`, inline:true },
+        { name:'🔄 Mixing',      value:`$${queueTotal.toLocaleString()}`,          inline:true },
+      )
+      .setFooter({ text:'Use /bitcoin mix to clean funds · /bitcoin collect to withdraw' })] });
   }
 
-  // ---- hack ----
-  if (commandName === 'hack') {
-    return message.reply(`Use \`/hack\` slash command — hacking requires mode selection (bank/business/social).`);
+  // ---- credit / score — view credit score + SSN ----
+  if (commandName === 'credit' || commandName === 'score' || commandName === 'creditcheck') {
+    if (needsAccount()) return;
+    const { getOrCreateCredit: _gcc, getCreditTier } = require('./utils/creditDb');
+    const cc = await _gcc(message.author.id);
+    const tier = getCreditTier ? getCreditTier(cc.score||0) : { label:'Unknown', color:0x888888 };
+    const masked = cc.ssn ? cc.ssn.replace(/\d{4}$/,'XXXX') : '???';
+    const card = cc.creditCard;
+    return message.reply({ embeds:[new EmbedBuilder().setColor(tier.color||0x5865f2).setTitle('🏦 Your Credit Profile')
+      .addFields(
+        { name:'📊 Score',     value:`**${cc.score||0}** — ${tier.label||'N/A'}`, inline:true },
+        { name:'🪪 SSN',       value:`\`${masked}\``,                             inline:true },
+        { name:'💳 Card',      value:card ? `●●●● ${cc.creditCard.number?.slice(-4)||'????'}` : 'None — use `/credit apply`', inline:true },
+      )
+      .setFooter({ text:'Use /credit apply for a card · /credit spend to charge purchases' })] });
   }
 
-  // ---- goons / goonattack / launder ----
-  if (['goons','goonroster','groster'].includes(commandName)) {
-    return message.reply(`Use \`/goons\` slash command — goon management requires subcommand selection.`);
+  // ---- debit — view debit card ----
+  if (commandName === 'debit' || commandName === 'debitcard') {
+    if (needsAccount()) return;
+    const { getDebitCard } = require('./utils/debitDb');
+    const card = getDebitCard(message.author.id);
+    if (!card) return message.reply(`You don't have a debit card yet. Use \`/debit create\` to create one.`);
+    const masked = `●●●● ●●●● ●●●● ${card.number?.slice(-4)||'????'}`;
+    const user = getOrCreateUser(message.author.id);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setTitle('💳 Your Debit Card')
+      .addFields(
+        { name:'Card Number', value:`\`${masked}\``,                inline:true },
+        { name:'Bank Balance', value:`$${(user.bank||0).toLocaleString()}`, inline:true },
+        { name:'Status',       value:card.frozen ? '🔴 Frozen' : '🟢 Active', inline:true },
+      )
+      .setFooter({ text:'Use /debit pay <amount> to spend from bank · /debit view for full details' })] });
   }
-  if (commandName === 'goonattack' || commandName === 'sendgoons' || commandName === 'hit') {
+
+  // ---- home — view your home ----
+  if (commandName === 'home' || commandName === 'myhouse' || commandName === 'house') {
+    if (needsAccount()) return;
+    const { getHome: _gh, HOME_TIERS: _ht, calcPassiveIncome: _cpi, getStashLimit: _gsl, isSleeping: _isl, sleepTimeLeft: _stl } = require('./utils/homeDb');
+    const home = _gh(message.author.id);
+    if (!home) return message.reply(`You don't own a home yet. Use \`/home buy\` to purchase one.\n\n🏚️ Studio: $5,000 · 🏠 House: $25,000 · 🏡 Mansion: $100,000 · 🏰 Estate: $500,000`);
+    const tier    = _ht[home.tier] || {};
+    const income  = _cpi(home);
+    const stash   = _gsl(home);
+    const sleeping = _isl(home);
+    const sleepLeft = sleeping ? Math.ceil(_stl(home)/60000) : 0;
+    const furns   = (home.furnishings||[]).map(f=>f.name||f.id).join(', ') || 'None';
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x9b59b6).setTitle(`${tier.name||'🏠 Home'}`)
+      .addFields(
+        { name:'💰 Passive Income', value:`$${income.toLocaleString()}/hr`,          inline:true },
+        { name:'📦 Stash Slots',    value:`${(home.stash||[]).length}/${stash}`,      inline:true },
+        { name:'😴 Status',         value:sleeping?`Sleeping (${sleepLeft}m left)`:'Awake', inline:true },
+        { name:'🛋️ Furnishings',    value:furns,                                     inline:false },
+      )
+      .setFooter({ text:'Use /home furnish to decorate · /home sleep for passive XP · /home stash to store items' })] });
+  }
+
+  // ---- family — view family status ----
+  if (commandName === 'family' || commandName === 'myfamily') {
+    if (needsAccount()) return;
+    const { getFamily: _gf, getWealthTier: _gwt, happinessBar: _hb } = require('./utils/familyDb');
+    const fam = _gf(message.author.id);
+    if (!fam) return message.reply(`You don't have a family yet. Use \`/family start <partner name>\` to begin.`);
+    const wt = _gwt ? _gwt((getOrCreateUser(message.author.id).wallet||0)+(getOrCreateUser(message.author.id).bank||0)) : { label:'Unknown' };
+    const bar = _hb ? _hb(fam.happiness||50) : `${fam.happiness||50}/100`;
+    const children = (fam.children||[]).map(c=>`${c.name} (age ${c.age||0})`).join(', ') || 'None';
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0xe91e8c).setTitle('👨‍👩‍👧 Your Family')
+      .addFields(
+        { name:'💑 Partner',    value:fam.partnerName||'Unknown',  inline:true },
+        { name:'😊 Happiness',  value:bar,                         inline:true },
+        { name:'💰 Wealth',     value:wt.label||'Unknown',         inline:true },
+        { name:'👶 Children',   value:children,                    inline:false },
+      )
+      .setFooter({ text:'Use /family event for life events · /family status for full details' })] });
+  }
+
+  // ---- label — view your record label ----
+  if (commandName === 'label' || commandName === 'mylabel' || commandName === 'recordlabel') {
+    if (needsAccount()) return;
+    const { getLabel: _gl, getContract: _gc, calcArtistRevenue: _car } = require('./utils/labelDb');
+    const lab = _gl(message.author.id);
+    if (!lab) return message.reply(`You don't own a record label yet. Use \`/label create\` to start one.`);
+    const artists = (lab.signedArtists||[]);
+    const roster = artists.length
+      ? artists.map(id => { try { const c = _gc(id); return `<@${id}> — ${c ? Math.floor(_car(c)).toLocaleString() + '/hr' : 'pending'}`; } catch { return `<@${id}>`; } }).join('\n')
+      : 'No artists signed. Use `/label sign @user`';
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x9b59b6).setTitle(`🎵 ${lab.name||'Your Label'}`)
+      .addFields(
+        { name:'🎤 Signed Artists', value:`${artists.length}/5`, inline:true },
+        { name:'💰 Label Bank',     value:`$${(lab.bank||0).toLocaleString()}`, inline:true },
+        { name:'📋 Roster',         value:roster, inline:false },
+      )
+      .setFooter({ text:'Use /label sign @user to recruit · /label collect to claim revenue' })] });
+  }
+
+  // ---- wire — bank-to-bank transfer ----
+  if (commandName === 'wire' || commandName === 'transfer') {
     if (needsAccount()) return;
     const target = message.mentions.users.first();
-    if (!target) return message.reply(`Usage: \`${prefix}goonattack @user\``);
-    const { getGangByMember } = require('./utils/gangDb');
-    if (!getGangByMember(message.author.id)) return message.reply("You're not in a gang.");
-    return message.reply(`Use \`/goonattack\` slash command for the full attack UI.`);
-  }
-  if (commandName === 'launder' || commandName === 'wash') {
-    if (needsAccount()) return;
-    const cmd = require('./commands/gangs/launder.js');
-    if (cmd.executePrefix) return cmd.executePrefix(message, args);
-    return message.reply(`Use \`/launder\` slash command to launder dirty money.`);
+    const amount = parseInt(args[1]);
+    if (!target || !amount || amount < 1) return message.reply(`Usage: \`${prefix}wire @user <amount>\` (transfers from your bank)`);
+    if (target.id === message.author.id) return message.reply("You can't wire to yourself.");
+    const { hasAccount: _ha2 } = require('./utils/db');
+    if (!_ha2(target.id)) return message.reply(`<@${target.id}> doesn't have an account.`);
+    const sndr = getOrCreateUser(message.author.id);
+    if ((sndr.bank||0) < amount) return message.reply(`You only have **$${(sndr.bank||0).toLocaleString()}** in your bank.`);
+    sndr.bank -= amount;
+    saveUser(message.author.id, sndr);
+    const rcvr = getOrCreateUser(target.id);
+    rcvr.bank = (rcvr.bank||0) + amount;
+    saveUser(target.id, rcvr);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setTitle('🏦 Wire Sent')
+      .setDescription(`Wired **$${amount.toLocaleString()}** to <@${target.id}>'s bank.`)
+      .addFields({ name:'Your Bank', value:`$${sndr.bank.toLocaleString()}`, inline:true },{ name:'Their Bank', value:`$${rcvr.bank.toLocaleString()}`, inline:true })] });
   }
 
-  // ---- phone / phoneshop ----
-  if (commandName === 'phoneshop' || commandName === 'phones') {
-    const cmd = require('./commands/economy/phoneshop.js');
-    return cmd.executePrefix ? cmd.executePrefix(message, args) : message.reply('Use `/phoneshop` to browse phones.');
+  // ---- identity — view your stolen SSN stash ----
+  if (commandName === 'identity' || commandName === 'stash' || commandName === 'ssnstash') {
+    if (needsAccount()) return;
+    const { getOrCreateCredit: _gcc2 } = require('./utils/creditDb');
+    const mine = await _gcc2(message.author.id);
+    const stolen = mine.ssnStolen || {};
+    const ids = Object.keys(stolen);
+    if (!ids.length) return message.reply(`Your identity stash is empty. Steal SSNs with \`/laptop\` → SSN Scanner.`);
+    const lines = ids.map(uid => {
+      const d = stolen[uid];
+      return `<@${uid}> — SSN: \`${d.ssn||'???'}\``;
+    }).slice(0, 10);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0xff3b3b).setTitle('🪪 Your Identity Stash')
+      .setDescription(lines.join('\n'))
+      .setFooter({ text:`${ids.length} identities stored · Use /identity lookup to act on them` })] });
   }
-  if (commandName === 'phone' || commandName === 'post' || commandName === 'insta' || commandName === 'tweet') {
-    return message.reply(`Use \`/phone\` slash command — phone actions require subcommand selection.`);
+
+  // ---- myheat / heat — heat level (alias for wl) ----
+  if (commandName === 'myheat' || commandName === 'heat') {
+    const { getPoliceRecord: _gpr2 } = require('./utils/gangDb');
+    const { getHeatLevel: _ghl2 }    = require('./utils/police');
+    const rec2  = _gpr2(message.author.id);
+    const heat2 = rec2.heat || 0;
+    const lvl2  = _ghl2(heat2);
+    const bar2  = '█'.repeat(Math.floor(heat2/10)) + '░'.repeat(10-Math.floor(heat2/10));
+    const stars2 = heat2>75?'⭐⭐⭐⭐⭐':heat2>50?'⭐⭐⭐⭐':heat2>25?'⭐⭐⭐':heat2>10?'⭐⭐':heat2>0?'⭐':'☆☆☆☆☆';
+    return message.reply({ embeds:[new EmbedBuilder().setColor(heat2>75?0xff0000:heat2>50?0xff8800:heat2>25?0xffff00:0x00ff00)
+      .setTitle(`🌡️ Heat Level — ${lvl2.name}`).setDescription(`${stars2}\n\`[${bar2}] ${heat2}/100\``)
+      .setFooter({ text:'Heat decays over time. Stay low to avoid police attention.' })] });
+  }
+
+  // ---- bizstocks / bslist — list all business stocks ----
+  if (['bizstocks','bslist','stocklist','bizlist'].includes(commandName)) {
+    const { getAllBusinesses: _gab, BIZ_TYPES: _bt } = require('./utils/bizDb');
+    const { getAllBizStockPrices: _gabsp, calcFundamentalPrice: _cfp } = require('./utils/bizStockDb');
+    const allBiz2 = Object.values(_gab());
+    if (!allBiz2.length) return message.reply('No businesses exist yet. Use `/business start` to open one.');
+    const prices2 = _gabsp();
+    const lines2  = allBiz2.sort((a,b)=>(prices2[b.id]||0)-(prices2[a.id]||0)).slice(0,15).map(biz2 => {
+      const p2    = prices2[biz2.id] || _cfp(biz2);
+      const fund2 = _cfp(biz2);
+      const pct2  = ((p2/fund2-1)*100).toFixed(1);
+      const dir2  = p2>=fund2?'📈':'📉';
+      return `${_bt[biz2.type]?.emoji||'🏢'} **${biz2.name}** Lv${biz2.level||1} — **$${Math.round(p2).toLocaleString()}** ${dir2} ${pct2}%`;
+    });
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x00d2ff).setTitle('📊 Business Stock Exchange')
+      .setDescription(lines2.join('\n'))
+      .setFooter({ text:'Use /bizstock buy <name> <amount> to invest' })] });
+  }
+
+  // ---- bizport / myshares — your bizstock portfolio ----
+  if (['bizport','myshares','bizportfolio','bsport'].includes(commandName)) {
+    if (needsAccount()) return;
+    const user2 = getOrCreateUser(message.author.id);
+    const holdings2 = Object.entries(user2.bizStocks||{}).filter(([,h])=>h.shares>0.0001);
+    if (!holdings2.length) return message.reply(`You don't own any business shares yet. Use \`${prefix}bizstocks\` to browse then \`/bizstock buy\`.`);
+    const { getAllBusinesses: _gab2, BIZ_TYPES: _bt2 } = require('./utils/bizDb');
+    const { getBizStockPrice: _gbsp } = require('./utils/bizStockDb');
+    const allBiz3 = _gab2();
+    let totalVal3 = 0, totalInv3 = 0;
+    const lines3 = holdings2.map(([bizId3, h3]) => {
+      const biz3  = allBiz3[bizId3];
+      const p3    = _gbsp(bizId3) || 10;
+      const val3  = h3.shares * p3;
+      const prof3 = val3 - h3.invested;
+      totalVal3  += val3; totalInv3 += h3.invested;
+      return `${_bt2[biz3?.type]?.emoji||'🏢'} **${h3.bizName}** — $${Math.round(val3).toLocaleString()} (${prof3>=0?'+':''}$${Math.round(Math.abs(prof3)).toLocaleString()})`;
+    });
+    const totalProf3 = totalVal3 - totalInv3;
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x00d2ff).setTitle('📊 Your Business Stock Portfolio')
+      .setDescription(lines3.join('\n'))
+      .addFields(
+        { name:'Total Value', value:`$${Math.round(totalVal3).toLocaleString()}`,   inline:true },
+        { name:'Invested',    value:`$${Math.round(totalInv3).toLocaleString()}`,   inline:true },
+        { name:'P&L',         value:`${totalProf3>=0?'+':''}$${Math.round(Math.abs(totalProf3)).toLocaleString()}`, inline:true },
+      )] });
+  }
+
+  // ---- phone — phone stats overview ----
+  if (commandName === 'phone' || commandName === 'myphone' || commandName === 'socials') {
+    if (needsAccount()) return;
+    const { getPhone: _gph, getStatusTier: _gst, getArtistTier: _gat } = require('./utils/phoneDb');
+    const ph = _gph(message.author.id);
+    if (!ph) return message.reply(`You don't have a phone. Use \`/phoneshop\` to buy one.`);
+    const statusTier = _gst ? _gst(ph.status||0) : { label:'Unknown' };
+    const artistTier = _gat ? _gat(ph.artistCareer?.fame||0) : null;
+    const fmtF = (n) => n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':String(n);
+    return message.reply({ embeds:[new EmbedBuilder().setColor(0x9b59b6).setTitle('📱 Your Phone')
+      .addFields(
+        { name:'📱 Model',       value:ph.model||'Unknown',                    inline:true },
+        { name:'👥 Followers',   value:fmtF(ph.followers||0),                 inline:true },
+        { name:'⭐ Status',      value:statusTier.label||'Unknown',            inline:true },
+        ...(artistTier ? [{ name:'🎤 Artist Tier', value:artistTier.label||'Unknown', inline:true }] : []),
+        { name:'💰 Earnings',    value:`$${(ph.totalEarned||0).toLocaleString()}`, inline:true },
+      )
+      .setFooter({ text:'Use /phone post to post content · /phone stream to stream music' })] });
+  }
+
+  // ---- use — use an item from inventory ----
+  if (commandName === 'use' || commandName === 'useitem') {
+    if (needsAccount()) return;
+    const itemId = args[0]?.toLowerCase();
+    if (!itemId) {
+      const user3 = getOrCreateUser(message.author.id);
+      const inv3  = user3.inventory || [];
+      if (!inv3.length) return message.reply(`Your inventory is empty. Use \`${prefix}shop\` to buy items.`);
+      const store3 = getStore();
+      const counts3 = inv3.reduce((a,id3)=>{ a[id3]=(a[id3]||0)+1; return a; }, {});
+      const lines4 = Object.entries(counts3).map(([id3,cnt])=>{ const it3=store3.items.find(i=>i.id===id3); return `**${it3?it3.name:id3}** ×${cnt} — ID: \`${id3}\``; });
+      return message.reply({ embeds:[new EmbedBuilder().setColor(COLORS.SHOP).setTitle('🎒 Inventory — Use an item').setDescription(lines4.join('\n')).setFooter({text:`${prefix}use <item_id> to use`})] });
+    }
+    const store3 = getStore();
+    const item3  = store3.items.find(i => i.id === itemId || i.name.toLowerCase() === itemId);
+    if (!item3) return message.reply(`Item \`${itemId}\` not found. Use \`${prefix}use\` to see your inventory.`);
+    const user3 = getOrCreateUser(message.author.id);
+    const idx3  = (user3.inventory||[]).indexOf(item3.id);
+    if (idx3 === -1) return message.reply(`You don't have **${item3.name}** in your inventory.`);
+    // Delegate to slash command for items with complex effects
+    return message.reply(`Use \`/use item:${item3.id}\` — item effects (buffs, hacks, AI) require the slash command interface.`);
+  }
+
+  // ---- sell — redirect with helpful info ----
+  if (commandName === 'sell' || commandName === 'sellitem') {
+    return message.reply(`Usage: \`/sell @buyer <type> <price>\`\n\nUse the slash command — it has autocomplete for item selection. Types: \`item\`, \`gun\`, \`business\``);
+  }
+
+  // ---- give — redirect ----
+  if (commandName === 'give') {
+    return message.reply(`Use \`/give\` slash command — requires autocomplete for item selection.`);
   }
 
   // ---- pay ----
@@ -1505,23 +1718,58 @@ client.on('messageCreate', async (message) => {
     return message.reply({ embeds:[new EmbedBuilder().setColor(0x2ecc71).setTitle('💸 Payment Sent').setDescription(`You sent **$${amount.toLocaleString()}** to <@${target.id}>!`).addFields({ name:'Your Wallet', value:`$${sndr.wallet.toLocaleString()}`, inline:true },{ name:'Their Wallet', value:`$${rcvr.wallet.toLocaleString()}`, inline:true })] });
   }
 
-  // ---- wire / give / sell ----
-  if (['wire','give','sell'].includes(commandName)) {
-    return message.reply(`Use \`/${commandName}\` slash command — requires user mention autocomplete.`);
+  // ---- phish ----
+  if (commandName === 'phish') {
+    return message.reply(`Usage: \`/phish target:@user\` — phishing requires the slash command.`);
+  }
+
+  // ---- blacktea ----
+  if (commandName === 'blacktea' || commandName === 'bt' || commandName === 'wordgame') {
+    return message.reply(`Usage: \`/blacktea\` — starts a word game. Use the slash command to set lives and wager.`);
+  }
+
+  // ---- myrouting / laptop ----
+  if (commandName === 'myrouting' || commandName === 'routing' || commandName === 'myrn') {
+    if (needsAccount()) return;
+    const { routing } = require('./commands/economy/laptop.js');
+    return routing.execute({ user:message.author, guild:message.guild, reply:(o)=>message.reply(o), options:{ getString:()=>null } });
+  }
+  if (commandName === 'laptop') {
+    return message.reply(`Use \`/laptop\` slash command — app selection requires the slash command interface.`);
+  }
+
+  // ---- hack ----
+  if (commandName === 'hack') {
+    return message.reply(`Usage: \`/hack\` — hacking requires mode selection (bank/business/social) via slash command.`);
+  }
+
+  // ---- goons / goonattack / launder ----
+  if (['goons','goonroster','groster'].includes(commandName)) {
+    return message.reply(`Use \`/goons\` slash command — goon management requires subcommand selection.`);
+  }
+  if (commandName === 'goonattack' || commandName === 'sendgoons' || commandName === 'hit') {
+    if (needsAccount()) return;
+    const target = message.mentions.users.first();
+    if (!target) return message.reply(`Usage: \`${prefix}goonattack @user\``);
+    const { getGangByMember } = require('./utils/gangDb');
+    if (!getGangByMember(message.author.id)) return message.reply("You're not in a gang.");
+    return message.reply(`Use \`/goonattack\` slash command for the full attack UI.`);
+  }
+  if (commandName === 'launder' || commandName === 'wash') {
+    if (needsAccount()) return;
+    const cmd = require('./commands/gangs/launder.js');
+    if (cmd.executePrefix) return cmd.executePrefix(message, args);
+    return message.reply(`Use \`/launder\` slash command to launder dirty money.`);
+  }
+
+  // ---- phoneshop ----
+  if (commandName === 'phoneshop' || commandName === 'phones') {
+    const cmd = require('./commands/economy/phoneshop.js');
+    return cmd.executePrefix ? cmd.executePrefix(message, args) : message.reply('Use `/phoneshop` to browse phones.');
   }
 
   if (['coincreate','rugpull','coinrug','coinclose','coincontrol','coinpump','liquidate','coincollect'].includes(commandName)) {
-    const cmdMap = {
-      coincreate:  './commands/economy/coincreate.js',
-      rugpull:     './commands/economy/rugpull.js',
-      coinrug:     './commands/economy/rugpull.js',
-      coinclose:   './commands/economy/rugpull.js',
-      coincontrol: './commands/economy/coincontrol.js',
-      coinpump:    './commands/economy/coincontrol.js',
-      liquidate:   './commands/economy/liquidate.js',
-      coincollect: './commands/economy/liquidate.js',
-    };
-    return message.reply(`Use \`/${cmdMap[commandName] ? commandName : 'coincreate'}\` slash command — these commands require autocomplete to work properly.`);
+    return message.reply(`Use \`/${commandName}\` slash command — these commands require autocomplete to work properly.`);
   }
 
 });
