@@ -64,7 +64,7 @@ module.exports = {
   async execute(interaction) {
     const sub    = interaction.options.getSubcommand();
     const userId = interaction.user.id;
-    if (noAccount(userId)) return interaction.reply({ content:'No account. Use /start.', ephemeral:true });
+    if (await noAccount(interaction)) return;
 
     // ── LIST ─────────────────────────────────────────────────
     if (sub === 'list') {
