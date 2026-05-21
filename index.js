@@ -3092,14 +3092,19 @@ client.on('interactionCreate', async interaction => {
     org.vault += INITIATION_FEE;
     await saveIlluminati(guildId, org);
 
+    // Assign Illuminati role to new member
+    if (org.memberRoleId) {
+      const guild = client.guilds.cache.get(guildId);
+      if (guild) {
+        const guildMember = await guild.members.fetch(userId).catch(() => null);
+        if (guildMember) await guildMember.roles.add(org.memberRoleId).catch(() => null);
+      }
+    }
+
     await interaction.update({ embeds:[new EmbedBuilder()
       .setColor(0xf5c518)
       .setTitle('🔺 Welcome to the Order')
-      .setDescription(`You have been initiated. **$${INITIATION_FEE.toLocaleString()}** paid.
-
-Your rank: **${RANKS.initiate.label}**
-
-Use \`/illuminati status\` to view the order.`)
+      .setDescription(`You have been initiated. **$${INITIATION_FEE.toLocaleString()}** paid.\n\nYour rank: **${RANKS.initiate.label}**\n\nUse \`/illuminati status\` to view the order.\nUse \`/illuminatiops\` for member operations.`)
     ], components:[] });
 
   } else if (customId.startsWith('illum_decline_')) {
