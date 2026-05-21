@@ -2308,6 +2308,7 @@ async function refresh(){
   await loadAIEntities();
   await loadGunShop();
   await loadCustomCoins();
+  await loadBizStocks();
   await loadAuditLog();
   loadMoneyDropConfig(config);
 
@@ -4393,7 +4394,7 @@ async function loadDrugs() {
   const drugs = await api('GET', `/api/drugs?guildId=${GUILD}`).catch(()=>[]);
   const tb    = document.getElementById('drugs-tbody');
   if (!tb) return;
-  if (!drugs.length) { tb.innerHTML = '<tr><td colspan="6" class="empty-cell">No drugs defined yet. Add one above.</td></tr>'; return; }
+  if (!Array.isArray(drugs) || !drugs.length) { tb.innerHTML = '<tr><td colspan="6" class="empty-cell">No drugs defined yet. Add one above.</td></tr>'; return; }
   tb.innerHTML = drugs.map(d => `<tr>
     <td><span style="font-size:18px">${d.emoji||'💊'}</span> <strong>${d.name}</strong><div style="font-size:11px;color:var(--muted)">${d.description||''}</div></td>
     <td class="mono c-gold">$${(d.price||0).toLocaleString()}</td>
@@ -5531,6 +5532,7 @@ async function loadBizStocks() {
   tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">Loading...</td></tr>';
   try {
     const stocks = await fetch('/api/bizstocks').then(r => r.json());
+    if (!Array.isArray(stocks)) { tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">Failed to load — try refreshing the page.</td></tr>'; return; }
     if (!stocks.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No businesses exist yet.</td></tr>'; return; }
     const fmtP = p => p >= 1000 ? '$' + Math.round(p).toLocaleString() : p >= 1 ? '$' + p.toFixed(2) : '$' + p.toFixed(4);
     tbody.innerHTML = stocks
