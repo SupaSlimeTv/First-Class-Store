@@ -46,20 +46,24 @@ module.exports = {
       return interaction.respond([{ name:'No apps installed — use /laptop appstore first', value:'__none__' }]).catch(()=>null);
     }
 
-    // Inline hints so user knows exactly what to fill in
+    // Clear workflow hints for each app
     const NEEDS = {
-      ssn_scanner:    'target: @user  →  steals their SSN',
-      credit_cracker: 'target: @user  (scan them with SSN Scanner first)',
-      card_drainer:   'target: @user  (scan them with SSN Scanner first)',
-      biz_intrude:    'routing: <number>  +  action: check/withdraw/launder',
-      bank_mirror:    'routing: <number>  →  read-only bank view',
-      stalker_app:    'target: @user  →  full intel profile',
-      dark_search:    'routing: <number>  OR  target: @user',
-      home_hack:      'target: @user  →  disables their home security 30m',
-      keylogger:      '🔒 passive  —  +20% to all hack success rates',
-      vpn_shield:     '🔒 passive  —  reduces TOR trace risk',
-      launder_bot:    '🔒 passive  —  run to launder gang dirty money',
-      tor_browser:    '🔒 passive  —  run to check TOR protection status',
+      // ─── CREDIT FRAUD (do in order) ───────────────────────────
+      ssn_scanner:    '① CREDIT FRAUD step 1 — target:@user → steals their SSN & saves it',
+      credit_cracker: '② CREDIT FRAUD step 2 — target:@user → needs SSN on file (Scanner OR TOR buy)',
+      card_drainer:   '③ CREDIT FRAUD step 3 — target:@user → drains the card opened in step 2',
+      // ─── INTEL / SCOUTING ─────────────────────────────────────
+      stalker_app:    'INTEL — target:@user → full profile: wallet/bank/home/gang/credit/routing#',
+      keylogger:      'INTEL — NO inputs → shows your full stolen-SSN list (from Scanner + TOR buys)',
+      dark_search:    'INTEL — routing:<SSN or routing#> → search active TOR market listings',
+      // ─── BUSINESS HACKING ─────────────────────────────────────
+      biz_intrude:    'BIZ HACK — routing:<number> action:check/withdraw/launder',
+      bank_mirror:    'BIZ HACK — routing:<number> → read-only view of wallet/bank/biz balance',
+      home_hack:      'BREAK-IN PREP — target:@user → kills home security 30min, then use break-in-kit',
+      // ─── PASSIVE / UTILITY ────────────────────────────────────
+      vpn_shield:     'PASSIVE — NO inputs → shows your current TOR trace risk %',
+      launder_bot:    'PASSIVE — NO inputs → launders your gang dirty money at improved rate',
+      tor_browser:    'PASSIVE — NO inputs → TOR usage guide + trace risk',
     };
 
     const choices = apps.map(a => {
@@ -96,18 +100,29 @@ module.exports = {
       const appLines = apps.length
         ? apps.map(a => {
             const def = BUILTIN_APPS[a.id] || {};
-            return `${def.emoji||'📦'} **${def.name||a.id}** — Quality Tier ${a.quality||1} · *${(def.desc||a.desc||'').slice(0,80)}*`;
+            const pct = def.baseSuccess != null ? `${Math.min(95, def.baseSuccess + ((a.quality||1)-1)*5)}% success` : 'passive';
+            return `${def.emoji||'📦'} **${def.name||a.id}** (T${a.quality||1}) · ${pct}`;
           }).join('\n')
-        : '*No apps installed. Use `/laptop appstore` to browse and install apps.*';
-
-      const categories = [...new Set(apps.map(a => BUILTIN_APPS[a.id]?.category || 'other'))];
+        : '*None — use `/laptop appstore` to install apps.*';
 
       return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(0x00d2ff)
-        .setTitle(`💻 ${laptop.deviceName}`)
-        .setDescription(`**${apps.length}** app${apps.length !== 1 ? 's' : ''} installed · Capabilities: ${categories.length ? categories.join(', ') : 'none yet'}`)
-        .addFields({ name:'📱 Installed Apps', value:appLines.slice(0, 1020) || '—' })
-        .setFooter({ text:'/laptop appstore — install apps · /laptop run <app> — execute' })
+        .setTitle('💻 Laptop')
+        .addFields(
+          { name: '📋 How to Use — Credit Fraud', value:
+            '**①** `/laptop run` → **SSN Scanner** `target:@user` — steals their SSN\n' +
+            '**②** `/laptop run` → **Credit Cracker** `target:@user` — opens fraud card on SSN\n' +
+            '**③** `/laptop run` → **Card Drainer** `target:@user` — drains the opened card\n' +
+            '> *TOR buy counts as step ①. Run* **Keylogger** *to see who you bought SSNs on.*',
+            inline: false },
+          { name: '📋 How to Use — Business Hack', value:
+            '**①** Get a routing number from `/myrouting`, Stalker App, or Bank Mirror\n' +
+            '**②** `/laptop run` → **Biz Intruder** `routing:<number> action:check` — scout it\n' +
+            '**③** Same command with `action:withdraw` or `action:launder`',
+            inline: false },
+          { name: '📱 Installed Apps', value: appLines.slice(0, 1020) || '—', inline: false },
+        )
+        .setFooter({ text:'/laptop appstore — browse & install apps · /laptop run — execute an app' })
       ], ephemeral:true });
     }
 
@@ -292,7 +307,8 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         ], components:[] });
         const hc = await getOrCreateCredit(userId);
         if (!hc.ssnStolen?.[target.id]) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
-          .setDescription(`No SSN on file for <@${target.id}>.\n\nRun **SSN Scanner** on them first to capture their SSN.`)
+          .setTitle('❌ No SSN on File')
+          .setDescription(`No SSN on file for <@${target.id}>.\n\n**How to get their SSN:**\n• Run \`/laptop run SSN Scanner target:@${target.username}\` first\n• OR buy their SSN from \`/tor market\`\n\nAfter either method, run \`/laptop run Keylogger\` to see your full SSN vault with who you can target.`)
         ], components:[] });
         let victimId = target.id;
         const vc = await getOrCreateCredit(victimId);
@@ -522,19 +538,21 @@ Wallet: **$${user.wallet.toLocaleString()}**`)
         // Passive — buffs phishing/hacking success while installed
         // When run directly, shows current intercepts from any recent phishing
         const hc = await getOrCreateCredit(userId);
-        const intercepts = Object.entries(hc.ssnStolen || {}).slice(-5);
+        const allIntercepts = Object.entries(hc.ssnStolen || {});
 
-        if (!intercepts.length) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2c2c2c)
-          .setTitle('⌨️ Keylogger — No Intercepts')
-          .setDescription('No keystroke data captured yet.\n\nKeylogger passively boosts all phishing/hacking success by **+20%** while installed.')
+        if (!allIntercepts.length) return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2c2c2c)
+          .setTitle('⌨️ Stolen SSN Vault — Empty')
+          .setDescription('No SSNs on file yet.\n\n**How to get SSNs:**\n• `/laptop run SSN Scanner target:@user` — steal directly\n• `/tor buy` — purchase from the dark web market\n\n*Keylogger also passively boosts all hack success by +20% while installed.*')
         ], components:[] });
 
-        const lines = intercepts.map(([uid, d]) =>
-          `<@${uid}> — SSN: \`${d.ssn||'?'}\` · Score: **${d.score||'?'}**`
-        ).join('\n');
+        const lines = allIntercepts.slice(-10).map(([uid, d]) => {
+          const src = d.source === 'tor_market' ? '🌐 TOR buy' : '🪪 Scanned';
+          return `<@${uid}> — \`${d.ssn||'?'}\` · Score: **${d.score||'?'}** · ${src}`;
+        }).join('\n');
+
         return interaction.editReply({ embeds:[new EmbedBuilder().setColor(0x2c2c2c)
-          .setTitle('⌨️ Keylogger — Captured Credentials')
-          .setDescription(lines)
+          .setTitle('⌨️ Stolen SSN Vault')
+          .setDescription(`${lines}\n\n**Next step:** \`/laptop run Credit Cracker target:@user\` using any of the above users.`)
         ], components:[] });
       }
 
