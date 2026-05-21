@@ -1,7 +1,5 @@
 // ============================================================
 // commands/economy/voodoo.js — /voodoo
-// Voodoo ritual system. Commune with Lwa (spirits) for gain,
-// fame, and fortune — at your own risk and expense.
 // ============================================================
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getOrCreateUser, saveUser } = require('../../utils/db');
@@ -13,6 +11,26 @@ const fmtMoney = n => '$' + Math.round(n).toLocaleString();
 const VOODOO_COLOR   = 0x2c0a3f;
 const SUCCESS_COLOR  = 0x7c3aed;
 const FAILURE_COLOR  = 0x6b0000;
+const MASTER_COLOR   = 0xf5c518;
+
+const VOODOO_MASTER_THRESHOLD = 50;
+
+const MASTERY_TIERS = [
+  { min: 0,  label: 'Initiate',      emoji: '🕯️' },
+  { min: 10, label: 'Adept',         emoji: '🔮' },
+  { min: 25, label: 'Conjurer',      emoji: '🌑' },
+  { min: 50, label: 'Voodoo Master', emoji: '✨' },
+];
+
+function getMasteryTier(ritualCount) {
+  let tier = MASTERY_TIERS[0];
+  for (const t of MASTERY_TIERS) { if (ritualCount >= t.min) tier = t; }
+  return tier;
+}
+
+function isMaster(v) {
+  return (v?.ritualCount || 0) >= VOODOO_MASTER_THRESHOLD;
+}
 
 // ── LWA (spirits/deities) ────────────────────────────────────
 const LWA = {
@@ -138,7 +156,7 @@ module.exports = {
       .setDescription(`Begin your voodoo journey (one-time initiation — ${fmtMoney(INITIATION_COST)})`))
     .addSubcommand(s => s
       .setName('status')
-      .setDescription('View your voodoo standing, energy, and ritual history'))
+      .setDescription('View your voodoo standing, energy, mastery, and ritual history'))
     .addSubcommand(s => s
       .setName('ritual')
       .setDescription('Perform a ritual with a Lwa spirit')
@@ -156,7 +174,7 @@ module.exports = {
         ))
       .addUserOption(o => o
         .setName('target')
-        .setDescription('Target user (required for Maman Brigitte)')
+        .setDescription('Maman Brigitte: curse target. Voodoo Master: cast any ritual FOR someone (they get the payout)')
         .setRequired(false))),
 
   async execute(interaction) {
@@ -202,8 +220,11 @@ module.exports = {
           '🔑 **Papa Legba** — Crossroads & fate\n' +
           '🌿 **Ayizan** — Commerce & healing\n' +
           '🕯️ **Maman Brigitte** — Hex & justice *(requires a target)*\n\n' +
+          '**Mastery Path:**\n' +
+          '🕯️ Initiate (0) → 🔮 Adept (10) → 🌑 Conjurer (25) → ✨ **Voodoo Master (50)**\n\n' +
+          '*Reach **Voodoo Master** (50 rituals) to cast freely — no cost, 98% success, and the power to bless others.*\n\n' +
           'Use `/voodoo ritual deity:<spirit>` to perform a ritual.\n\n' +
-          '*Every ritual has a cost. Every spirit has a will. Results are never guaranteed.*'
+          '*Every ritual has a cost. Every spirit has a will. Results are never guaranteed — until you master them.*'
         )
         .setFooter({ text:'Starting voodoo energy: 10 ⚡' })
       ], ephemeral:true });
@@ -217,8 +238,17 @@ module.exports = {
         .setDescription('You have not been initiated into the voodoo arts.\n\nUse `/voodoo initiate` to begin your journey.')
       ], ephemeral:true });
 
-      const v = user.voodoo;
-      const now = Date.now();
+      const v       = user.voodoo;
+      const now     = Date.now();
+      const count   = v.ritualCount || 0;
+      const tier    = getMasteryTier(count);
+      const master  = count >= VOODOO_MASTER_THRESHOLD;
+
+      // Progress to next tier
+      const nextTier = MASTERY_TIERS.find(t => t.min > count);
+      const progressLine = master
+        ? '✨ **Voodoo Master** — Rituals cost nothing. Success guaranteed. Power over life and death.'
+        : `Progress to **${nextTier.emoji} ${nextTier.label}**: **${count} / ${nextTier.min}** rituals`;
 
       const cooldownLines = Object.entries(COOLDOWN_MS).map(([key, cd]) => {
         const lwa = LWA[key];
@@ -230,15 +260,20 @@ module.exports = {
         return `${lwa.emoji} **${lwa.name}** — ${status}`;
       }).join('\n');
 
+      const masterPerks = master
+        ? '\n\n✨ **MASTER PERKS ACTIVE**\n• All rituals are **FREE**\n• **98% success rate** on all Lwa\n• Cast any ritual **FOR others** — they receive the payout'
+        : '';
+
       return interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(VOODOO_COLOR)
-        .setTitle('🕯️ Voodoo Standing')
-        .setDescription(`*"The spirits remember every offering."*`)
+        .setColor(master ? MASTER_COLOR : VOODOO_COLOR)
+        .setTitle(`${tier.emoji} Voodoo Standing — ${tier.label}`)
+        .setDescription(`*"The spirits remember every offering."*${masterPerks}`)
         .addFields(
           { name:'⚡ Voodoo Energy',    value:`${v.energy || 0}`,     inline:true },
-          { name:'🔮 Rituals Performed', value:`${v.ritualCount || 0}`, inline:true },
+          { name:'🔮 Rituals Performed', value:`${count}`,             inline:true },
           { name:'📅 Initiated',         value:`<t:${Math.floor(v.initiatedAt/1000)}:D>`, inline:true },
-          { name:'🕯️ Ritual Cooldowns', value:cooldownLines, inline:false },
+          { name:'📈 Mastery Progress',  value:progressLine,           inline:false },
+          { name:'🕯️ Ritual Cooldowns', value:cooldownLines,          inline:false },
         )
       ], ephemeral:true });
     }
@@ -251,10 +286,14 @@ module.exports = {
         .setDescription('You must be initiated before communing with the Lwa.\n\nUse `/voodoo initiate` first.')
       ], ephemeral:true });
 
-      const deityKey = interaction.options.getString('deity');
-      const target   = interaction.options.getUser('target');
-      const lwa      = LWA[deityKey];
+      const deityKey    = interaction.options.getString('deity');
+      const target      = interaction.options.getUser('target');
+      const lwa         = LWA[deityKey];
       if (!lwa) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR).setDescription('Unknown spirit.')], ephemeral:true });
+
+      const v           = user.voodoo;
+      const master      = isMaster(v);
+      const castForOther = master && target && !lwa.requiresTarget && target.id !== userId;
 
       if (lwa.requiresTarget && !target) return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(COLORS.ERROR)
@@ -263,13 +302,15 @@ module.exports = {
       ], ephemeral:true });
 
       if (target?.id === userId) return interaction.reply({ embeds:[new EmbedBuilder()
-        .setColor(COLORS.ERROR).setDescription('You cannot hex yourself.')
+        .setColor(COLORS.ERROR).setDescription('You cannot target yourself.')
       ], ephemeral:true });
 
+      // Voodoo Masters can't cast for non-initiated? No restriction — bless anyone.
+
       // Check cooldown
-      const now       = Date.now();
-      const lastUsed  = user.voodoo.lastRituals?.[deityKey] || 0;
-      const cooldown  = COOLDOWN_MS[deityKey];
+      const now      = Date.now();
+      const lastUsed = v.lastRituals?.[deityKey] || 0;
+      const cooldown = COOLDOWN_MS[deityKey];
       if (now - lastUsed < cooldown) {
         const readyAt = Math.floor((lastUsed + cooldown) / 1000);
         return interaction.reply({ embeds:[new EmbedBuilder()
@@ -279,36 +320,40 @@ module.exports = {
         ], ephemeral:true });
       }
 
-      if (user.wallet < lwa.cost) return interaction.reply({ embeds:[new EmbedBuilder()
+      // Cost — free for masters
+      const cost = master ? 0 : lwa.cost;
+      if (cost > 0 && user.wallet < cost) return interaction.reply({ embeds:[new EmbedBuilder()
         .setColor(COLORS.ERROR)
-        .setDescription(`The **${lwa.ritual}** costs **${fmtMoney(lwa.cost)}**. You only have **${fmtMoney(user.wallet)}**.`)
+        .setDescription(`The **${lwa.ritual}** costs **${fmtMoney(cost)}**. You only have **${fmtMoney(user.wallet)}**.`)
       ], ephemeral:true });
 
       await interaction.deferReply({ ephemeral:true });
 
-      // Deduct ritual cost
-      user.wallet -= lwa.cost;
+      if (cost > 0) user.wallet -= cost;
 
-      // Roll the dice
-      const roll    = Math.random();
-      const success = roll < lwa.successChance;
+      // Success rate — 98% for masters, normal otherwise
+      const successChance = master ? 0.98 : lwa.successChance;
+      const success       = Math.random() < successChance;
 
-      if (!user.voodoo.lastRituals) user.voodoo.lastRituals = {};
-      user.voodoo.lastRituals[deityKey] = now;
-      user.voodoo.ritualCount = (user.voodoo.ritualCount || 0) + 1;
-      user.voodoo.energy      = Math.max(0, (user.voodoo.energy || 0) + (success ? 2 : -1));
+      if (!v.lastRituals) v.lastRituals = {};
+      v.lastRituals[deityKey] = now;
+      v.ritualCount           = (v.ritualCount || 0) + 1;
+      v.energy                = Math.max(0, (v.energy || 0) + (success ? 2 : -1));
+
+      const newTier     = getMasteryTier(v.ritualCount);
+      const justMastered = v.ritualCount === VOODOO_MASTER_THRESHOLD;
 
       if (success) {
         let payout = 0;
         let desc   = '';
 
         if (deityKey === 'maman_brigitte' && target) {
+          // Curse — drain target regardless of master status
           const targetUser = getOrCreateUser(target.id);
           payout = lwa.successPayout(targetUser.wallet || 0);
           if (payout > 0) {
             targetUser.wallet = Math.max(0, targetUser.wallet - payout);
             await saveUser(target.id, targetUser);
-            // DM the victim
             target.send({ embeds:[new EmbedBuilder()
               .setColor(FAILURE_COLOR)
               .setTitle('🕯️ You\'ve Been Hexed')
@@ -317,6 +362,21 @@ module.exports = {
           }
           user.wallet += payout;
           desc = lwa.successDesc(payout, target.id);
+
+        } else if (castForOther) {
+          // Master casting a blessing FOR another user
+          payout = lwa.successPayout();
+          const targetUser = getOrCreateUser(target.id);
+          targetUser.wallet += payout;
+          await saveUser(target.id, targetUser);
+          // Notify the recipient
+          target.send({ embeds:[new EmbedBuilder()
+            .setColor(SUCCESS_COLOR)
+            .setTitle(`${lwa.emoji} ${lwa.name} Has Blessed You`)
+            .setDescription(`A Voodoo Master (<@${userId}>) performed the **${lwa.ritual}** on your behalf.\n\n**${fmtMoney(payout)}** was sent to your wallet by the spirits.\n\n*"The Lwa have spoken."*`)
+          ]}).catch(() => null);
+          desc = `${lwa.successDesc(payout, null)}\n\n*Blessing directed to <@${target.id}> — **${fmtMoney(payout)}** sent to their wallet.*`;
+
         } else {
           payout = lwa.successPayout();
           user.wallet += payout;
@@ -324,33 +384,29 @@ module.exports = {
         }
 
         await saveUser(userId, user);
+
+        const masterUnlock = justMastered
+          ? '\n\n✨ **VOODOO MASTER ACHIEVED!** You have performed 50 rituals. All future rituals cost nothing, succeed 98% of the time, and you may now bless others by adding `target:@user` to any ritual.'
+          : '';
+
         return interaction.editReply({ embeds:[new EmbedBuilder()
-          .setColor(SUCCESS_COLOR)
-          .setTitle(lwa.successTitle)
+          .setColor(master ? MASTER_COLOR : SUCCESS_COLOR)
+          .setTitle(`${master ? '✨ ' : ''}${lwa.successTitle}`)
           .setDescription(
-            `*You lit the candles, poured the rum, and called the name.*\n\n` +
+            `*You ${master ? 'channel the spirits effortlessly' : 'lit the candles, poured the rum, and called the name'}.*\n\n` +
             desc +
-            `\n\n**Ritual:** ${lwa.ritual}\n**Cost:** ${fmtMoney(lwa.cost)} · **Earned:** +${fmtMoney(payout)}\n**Voodoo Energy:** ${user.voodoo.energy} ⚡`
+            `\n\n**Ritual:** ${lwa.ritual} · **Cost:** ${cost > 0 ? fmtMoney(cost) : '**FREE** ✨'}\n` +
+            `**Earned:** +${fmtMoney(payout)} · **Voodoo Energy:** ${v.energy} ⚡\n` +
+            `**Mastery:** ${newTier.emoji} ${newTier.label} (${v.ritualCount} rituals)` +
+            masterUnlock
           )
         ]});
+
       } else {
         // Failure
-        let drained = 0;
-        let desc    = '';
-
-        if (deityKey === 'maman_brigitte') {
-          drained = lwa.failureDrain(user.wallet);
-          user.wallet = Math.max(0, user.wallet - drained);
-          desc = lwa.failDesc(drained, null);
-        } else if (deityKey === 'baron_samedi') {
-          drained = lwa.failureDrain(user.wallet);
-          user.wallet = Math.max(0, user.wallet - drained);
-          desc = lwa.failDesc(drained, null);
-        } else {
-          drained = lwa.failureDrain(user.wallet);
-          user.wallet = Math.max(0, user.wallet - drained);
-          desc = lwa.failDesc(drained, null);
-        }
+        const drained = lwa.failureDrain(user.wallet);
+        user.wallet   = Math.max(0, user.wallet - drained);
+        const desc    = lwa.failDesc(drained, null);
 
         await saveUser(userId, user);
         return interaction.editReply({ embeds:[new EmbedBuilder()
@@ -359,7 +415,9 @@ module.exports = {
           .setDescription(
             `*You lit the candles, poured the rum, and called the name.*\n\n` +
             desc +
-            `\n\n**Ritual:** ${lwa.ritual}\n**Cost:** ${fmtMoney(lwa.cost)} · **Drained:** -${fmtMoney(drained)}\n**Voodoo Energy:** ${user.voodoo.energy} ⚡`
+            `\n\n**Ritual:** ${lwa.ritual} · **Cost:** ${cost > 0 ? fmtMoney(cost) : '**FREE** ✨'}\n` +
+            `**Drained:** -${fmtMoney(drained)} · **Voodoo Energy:** ${v.energy} ⚡\n` +
+            `**Mastery:** ${newTier.emoji} ${newTier.label} (${v.ritualCount} rituals)`
           )
         ]});
       }
