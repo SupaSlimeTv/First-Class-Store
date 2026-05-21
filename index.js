@@ -2847,7 +2847,8 @@ client.on('interactionCreate', async interaction => {
       !customId.startsWith('illum_pay_tribute_') && !customId.startsWith('illum_refuse_tribute_') &&
       !customId.startsWith('illum_soul_') && !customId.startsWith('illum_soul_decline_') &&
       !customId.startsWith('illum_dark_accept_') && !customId.startsWith('illum_dark_refuse_') &&
-      !customId.startsWith('illum_sacrifice_pay_') && !customId.startsWith('illum_sacrifice_refuse_')) return;
+      !customId.startsWith('illum_sacrifice_pay_') && !customId.startsWith('illum_sacrifice_refuse_') &&
+      !customId.startsWith('illum_puppet_')) return;
 
   const { EmbedBuilder } = require('discord.js');
   const { getOrCreateIlluminati, saveIlluminati, isMember, INITIATION_FEE, RANKS } = require('./utils/illuminatiDb');
@@ -2892,6 +2893,47 @@ client.on('interactionCreate', async interaction => {
   if (customId.startsWith('illum_soul_decline_')) {
     return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888)
       .setDescription('You walked away. The door closes.')
+    ], components:[] });
+  }
+
+  // ── PUPPET SOUL SELL ──────────────────────────────────────
+  if (customId.startsWith('illum_puppet_')) {
+    const parts   = customId.split('_');
+    const guildId = parts[2];
+    const srcId   = parts[3];
+    if (userId !== srcId) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('This offer was not meant for you.')], ephemeral:true });
+
+    const org = getOrCreateIlluminati(guildId);
+    if ((org.puppets||[]).some(p => p.userId === userId)) {
+      return interaction.update({ embeds:[new EmbedBuilder().setColor(0x888888).setDescription('Your soul is already bound to the order.')], components:[] });
+    }
+
+    const user = getOrCreateUser(userId);
+    const cost = Math.max(5000, Math.floor(user.wallet * 0.30));
+    if (user.wallet < cost) return interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0xff3b3b).setDescription(`You need **${('$' + cost.toLocaleString())}** to sell your soul. You only have **$${user.wallet.toLocaleString()}** — earn more first.`)
+    ], components:[] });
+
+    user.wallet -= cost;
+    saveUser(userId, user);
+
+    if (!org.puppets) org.puppets = [];
+    org.puppets.push({ userId, soldAt: Date.now(), cost });
+    org.vault += cost;
+    if (!org.operations) org.operations = [];
+    org.operations.push({ type:'puppet_soul_sold', by:userId, at:Date.now() });
+    await saveIlluminati(guildId, org);
+
+    return interaction.update({ embeds:[new EmbedBuilder()
+      .setColor(0x1a1a2e)
+      .setTitle('⛓️ You Are Now a Puppet')
+      .setDescription(
+        `**$${cost.toLocaleString()}** has been taken and deposited into the vault.\n\n` +
+        'Your soul is bound. You exist below the entire order.\n\n' +
+        '⚡ Grandmaster\n💎 Elder\n👁️ Operative\n🔺 Initiate\n**⛓️ You — Puppet**\n\n' +
+        'You can be drained during Soul Harvest rituals. You have no rank, no vote, no protection.\n\n' +
+        '*Use `/illuminati status` to see the order above you.*'
+      )
     ], components:[] });
   }
 

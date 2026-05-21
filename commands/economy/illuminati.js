@@ -413,20 +413,34 @@ module.exports = {
 
       const isMem = isMember(guildId, userId);
       const myRank= getMember(guildId, userId);
+      const isPuppetUser = (org.puppets||[]).some(p => p.userId === userId);
 
       // Members see full list, non-members see only count if not exposed
       const exposed = org.exposed;
       let memberList = '';
 
       if (isMem || exposed) {
-        memberList = org.members.map(m => {
-          const faction = m.faction ? ILLUMINATI_FACTIONS[m.faction] : null;
-          const factionTag = faction ? ` ${faction.emoji}` : '';
-          const ritualCount = m.rituals ? m.rituals.length : 0;
-          return `${RANKS[m.rank]?.label||'🔺'}${factionTag} <@${m.userId}>${m.soulSold ? ' 🖤' : ''} — ${ritualCount} rituals — contributed ${fmtMoney(m.contribution||0)}`;
-        }).join('\n') || 'None';
+        // Group by rank for hierarchy display
+        const byRank = { grandmaster:[], elder:[], operative:[], initiate:[] };
+        org.members.forEach(m => { (byRank[m.rank] || byRank.initiate).push(m); });
+        const rankLines = [
+          { key:'grandmaster', label:'⚡ Grandmaster' },
+          { key:'elder',       label:'💎 Elder' },
+          { key:'operative',   label:'👁️ Operative' },
+          { key:'initiate',    label:'🔺 Initiate' },
+        ].filter(r => byRank[r.key].length).map(r =>
+          `**${r.label}**\n` + byRank[r.key].map(m => {
+            const f = m.faction ? ILLUMINATI_FACTIONS[m.faction] : null;
+            return `  ${f ? f.emoji : ''}  <@${m.userId}>${m.soulSold ? ' 🖤' : ''} · ${fmtMoney(m.contribution||0)} contrib`;
+          }).join('\n')
+        );
+        const puppets = (org.puppets||[]);
+        if (puppets.length) {
+          rankLines.push(`**⛓️ Puppets** *(soul-sold outsiders)*\n` + puppets.map(p => `  ⛓️ <@${p.userId}>`).join('\n'));
+        }
+        memberList = rankLines.join('\n\n') || 'None';
       } else {
-        memberList = `**${org.members.length}** members *(identities hidden)*`;
+        memberList = `**${org.members.length}** members · **${(org.puppets||[]).length}** puppets *(identities hidden)*`;
       }
 
       // Faction breakdown
@@ -453,7 +467,11 @@ module.exports = {
 
       const soulDesc = myMember?.soulSold
         ? `Your rank: **${RANKS[myMember.rank]?.label}**\n\n🖤 **Your soul is owned.** The Illuminati has complete control over you.`
-        : myMember ? `Your rank: **${RANKS[myMember.rank]?.label}**${myAgeStr ? ` · 📅 ${myAgeStr}` : ''}${myPathInfo ? ` · ${myPathInfo}` : ''}` : null;
+        : myMember
+          ? `Your rank: **${RANKS[myMember.rank]?.label}**${myAgeStr ? ` · 📅 ${myAgeStr}` : ''}${myPathInfo ? ` · ${myPathInfo}` : ''}`
+          : isPuppetUser
+            ? `**⛓️ Puppet** — soul-sold outsider\n\nYou serve below the order. No rank, no voice, no protection.\nThe Illuminati can drain you at any time via Soul Harvest.`
+            : null;
 
       const embed = new EmbedBuilder()
         .setColor(isMem ? GOLD_COLOR : ILLUM_COLOR)
@@ -795,24 +813,29 @@ module.exports = {
 
         if (ritualName === 'soul_harvest') {
           const soulSoldMembers = org.members.filter(m => m.soulSold);
-          if (!soulSoldMembers.length) {
-            effectDesc += '\n• No soul-sold members found — the harvest yielded nothing';
+          const puppetList = org.puppets || [];
+          const allTargets = [
+            ...soulSoldMembers.map(m => ({ uid: m.userId, label: '🔺 Member (soul sold)' })),
+            ...puppetList.map(p => ({ uid: p.userId, label: '⛓️ Puppet' })),
+          ];
+          if (!allTargets.length) {
+            effectDesc += '\n• No soul-sold members or puppets — the harvest yielded nothing';
           } else {
             let harvested = 0;
-            for (const m of soulSoldMembers) {
-              const u = getOrCreateUser(m.userId);
+            for (const t of allTargets) {
+              const u = getOrCreateUser(t.uid);
               const take = Math.floor((u.wallet||0) * 0.20);
               if (take > 0) {
                 u.wallet -= take; org.vault += take; harvested += take;
-                saveUser(m.userId, u);
-                interaction.client.users.fetch(m.userId).then(u2 => u2.send({ embeds:[new EmbedBuilder()
+                saveUser(t.uid, u);
+                interaction.client.users.fetch(t.uid).then(u2 => u2.send({ embeds:[new EmbedBuilder()
                   .setColor(0x1a0000)
                   .setTitle('💀 Soul Harvest')
-                  .setDescription(`The Illuminati has collected on your debt.\n\n**${fmtMoney(take)}** extracted.\n\n*A soul-sold life has a price.*`)
+                  .setDescription(`The Illuminati has collected on your soul debt.\n\n**${fmtMoney(take)}** extracted from your wallet.\n\n*${t.label} — you had no choice.*`)
                 ]}).catch(()=>null)).catch(()=>null);
               }
             }
-            effectDesc += `\n• **${fmtMoney(harvested)}** harvested from **${soulSoldMembers.length}** soul-sold members`;
+            effectDesc += `\n• **${fmtMoney(harvested)}** harvested from **${soulSoldMembers.length}** member(s) + **${puppetList.length}** puppet(s)`;
           }
         }
 
@@ -2054,6 +2077,11 @@ Vault: **${fmtMoney(org.vault)}**`)
       if (isMember(guildId, userId)) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
         .setDescription('You are already a member of the Illuminati.')
       ], ephemeral:true });
+      const alreadyPuppet = (org.puppets||[]).some(p => p.userId === userId);
+      if (alreadyPuppet) return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x1a1a2e)
+        .setTitle('⛓️ Already Bound')
+        .setDescription('Your soul already belongs to the Illuminati.\n\nYou are a puppet. You have no rank, no voice — only obligation.\n\nUse `/illuminati status` to see the order above you.')
+      ], ephemeral:true });
       if (org.members.length >= MAX_MEMBERS) return interaction.reply({ embeds:[new EmbedBuilder().setColor(COLORS.ERROR)
         .setDescription('The order is full. Wait for a seat to open.')
       ], ephemeral:true });
@@ -2087,36 +2115,42 @@ Vault: **${fmtMoney(org.vault)}**`)
         status >= 25000
       );
 
+      const user2 = getOrCreateUser(userId);
+      const puppetCost = Math.max(5000, Math.floor(user2.wallet * 0.30));
+
       if (!meetsFullReqs && !meetsFamePath) {
-        const powerMissing = [
-          wealth < 500000    ? `💰 Need $${(500000-wealth).toLocaleString()} more total wealth` : null,
-          status < 50        ? `🏆 Need ${50-status} more status points` : null,
-          (biz?.level||0)<5  ? `🏢 Business needs ${5-(biz?.level||0)} more levels` : null,
-          home?.tier!=='estate' ? '🏰 Need an Estate home' : null,
-        ].filter(Boolean);
-
-        const fameMissing = [
-          fame < 10000       ? `🎵 Need ${(10000-fame).toLocaleString()} more artist fame (have ${fame.toLocaleString()})` : null,
-          followers < 1000000 ? `👥 Need ${(1000000-followers).toLocaleString()} more followers (have ${followers.toLocaleString()})` : null,
-          status < 25000     ? `⭐ Need ${(25000-status).toLocaleString()} more status for Superstar (have ${status.toLocaleString()})` : null,
-        ].filter(Boolean);
-
-        return interaction.reply({ embeds:[new EmbedBuilder().setColor(0x1a1a2e)
-          .setTitle('🖤 The Illuminati Will Not Accept You')
+        // Not worthy of membership — offer the puppet path
+        const rowPuppet = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`illum_puppet_${guildId}_${userId}`).setLabel(`⛓️ Sell my soul (${fmtMoney(puppetCost)})`).setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId(`illum_soul_decline_${guildId}`).setLabel('Walk Away').setStyle(ButtonStyle.Secondary),
+        );
+        return interaction.reply({ embeds:[new EmbedBuilder()
+          .setColor(0x1a1a2e)
+          .setTitle('⛓️ The Illuminati Has a Place for You')
           .setDescription(
-            'You must prove yourself through **Power** or **Fame**.\n\n' +
-            '**Path 1 — Power** *(all required)*:\n' +
-            powerMissing.map(m => '• ' + m).join('\n') +
-            '\n\n**Path 2 — Fame** *(any one)*:\n' +
-            fameMissing.map(m => '• ' + m).join('\n')
+            'You don\'t qualify for membership — but you can still pledge your soul.\n\n' +
+            '**⛓️ Become a Puppet**\n' +
+            'Soul-sold outsiders exist below the order.\n' +
+            'No rank. No vote. No protection. Only **obligation**.\n\n' +
+            '**What being a puppet means:**\n' +
+            '• The order can drain you at any time (Soul Harvest ritual)\n' +
+            '• You are listed below every initiate, operative, elder, and grandmaster\n' +
+            '• You cannot rise in rank unless you are invited in later\n' +
+            '• Your soul is **permanent collateral** — no escape\n\n' +
+            `*Cost: **${fmtMoney(puppetCost)}** (30% of your wallet) paid into the vault.*\n\n` +
+            '**To join as a full member, you need:**\n' +
+            '• 💰 $500k wealth + 🏰 Estate + 🏢 Biz Lv5 + 50 status *(Power path)*\n' +
+            '• OR 🎵 10K artist fame · 👥 1M followers · ⭐ 25K status *(Fame path)*'
           )
-        ], ephemeral:true });
+          .setFooter({ text:'Once bound, there is no escape.' })
+        ], components:[rowPuppet], ephemeral:true });
       }
 
       const pathUsed = meetsFullReqs ? '💎 Power' : '🎵 Fame';
       const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`illum_soul_${guildId}_${userId}`).setLabel('🖤 I sell my soul').setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(`illum_soul_decline_${guildId}`).setLabel('Walk Away').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`illum_soul_${guildId}_${userId}`).setLabel('🖤 Join as Initiate (soul sold)').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`illum_puppet_${guildId}_${userId}`).setLabel(`⛓️ Puppet instead (${fmtMoney(puppetCost)})`).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`illum_soul_decline_${guildId}`).setLabel('Walk Away').setStyle(ButtonStyle.Primary),
       );
 
       return interaction.reply({ embeds:[new EmbedBuilder()
@@ -2124,15 +2158,14 @@ Vault: **${fmtMoney(org.vault)}**`)
         .setTitle('🖤 The Illuminati Extends Its Hand')
         .setDescription(
           'You have proven yourself worthy through the **' + pathUsed + ' Path**.\n\n' +
-          'But nothing comes free.\n\n' +
-          '**By selling your soul, you agree:**\n' +
-          '• The Illuminati has **complete control** over your operations\n' +
-          '• You can be **silenced, extorted, or sacrificed** at any time\n' +
-          '• Your businesses, label, and assets are subject to **Illuminati override**\n' +
-          '• You may be **forced** to sign artists, pay tribute, or carry out operations\n' +
-          '• Leaving means **losing everything** — wallet drained on exit\n' +
-          '• There is **no escape** without Grandmaster approval\n\n' +
-          '*Initiation fee: **' + fmtMoney(INITIATION_FEE) + '** from your wallet.*\n\n' +
+          'The order offers you full membership — or you may serve as a puppet below.\n\n' +
+          '**🖤 Join as Initiate** *(full member — soul sold)*\n' +
+          '• Costs **' + fmtMoney(INITIATION_FEE) + '** · Rank: 🔺 Initiate\n' +
+          '• Access to operations, rituals, and faction\n' +
+          '• Subject to complete Illuminati control forever\n\n' +
+          '**⛓️ Become a Puppet** *(soul sold — no rank)*\n' +
+          `• Costs **${fmtMoney(puppetCost)}** (30% of wallet) · Below initiates\n` +
+          '• Drained by Soul Harvest. No perks. No voice.\n\n' +
           '**You have 5 minutes to decide.**'
         )
         .setFooter({ text:'Once you sign, the order owns you.' })
