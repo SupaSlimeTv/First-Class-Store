@@ -2294,9 +2294,9 @@ async function refresh(){
   ]);
   S={...S,stats,store:store.items||[],purgeActive:config.purgeActive,effects};
   renderStats();renderStore();renderPurge();renderEffects();
+  await loadGuildRoles();      // must run first — populates role dropdowns used by everything below
   await loadRoleIncome();
   await loadProtectedRoles();
-  await loadGuildRoles();
   await loadLottery();
   await loadBusinesses();
   await loadGangs();
@@ -5638,10 +5638,21 @@ async function safeRefresh() {
 async function manualRefresh() {
   const btn = document.querySelector('[onclick="manualRefresh()"]');
   if (btn) { btn.textContent = '⟳ Syncing...'; btn.disabled = true; }
-  await safeRefresh();
-  if (btn) {
-    btn.textContent = '✓ Synced';
-    setTimeout(() => { btn.textContent = '⟳ Sync'; btn.disabled = false; }, 1500);
+  // Bypass the modal-open guard — user explicitly requested a sync
+  try {
+    await refresh();
+    setStatus('online');
+    if (btn) {
+      btn.textContent = '✓ Synced';
+      setTimeout(() => { btn.textContent = '⟳ Sync'; btn.disabled = false; }, 1500);
+    }
+  } catch(e) {
+    console.error(e);
+    setStatus(e.message?.includes('fetch') ? 'offline' : 'error');
+    if (btn) {
+      btn.textContent = '✗ Failed';
+      setTimeout(() => { btn.textContent = '⟳ Sync'; btn.disabled = false; }, 2000);
+    }
   }
 }
 
