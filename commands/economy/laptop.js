@@ -27,7 +27,7 @@ module.exports = {
     .addSubcommand(s => s.setName('run').setDescription('Run an installed app')
       .addStringOption(o => o.setName('app').setDescription('App to run').setRequired(true).setAutocomplete(true))
       .addUserOption(o => o.setName('target').setDescription('Target user (SSN Scanner, Card Drainer, Stalker, HomeHack, Voter Suppress, Blacksite Op)').setRequired(false))
-      .addStringOption(o => o.setName('routing').setDescription('🏦 Biz Intruder/Bank Mirror: routing# · Credit Cracker: enter the actual SSN number here (from Keylogger)').setRequired(false))
+      .addStringOption(o => o.setName('routing').setDescription('Routing# (Biz Intruder/Bank Mirror) OR SSN number (Credit Cracker — get from Keylogger)').setRequired(false))
       .addStringOption(o => o.setName('action').setDescription('⚡ Biz Intruder only — what to do once inside').setRequired(false)
         .addChoices(
           { name:'📊 Check Balances — see revenue & dirty money', value:'check' },
