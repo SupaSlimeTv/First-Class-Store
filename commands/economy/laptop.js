@@ -26,7 +26,7 @@ module.exports = {
     .addSubcommand(s => s.setName('appstore').setDescription('Browse and install apps from your item inventory'))
     .addSubcommand(s => s.setName('run').setDescription('Run an installed app')
       .addStringOption(o => o.setName('app').setDescription('App to run — autocomplete shows exactly what each app needs').setRequired(true).setAutocomplete(true))
-      .addUserOption(o => o.setName('target').setDescription('👤 INTEL/FRAUD/BREAK-IN apps — Stalker, SSN Scanner, Card Drainer, HomeHack, Voter Suppress, Blacksite').setRequired(false))
+      .addUserOption(o => o.setName('target').setDescription('👤 Target user — Stalker, SSN Scanner, Card Drainer, HomeHack, Voter Suppress, Blacksite Op').setRequired(false))
       .addStringOption(o => o.setName('routing').setDescription('🔢 BIZ/CRACK apps ONLY — routing# for Biz Intruder/Bank Mirror · SSN# for Credit Cracker/Dark Search').setRequired(false))
       .addStringOption(o => o.setName('action').setDescription('⚡ Biz Intruder ONLY — what to do once inside (ignore for all other apps)').setRequired(false)
         .addChoices(
